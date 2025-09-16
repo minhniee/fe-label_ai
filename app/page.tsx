@@ -187,6 +187,17 @@ export default function LoginPage() {
                 Quên mật khẩu?
               </Link>
             </div>
+            <div className="mt-2 text-center">
+              <p className="text-sm text-muted-foreground">
+                Chưa có tài khoản?{" "}
+                <Link
+                  href="/register"
+                  className="text-primary hover:text-primary/80 underline-offset-4 hover:underline"
+                >
+                  Đăng ký ngay
+                </Link>
+              </p>
+            </div>
           </CardContent>
         </Card>
 
