@@ -7,22 +7,26 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Eye, EyeOff, GraduationCap, ArrowLeft } from "lucide-react"
+import { Eye, EyeOff, GraduationCap, ArrowLeft, CheckCircle } from "lucide-react"
 import Link from "next/link"
+import { registerUser, loginUser, persistAuth } from "@/api/auth"
 
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [isNameFocused, setIsNameFocused] = useState(false)
+  const [isEmailFocused, setIsEmailFocused] = useState(false)
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false)
+  const [isConfirmFocused, setIsConfirmFocused] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     password: "",
     confirmPassword: "",
-    role: "",
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [serverError, setServerError] = useState("")
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -35,20 +39,35 @@ export default function RegisterPage() {
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
 
-    if (!formData.name.trim()) {
-      newErrors.name = "Họ và tên là bắt buộc"
+    const usernameVal = formData.name.trim()
+    if (!usernameVal) {
+      newErrors.name = "Username là bắt buộc"
+    } else if (usernameVal.length < 3) {
+      newErrors.name = "Username phải có ít nhất 3 ký tự"
+    } else if (usernameVal.length > 50) {
+      newErrors.name = "Username phải nhỏ hơn 50 ký tự"
     }
 
-    if (!formData.email.trim()) {
+    const emailVal = formData.email.trim()
+    if (!emailVal) {
       newErrors.email = "Email là bắt buộc"
-    } else if (!formData.email.includes("@fpt.edu.vn")) {
-      newErrors.email = "Email phải có đuôi @fpt.edu.vn"
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal)) {
+      newErrors.email = "Email không hợp lệ"
     }
 
+    // Mirror backend password strength rules
     if (!formData.password) {
       newErrors.password = "Mật khẩu là bắt buộc"
-    } else if (formData.password.length < 6) {
-      newErrors.password = "Mật khẩu phải có ít nhất 6 ký tự"
+    } else if (formData.password.length < 8) {
+      newErrors.password = "Mật khẩu phải có ít nhất 8 ký tự"
+    } else if (!/[A-Z]/.test(formData.password)) {
+      newErrors.password = "Mật khẩu phải có ít nhất 1 chữ hoa"
+    } else if (!/[a-z]/.test(formData.password)) {
+      newErrors.password = "Mật khẩu phải có ít nhất 1 chữ thường"
+    } else if (!/[0-9]/.test(formData.password)) {
+      newErrors.password = "Mật khẩu phải có ít nhất 1 chữ số"
+    } else if (!/[!@#$%^&*()_+\-=[\]{}|;:,.<>?]/.test(formData.password)) {
+      newErrors.password = "Mật khẩu phải có ít nhất 1 ký tự đặc biệt"
     }
 
     if (!formData.confirmPassword) {
@@ -57,13 +76,27 @@ export default function RegisterPage() {
       newErrors.confirmPassword = "Mật khẩu xác nhận không khớp"
     }
 
-    if (!formData.role) {
-      newErrors.role = "Vui lòng chọn vai trò"
-    }
-
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
+
+  // Realtime validation flags for UX hints and green checks
+  const usernameVal = formData.name.trim()
+  const isUsernameValid = usernameVal.length >= 3 && usernameVal.length <= 50
+
+  const emailVal = formData.email.trim()
+  const emailHasAt = emailVal.includes("@")
+  const isEmailValid = emailVal.length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal)
+
+  const pwd = formData.password
+  const pwdLen = pwd.length >= 8
+  const pwdUpper = /[A-Z]/.test(pwd)
+  const pwdLower = /[a-z]/.test(pwd)
+  const pwdDigit = /[0-9]/.test(pwd)
+  const pwdSpecial = /[!@#$%^&*()_+\-=[\]{}|;:,.<>?]/.test(pwd)
+  const isPasswordValid = pwdLen && pwdUpper && pwdLower && pwdDigit && pwdSpecial
+
+  const isConfirmValid = formData.confirmPassword.length > 0 && formData.confirmPassword === formData.password
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -73,22 +106,29 @@ export default function RegisterPage() {
     }
 
     setIsSubmitting(true)
+    setServerError("")
 
-    // Simulate API call
-    setTimeout(() => {
-      // In a real app, you would send this to your backend
-      console.log("Registration data:", {
-        name: formData.name,
+    try {
+      const username = formData.name.trim()
+
+      await registerUser({
+        username,
         email: formData.email,
-        role: formData.role,
+        password: formData.password,
+        confirm_password: formData.confirmPassword,
       })
 
-      // For demo purposes, show success and redirect
-      alert("Đăng ký thành công! Vui lòng đăng nhập.")
-      window.location.href = "/"
+      // 2) Auto-login
+      const loginData = await loginUser(formData.email, formData.password)
+      persistAuth(loginData)
 
+      // Redirect to dashboard after successful login
+      window.location.href = "/dashboard"
+    } catch (err: any) {
+      setServerError(err?.message || "Có lỗi xảy ra. Vui lòng thử lại.")
+    } finally {
       setIsSubmitting(false)
-    }, 1500)
+    }
   }
 
   return (
@@ -123,50 +163,79 @@ export default function RegisterPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {serverError && (
+                <p className="text-sm text-destructive">{serverError}</p>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="name" className="text-card-foreground">
-                  Họ và tên
+                  Username
                 </Label>
-                <Input
-                  id="name"
-                  type="text"
-                  placeholder="Nguyễn Văn A"
-                  value={formData.name}
-                  onChange={(e) => handleInputChange("name", e.target.value)}
-                  className="bg-input border-border focus:ring-primary"
-                />
-                {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
+                <div className="relative">
+                  <Input
+                    id="name"
+                    type="text"
+                    placeholder="your_username"
+                    value={formData.name}
+                    onChange={(e) => handleInputChange("name", e.target.value)}
+                    onFocus={() => setIsNameFocused(true)}
+                    onBlur={() => setIsNameFocused(false)}
+                    className="bg-input border-border focus:ring-primary pl-10"
+                  />
+                  {isUsernameValid && (
+                    <CheckCircle className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-500" />
+                  )}
+                </div>
+                {isNameFocused && (
+                  <div className="space-y-1">
+                    <p className={`text-xs ${isUsernameValid ? "text-emerald-500" : "text-muted-foreground"}`}>
+                      <span className="inline-flex items-center gap-1">
+                        <CheckCircle className={`h-3 w-3 ${isUsernameValid ? "text-emerald-500" : "text-muted-foreground"}`} />
+                        3 - 50 ký tự
+                      </span>
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-card-foreground">
                   Email
                 </Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="your.name@fpt.edu.vn"
-                  value={formData.email}
-                  onChange={(e) => handleInputChange("email", e.target.value)}
-                  className="bg-input border-border focus:ring-primary"
-                />
-                {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
+                <div className="relative">
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="your.email@example.com"
+                    value={formData.email}
+                    onChange={(e) => handleInputChange("email", e.target.value)}
+                    onFocus={() => setIsEmailFocused(true)}
+                    onBlur={() => setIsEmailFocused(false)}
+                    className="bg-input border-border focus:ring-primary pl-10"
+                  />
+                  {isEmailValid && (
+                    <CheckCircle className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-500" />
+                  )}
+                </div>
+                {isEmailFocused && (
+                  <div className="space-y-1">
+                    <p className={`text-xs ${emailHasAt ? "text-emerald-500" : "text-muted-foreground"}`}>
+                      <span className="inline-flex items-center gap-1">
+                        <CheckCircle className={`h-3 w-3 ${emailHasAt ? "text-emerald-500" : "text-muted-foreground"}`} />
+                        Email phải có ký tự @
+                      </span>
+                    </p>
+                    <p className={`text-xs ${isEmailValid ? "text-emerald-500" : "text-muted-foreground"}`}>
+                      <span className="inline-flex items-center gap-1">
+                        <CheckCircle className={`h-3 w-3 ${isEmailValid ? "text-emerald-500" : "text-muted-foreground"}`} />
+                        Định dạng email hợp lệ
+                      </span>
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="role" className="text-card-foreground">
-                  Vai trò
-                </Label>
-                <Select value={formData.role} onValueChange={(value) => handleInputChange("role", value)}>
-                  <SelectTrigger className="bg-input border-border focus:ring-primary">
-                    <SelectValue placeholder="Chọn vai trò của bạn" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="labeler">Labeler - Người gán nhãn</SelectItem>
-                    <SelectItem value="senior_labeler">Senior Labeler - Người gán nhãn cấp cao</SelectItem>
-                  </SelectContent>
-                </Select>
-                {errors.role && <p className="text-sm text-destructive">{errors.role}</p>}
+                {/* Role selection removed. Backend defaults to Labeler. */}
               </div>
 
               <div className="space-y-2">
@@ -177,11 +246,16 @@ export default function RegisterPage() {
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="Nhập mật khẩu (ít nhất 6 ký tự)"
+                    placeholder="Nhập mật khẩu"
                     value={formData.password}
                     onChange={(e) => handleInputChange("password", e.target.value)}
-                    className="bg-input border-border focus:ring-primary pr-10"
+                    onFocus={() => setIsPasswordFocused(true)}
+                    onBlur={() => setIsPasswordFocused(false)}
+                    className="bg-input border-border focus:ring-primary pr-10 pl-10"
                   />
+                  {isPasswordValid && (
+                    <CheckCircle className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-500" />
+                  )}
                   <Button
                     type="button"
                     variant="ghost"
@@ -196,7 +270,40 @@ export default function RegisterPage() {
                     )}
                   </Button>
                 </div>
-                {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+                {isPasswordFocused && (
+                  <div className="grid grid-cols-1 gap-1 text-xs">
+                    <p className={` ${pwdLen ? "text-emerald-500" : "text-muted-foreground"}`}>
+                      <span className="inline-flex items-center gap-1">
+                        <CheckCircle className={`h-3 w-3 ${pwdLen ? "text-emerald-500" : "text-muted-foreground"}`} />
+                        Ít nhất 8 ký tự
+                      </span>
+                    </p>
+                    <p className={` ${pwdUpper ? "text-emerald-500" : "text-muted-foreground"}`}>
+                      <span className="inline-flex items-center gap-1">
+                        <CheckCircle className={`h-3 w-3 ${pwdUpper ? "text-emerald-500" : "text-muted-foreground"}`} />
+                        Có chữ hoa
+                      </span>
+                    </p>
+                    <p className={` ${pwdLower ? "text-emerald-500" : "text-muted-foreground"}`}>
+                      <span className="inline-flex items-center gap-1">
+                        <CheckCircle className={`h-3 w-3 ${pwdLower ? "text-emerald-500" : "text-muted-foreground"}`} />
+                        Có chữ thường
+                      </span>
+                    </p>
+                    <p className={` ${pwdDigit ? "text-emerald-500" : "text-muted-foreground"}`}>
+                      <span className="inline-flex items-center gap-1">
+                        <CheckCircle className={`h-3 w-3 ${pwdDigit ? "text-emerald-500" : "text-muted-foreground"}`} />
+                        Có chữ số
+                      </span>
+                    </p>
+                    <p className={` ${pwdSpecial ? "text-emerald-500" : "text-muted-foreground"}`}>
+                      <span className="inline-flex items-center gap-1">
+                        <CheckCircle className={`h-3 w-3 ${pwdSpecial ? "text-emerald-500" : "text-muted-foreground"}`} />
+                        Có ký tự đặc biệt
+                      </span>
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -210,8 +317,13 @@ export default function RegisterPage() {
                     placeholder="Nhập lại mật khẩu"
                     value={formData.confirmPassword}
                     onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
-                    className="bg-input border-border focus:ring-primary pr-10"
+                    onFocus={() => setIsConfirmFocused(true)}
+                    onBlur={() => setIsConfirmFocused(false)}
+                    className="bg-input border-border focus:ring-primary pr-10 pl-10"
                   />
+                  {isConfirmValid && (
+                    <CheckCircle className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-500" />
+                  )}
                   <Button
                     type="button"
                     variant="ghost"
@@ -226,7 +338,16 @@ export default function RegisterPage() {
                     )}
                   </Button>
                 </div>
-                {errors.confirmPassword && <p className="text-sm text-destructive">{errors.confirmPassword}</p>}
+                {isConfirmFocused && (
+                  <div className="space-y-1">
+                    <p className={`text-xs ${isConfirmValid ? "text-emerald-500" : "text-muted-foreground"}`}>
+                      <span className="inline-flex items-center gap-1">
+                        <CheckCircle className={`h-3 w-3 ${isConfirmValid ? "text-emerald-500" : "text-muted-foreground"}`} />
+                        Trùng với mật khẩu
+                      </span>
+                    </p>
+                  </div>
+                )}
               </div>
 
               <Button

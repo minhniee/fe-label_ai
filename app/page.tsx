@@ -7,59 +7,33 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Eye, EyeOff, GraduationCap, User, Shield, Users } from "lucide-react"
+import { Eye, EyeOff, GraduationCap } from "lucide-react"
 import Link from "next/link"
-
-const demoUsers = [
-  { email: "admin@fpt.edu.vn", password: "admin123", role: "admin", name: "Nguyễn Văn Admin" },
-  { email: "labeler@fpt.edu.vn", password: "labeler123", role: "labeler", name: "Trần Thị Labeler" },
-  { email: "senior@fpt.edu.vn", password: "senior123", role: "senior_labeler", name: "Lê Văn Senior" },
-]
+import { loginUser, persistAuth } from "@/api/auth"
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
-  const [email, setEmail] = useState("")
+  const [identifier, setIdentifier] = useState("")
   const [password, setPassword] = useState("")
-  const [selectedRole, setSelectedRole] = useState("")
   const [loginError, setLoginError] = useState("")
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoginError("")
-
-    // Find matching user
-    const user = demoUsers.find((u) => u.email === email && u.password === password)
-
-    if (!user) {
-      setLoginError("Email hoặc mật khẩu không đúng")
-      return
-    }
-
-    // Store user info in localStorage (in real app, use proper auth)
-    localStorage.setItem(
-      "user",
-      JSON.stringify({
-        email: user.email,
-        name: user.name,
-        role: user.role,
-      }),
-    )
-
-    console.log("Login successful:", { email: user.email, role: user.role })
-
-    // Redirect based on role
-    if (user.role === "admin") {
-      window.location.href = "/dashboard/admin"
-    } else {
-      window.location.href = "/dashboard/tasks"
-    }
-  }
-
-  const quickLogin = (userEmail: string) => {
-    const user = demoUsers.find((u) => u.email === userEmail)
-    if (user) {
-      setEmail(user.email)
-      setPassword(user.password)
+    try {
+      const token = await loginUser(identifier, password)
+      persistAuth(token)
+      const roleId = token.user?.role_id
+      // Role mapping: SuperAdmin:4, Admin:3, Manager:2, Labeler:1
+      if (roleId === 4 || roleId === 3) {
+        window.location.href = "/dashboard/admin"
+      } else if (roleId === 2) {
+        window.location.href = "/dashboard"
+      } else {
+        window.location.href = "/dashboard/tasks"
+      }
+    } catch (err: any) {
+      setLoginError(err?.message || "Đăng nhập thất bại")
     }
   }
 
@@ -80,43 +54,6 @@ export default function LoginPage() {
           <p className="text-muted-foreground text-sm">AI Labeling & Training Platform</p>
         </div>
 
-        <Card className="mb-4 shadow-sm border-dashed border-muted-foreground/30">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm text-muted-foreground">Demo Accounts</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="grid gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => quickLogin("admin@fpt.edu.vn")}
-                className="justify-start text-xs"
-              >
-                <Shield className="h-3 w-3 mr-2" />
-                Admin - admin@fpt.edu.vn
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => quickLogin("senior@fpt.edu.vn")}
-                className="justify-start text-xs"
-              >
-                <Users className="h-3 w-3 mr-2" />
-                Senior Labeler - senior@fpt.edu.vn
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => quickLogin("labeler@fpt.edu.vn")}
-                className="justify-start text-xs"
-              >
-                <User className="h-3 w-3 mr-2" />
-                Labeler - labeler@fpt.edu.vn
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Login Card */}
         <Card className="shadow-lg border-0 bg-card/80 backdrop-blur-sm">
           <CardHeader className="space-y-1">
@@ -128,15 +65,15 @@ export default function LoginPage() {
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-card-foreground">
-                  Email
+                <Label htmlFor="identifier" className="text-card-foreground">
+                  Tài khoản (Email hoặc Username)
                 </Label>
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="your.email@fpt.edu.vn"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  id="identifier"
+                  type="text"
+                  placeholder="your.email@example.com hoặc username"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
                   required
                   className="bg-input border-border focus:ring-primary"
                 />
