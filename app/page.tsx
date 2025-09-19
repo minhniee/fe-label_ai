@@ -23,12 +23,11 @@ export default function LoginPage() {
     try {
       const token = await loginUser(identifier, password)
       persistAuth(token)
-      const score = token.user?.role_id
-      // Scores mapping (higher score => stronger role):
-      // Labeler=4, Manager=3, Admin=2, SuperAdmin=1
-      if (score === 2 || score === 1) {
+      const roleId = token.user?.role_id
+      // Role mapping: 1: SuperAdmin, 2: Admin, 3: Manager, 4: Labeler
+      if (roleId === 1 || roleId === 2) {
         window.location.href = "/dashboard/admin"
-      } else if (score === 3) {
+      } else if (roleId === 3) {
         window.location.href = "/dashboard"
       } else {
         window.location.href = "/dashboard/tasks"
