@@ -2,64 +2,84 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Upload, FileText, Calendar, Eye, Download, CheckCircle, AlertCircle, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
-
-interface DataVersion {
-  id: string
-  version: string
-  filename: string
-  uploadDate: string
-  size: string
-  status: "processing" | "completed" | "error"
-  records: number
-  description?: string
-}
+import { getDatasets, createDatasetVersion, getDatasetVersions, uploadFileToVersion, getVersionFiles, type Dataset, type DatasetVersion, type DataFile } from "@/api/datasets"
 
 export function DataUpload() {
   const [dragActive, setDragActive] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [isUploading, setIsUploading] = useState(false)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [description, setDescription] = useState("")
+  const [selectedDatasetId, setSelectedDatasetId] = useState<string>("")
+  const [versionId, setVersionId] = useState<string>("")
+  const [error, setError] = useState("")
+  const [success, setSuccess] = useState("")
 
-  // Mock data versions
-  const [dataVersions] = useState<DataVersion[]>([
-    {
-      id: "1",
-      version: "v2.1",
-      filename: "admissions_data_2024_q1.csv",
-      uploadDate: "2024-01-15",
-      size: "2.4 MB",
-      status: "completed",
-      records: 5000,
-      description: "Dữ liệu tuyển sinh Q1 2024 với thông tin đầy đủ",
-    },
-    {
-      id: "2",
-      version: "v2.0",
-      filename: "admissions_data_2023_q4.xlsx",
-      uploadDate: "2023-12-20",
-      size: "1.8 MB",
-      status: "completed",
-      records: 3800,
-      description: "Dữ liệu tuyển sinh Q4 2023",
-    },
-    {
-      id: "3",
-      version: "v1.9",
-      filename: "admissions_data_2023_q3.csv",
-      uploadDate: "2023-09-15",
-      size: "1.6 MB",
-      status: "completed",
-      records: 3200,
-    },
-  ])
+  // Data state
+  const [datasets, setDatasets] = useState<Dataset[]>([])
+  const [versions, setVersions] = useState<DatasetVersion[]>([])
+  const [files, setFiles] = useState<DataFile[]>([])
+  const [loading, setLoading] = useState(false)
+
+  // Load datasets on mount
+  useEffect(() => {
+    loadDatasets()
+  }, [])
+
+  // Load versions when dataset changes
+  useEffect(() => {
+    if (selectedDatasetId) {
+      loadVersions(parseInt(selectedDatasetId))
+    }
+  }, [selectedDatasetId])
+
+  // Load files when version changes
+  useEffect(() => {
+    if (versionId) {
+      loadFiles(parseInt(versionId))
+    }
+  }, [versionId])
+
+  const loadDatasets = async () => {
+    try {
+      setLoading(true)
+      const data = await getDatasets()
+      setDatasets(data)
+    } catch (err: any) {
+      setError(err?.message || "Không thể tải danh sách datasets")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadVersions = async (datasetId: number) => {
+    try {
+      const data = await getDatasetVersions(datasetId)
+      setVersions(data)
+    } catch (err: any) {
+      setError(err?.message || "Không thể tải danh sách versions")
+    }
+  }
+
+  const loadFiles = async (versionId: number) => {
+    try {
+      const data = await getVersionFiles(versionId)
+      setFiles(data)
+    } catch (err: any) {
+      setError(err?.message || "Không thể tải danh sách files")
+    }
+  }
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault()
@@ -89,46 +109,77 @@ export function DataUpload() {
         file.type === "application/vnd.ms-excel" ||
         file.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     ) {
-      simulateUpload()
+      setSelectedFile(file)
+      setError("")
+    } else {
+      setError("Chỉ hỗ trợ file CSV và Excel (.xlsx, .xls)")
     }
   }
 
-  const simulateUpload = () => {
-    setIsUploading(true)
-    setUploadProgress(0)
+  const handleUpload = async () => {
+    if (!selectedFile) {
+      setError("Vui lòng chọn file")
+      return
+    }
+    if (!selectedDatasetId) {
+      setError("Vui lòng chọn dataset")
+      return
+    }
 
-    const interval = setInterval(() => {
-      setUploadProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval)
-          setIsUploading(false)
-          return 100
-        }
-        return prev + 10
-      })
-    }, 200)
-  }
+    try {
+      setIsUploading(true)
+      setUploadProgress(0)
+      setError("")
+      setSuccess("")
 
-  const getStatusIcon = (status: DataVersion["status"]) => {
-    switch (status) {
-      case "completed":
-        return <CheckCircle className="h-4 w-4 text-green-500" />
-      case "processing":
-        return <Clock className="h-4 w-4 text-yellow-500" />
-      case "error":
-        return <AlertCircle className="h-4 w-4 text-red-500" />
+      let currentVersionId = parseInt(versionId)
+      
+      // If no version selected, create a new one
+      if (!currentVersionId) {
+        const newVersion = await createDatasetVersion(parseInt(selectedDatasetId), description || "Initial version")
+        currentVersionId = newVersion.version_id
+        setVersionId(currentVersionId.toString())
+        // Reload versions to show the new one
+        loadVersions(parseInt(selectedDatasetId))
+      }
+
+      // Upload file
+      const uploadedFile = await uploadFileToVersion(currentVersionId, selectedFile)
+      
+      setUploadProgress(100)
+      setSuccess(`Upload thành công: ${uploadedFile.file_name}`)
+      
+      // Reload files to show the new upload
+      loadFiles(currentVersionId)
+      
+      // Reset form
+      setSelectedFile(null)
+      setDescription("")
+      
+    } catch (err: any) {
+      setError(err?.message || "Upload thất bại")
+    } finally {
+      setIsUploading(false)
     }
   }
 
-  const getStatusBadge = (status: DataVersion["status"]) => {
-    switch (status) {
-      case "completed":
-        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Hoàn thành</Badge>
-      case "processing":
-        return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Đang xử lý</Badge>
-      case "error":
-        return <Badge variant="destructive">Lỗi</Badge>
-    }
+  const getStatusIcon = (file: DataFile) => {
+    return <CheckCircle className="h-4 w-4 text-green-500" />
+  }
+
+  const getStatusBadge = (file: DataFile) => {
+    return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Hoàn thành</Badge>
+  }
+
+  const formatFileSize = (bytes?: number) => {
+    if (!bytes) return "Unknown"
+    const sizes = ["Bytes", "KB", "MB", "GB"]
+    const i = Math.floor(Math.log(bytes) / Math.log(1024))
+    return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + " " + sizes[i]
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("vi-VN")
   }
 
   return (
@@ -145,6 +196,42 @@ export function DataUpload() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Dataset Selection */}
+          <div className="space-y-2">
+            <Label htmlFor="dataset">Chọn Dataset</Label>
+            <Select value={selectedDatasetId} onValueChange={setSelectedDatasetId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Chọn dataset để upload file" />
+              </SelectTrigger>
+              <SelectContent>
+                {datasets.map((dataset) => (
+                  <SelectItem key={dataset.dataset_id} value={dataset.dataset_id.toString()}>
+                    {dataset.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Version Selection */}
+          {selectedDatasetId && (
+            <div className="space-y-2">
+              <Label htmlFor="version">Chọn Version (hoặc để trống để tạo mới)</Label>
+              <Select value={versionId} onValueChange={setVersionId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Chọn version hoặc để trống để tạo mới" />
+                </SelectTrigger>
+                <SelectContent>
+                  {versions.map((version) => (
+                    <SelectItem key={version.version_id} value={version.version_id.toString()}>
+                      v{version.version_number} - {version.changelog || "No description"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {/* File Upload Area */}
           <div
             className={cn(
@@ -171,6 +258,12 @@ export function DataUpload() {
               />
             </div>
             <p className="text-sm text-muted-foreground mt-4">Hỗ trợ file CSV, Excel (.xlsx, .xls). Tối đa 10MB.</p>
+            {selectedFile && (
+              <div className="mt-4 p-2 bg-accent rounded">
+                <p className="text-sm font-medium">File đã chọn: {selectedFile.name}</p>
+                <p className="text-xs text-muted-foreground">Size: {formatFileSize(selectedFile.size)}</p>
+              </div>
+            )}
           </div>
 
           {/* Upload Progress */}
@@ -186,65 +279,108 @@ export function DataUpload() {
 
           {/* Description Input */}
           <div className="space-y-2">
-            <Label htmlFor="description">Mô tả phiên bản (tùy chọn)</Label>
-            <Textarea id="description" placeholder="Nhập mô tả cho phiên bản dữ liệu này..." className="resize-none" />
+            <Label htmlFor="description">Mô tả phiên bản </Label>
+            <Textarea 
+              id="description" 
+              placeholder="Nhập nhật ký thay đổi cho phiên bản dữ liệu này..." 
+              className="resize-none"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
           </div>
+
+          {/* Error/Success Messages */}
+          {error && (
+            <div className="text-sm text-destructive bg-destructive/10 p-2 rounded">
+              {error}
+            </div>
+          )}
+          {success && (
+            <div className="text-sm text-green-600 bg-green-100 p-2 rounded">
+              {success}
+            </div>
+          )}
+
+          {/* Upload Button */}
+          <Button 
+            onClick={handleUpload} 
+            disabled={!selectedFile || !selectedDatasetId || isUploading}
+            className="w-full"
+          >
+            {isUploading ? "Đang upload..." : "Upload File"}
+          </Button>
         </CardContent>
       </Card>
 
-      {/* Data Versions List */}
+      {/* Files List */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            Các phiên bản dữ liệu
+            Files đã upload
           </CardTitle>
-          <CardDescription>Danh sách các phiên bản dữ liệu đã tải lên và trạng thái xử lý</CardDescription>
+          <CardDescription>
+            {versionId 
+              ? `Files trong version ${versionId}` 
+              : "Chọn dataset và version để xem files"
+            }
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {dataVersions.map((version) => (
-              <div
-                key={version.id}
-                className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-accent/50 transition-colors"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="bg-primary/10 p-2 rounded-full">
-                    <FileText className="h-5 w-5 text-primary" />
+          {loading ? (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">Đang tải...</p>
+            </div>
+          ) : files.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">
+                {versionId ? "Chưa có file nào trong version này" : "Chọn dataset và version để xem files"}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {files.map((file) => (
+                <div
+                  key={file.file_id}
+                  className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-accent/50 transition-colors"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="bg-primary/10 p-2 rounded-full">
+                      <FileText className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-medium">{file.file_name}</h4>
+                        {getStatusIcon(file)}
+                        {getStatusBadge(file)}
+                      </div>
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {formatDate(file.uploaded_at)}
+                        </span>
+                        <span>{formatFileSize(file.file_size)}</span>
+                        {file.line_count && <span>{file.line_count.toLocaleString()} dòng</span>}
+                      </div>
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-medium">{version.version}</h4>
-                      {getStatusIcon(version.status)}
-                      {getStatusBadge(version.status)}
-                    </div>
-                    <p className="text-sm text-muted-foreground">{version.filename}</p>
-                    {version.description && <p className="text-xs text-muted-foreground">{version.description}</p>}
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        {version.uploadDate}
-                      </span>
-                      <span>{version.size}</span>
-                      <span>{version.records.toLocaleString()} bản ghi</span>
-                    </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm">
+                      <Eye className="h-4 w-4 mr-2" />
+                      Xem dữ liệu
+                    </Button>
+                    <Button variant="outline" size="sm">
+                      <Download className="h-4 w-4 mr-2" />
+                      Tải xuống
+                    </Button>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm">
-                    <Eye className="h-4 w-4 mr-2" />
-                    Xem dữ liệu
-                  </Button>
-                  <Button variant="outline" size="sm">
-                    <Download className="h-4 w-4 mr-2" />
-                    Tải xuống
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
   )
 }
+
