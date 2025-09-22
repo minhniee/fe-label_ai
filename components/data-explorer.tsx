@@ -6,15 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import {
   Dialog,
   DialogContent,
@@ -23,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Search, Filter, Download, Edit, History, MoreHorizontal, ChevronLeft, ChevronRight, Eye, Trash2, Database } from "lucide-react"
+import { Search, ChevronLeft, ChevronRight, Trash2, Database } from "lucide-react"
 import { getDatasets, deleteDataset, type Dataset } from "@/api/datasets"
 
 interface DatasetRecord extends Dataset {
@@ -173,7 +164,7 @@ export function DataExplorer() {
                     <TableHead>Versions</TableHead>
                     <TableHead>Ngày tạo</TableHead>
                     <TableHead>Cập nhật</TableHead>
-                    <TableHead className="w-[50px]"></TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -196,28 +187,14 @@ export function DataExplorer() {
                         {formatDate(dataset.updated_at)}
                       </TableCell>
                       <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Thao tác</DropdownMenuLabel>
-                            <DropdownMenuItem onClick={() => handleViewDetail(dataset)}>
-                              <Eye className="mr-2 h-4 w-4" />
-                              Xem chi tiết
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem 
+                            <Badge 
+                              variant="outline"
                               className="text-red-600"
                               onClick={() => handleDeleteClick(dataset)}
                             >
                               <Trash2 className="mr-2 h-4 w-4" />
                               Xóa dataset
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                            </Badge>
                       </TableCell>
                     </TableRow>
                   ))}
