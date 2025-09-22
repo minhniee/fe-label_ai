@@ -26,6 +26,7 @@ import {
   User,
   CheckSquare,
   Mail,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getMe, logout, type MeResponse } from "@/api/auth";
@@ -217,10 +218,22 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    className="relative h-8 w-8 rounded-full p-0"
+                    className="h-8 rounded-full px-2 pr-2.5"
                   >
-                    <User className="h-5 w-5 text-foreground" />
-                    <span className="sr-only">Open user menu </span>
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-muted">
+                        <User className="h-4 w-4 text-foreground" />
+                      </div>
+
+                      {/* “Typography” = span/text */}
+                      <span className="text-sm font-medium max-w-[120px] truncate">
+                        {me?.username ?? "User"}
+                      </span>
+
+                      {/* endIcon */}
+                      <ChevronDown className="h-4 w-4 opacity-70" />
+                    </div>
+                    <span className="sr-only">Open user menu</span>
                   </Button>
                 </DropdownMenuTrigger>
 
@@ -240,9 +253,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                       </span>
                     </Link>
                   </DropdownMenuItem>
-
                   <DropdownMenuSeparator />
-
                   <DropdownMenuItem onClick={handleLogout}>
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Logout</span>
