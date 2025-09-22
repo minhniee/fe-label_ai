@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Search, ChevronLeft, ChevronRight, Trash2, Database } from "lucide-react"
+import { Search, ChevronLeft, ChevronRight, Trash2, Database, RefreshCw } from "lucide-react"
 import { getDatasets, deleteDataset, type Dataset } from "@/api/datasets"
 
 interface DatasetRecord extends Dataset {
@@ -29,8 +29,6 @@ export function DataExplorer() {
   const [datasets, setDatasets] = useState<DatasetRecord[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
-  const [selectedDataset, setSelectedDataset] = useState<DatasetRecord | null>(null)
-  const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [deletingDataset, setDeletingDataset] = useState<DatasetRecord | null>(null)
 
@@ -53,11 +51,6 @@ export function DataExplorer() {
     } finally {
       setLoading(false)
     }
-  }
-
-  const handleViewDetail = (dataset: DatasetRecord) => {
-    setSelectedDataset(dataset)
-    setIsDetailOpen(true)
   }
 
   const handleDeleteClick = (dataset: DatasetRecord) => {
@@ -102,15 +95,6 @@ export function DataExplorer() {
   return (
     <div className="space-y-6">
       {/* Filters and Search */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Database className="h-5 w-5" />
-            Quản lý Dataset
-          </CardTitle>
-          <CardDescription>Tìm kiếm và quản lý các dataset trong hệ thống</CardDescription>
-        </CardHeader>
-        <CardContent>
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
               <div className="relative">
@@ -124,8 +108,7 @@ export function DataExplorer() {
               </div>
             </div>
             <Button variant="outline" onClick={loadDatasets}>
-              <Database className="h-4 w-4 mr-2" />
-              Làm mới
+              <RefreshCw />
             </Button>
           </div>
           {error && (
@@ -133,8 +116,7 @@ export function DataExplorer() {
               {error}
             </div>
           )}
-        </CardContent>
-      </Card>
+
 
       {/* Data Table */}
       <Card>
@@ -247,59 +229,6 @@ export function DataExplorer() {
           )}
         </CardContent>
       </Card>
-
-      {/* Dataset Detail Dialog */}
-      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Chi tiết Dataset</DialogTitle>
-            <DialogDescription>Thông tin chi tiết về dataset đã chọn</DialogDescription>
-          </DialogHeader>
-          {selectedDataset && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Tên Dataset</label>
-                  <p className="text-lg font-semibold">{selectedDataset.name}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">ID</label>
-                  <p className="text-lg font-mono">{selectedDataset.dataset_id}</p>
-                </div>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Mô tả</label>
-                <p className="text-sm">{selectedDataset.description || "Không có mô tả"}</p>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Người tạo</label>
-                  <p className="text-sm">{selectedDataset.created_by_username}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Số versions</label>
-                  <p className="text-sm">{selectedDataset.version_count} (Latest: v{selectedDataset.latest_version})</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Ngày tạo</label>
-                  <p className="text-sm">{formatDate(selectedDataset.created_at)}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Cập nhật lần cuối</label>
-                  <p className="text-sm">{formatDate(selectedDataset.updated_at)}</p>
-                </div>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDetailOpen(false)}>
-              Đóng
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>

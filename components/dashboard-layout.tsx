@@ -1,27 +1,37 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState } from "react"
-import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { FPTLogo } from "./fpt-logo"
-import { LayoutDashboard, Database, Tag, Brain, Settings, LogOut, Menu, Bell, User, CheckSquare } from "lucide-react"
-import { cn } from "@/lib/utils"
+} from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { FPTLogo } from "./fpt-logo";
+import {
+  LayoutDashboard,
+  Database,
+  Tag,
+  Brain,
+  Settings,
+  LogOut,
+  Menu,
+  User,
+  CheckSquare,
+  Mail,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { getMe, logout, type MeResponse } from "@/api/auth";
 
 interface DashboardLayoutProps {
-  children: React.ReactNode
+  children: React.ReactNode;
 }
 
 const navigation = [
@@ -55,16 +65,29 @@ const navigation = [
     href: "/dashboard/admin",
     icon: Settings,
   },
-]
+];
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
-  const pathname = usePathname()
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const pathname = usePathname();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [me, setMe] = useState<MeResponse | null>(null);
 
-  const handleLogout = () => {
-    // TODO: Implement logout logic
-    window.location.href = "/"
-  }
+  useEffect(() => {
+    const loadMe = async () => {
+      try {
+        const data = await getMe();
+        setMe(data);
+      } catch {
+        // ignore
+      }
+    };
+    loadMe();
+  }, []);
+
+  const handleLogout = async () => {
+    await logout();
+    window.location.href = "/";
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -77,7 +100,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             </div>
             <nav className="flex-1 space-y-1 px-3 py-4">
               {navigation.map((item) => {
-                const isActive = pathname === item.href
+                const isActive = pathname === item.href;
                 return (
                   <Link
                     key={item.name}
@@ -86,14 +109,14 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                       "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                       isActive
                         ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                     )}
                     onClick={() => setSidebarOpen(false)}
                   >
                     <item.icon className="h-4 w-4" />
                     {item.name}
                   </Link>
-                )
+                );
               })}
             </nav>
           </div>
@@ -111,7 +134,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               <li>
                 <ul role="list" className="-mx-2 space-y-1">
                   {navigation.map((item) => {
-                    const isActive = pathname === item.href
+                    const isActive = pathname === item.href;
                     return (
                       <li key={item.name}>
                         <Link
@@ -120,14 +143,14 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                             "group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors",
                             isActive
                               ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                              : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                              : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                           )}
                         >
                           <item.icon className="h-5 w-5 shrink-0" />
                           {item.name}
                         </Link>
                       </li>
-                    )
+                    );
                   })}
                 </ul>
               </li>
@@ -154,7 +177,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 </div>
                 <nav className="flex-1 space-y-1 px-3 py-4">
                   {navigation.map((item) => {
-                    const isActive = pathname === item.href
+                    const isActive = pathname === item.href;
                     return (
                       <Link
                         key={item.name}
@@ -163,13 +186,13 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                           "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                           isActive
                             ? "bg-primary text-primary-foreground"
-                            : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                            : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                         )}
                       >
                         <item.icon className="h-4 w-4" />
                         {item.name}
                       </Link>
-                    )
+                    );
                   })}
                 </nav>
               </div>
@@ -178,45 +201,51 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
           <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
             <div className="flex flex-1 items-center">
-              <h1 className="text-lg font-semibold text-foreground">FPTU Admissions AI Platform</h1>
+              <h1 className="text-lg font-semibold text-foreground">
+                FPTU Admissions AI Platform
+              </h1>
             </div>
             <div className="flex items-center gap-x-4 lg:gap-x-6">
               {/* Notifications */}
-              <Button variant="ghost" size="sm">
+              {/* <Button variant="ghost" size="sm">
                 <Bell className="h-5 w-5" />
                 <span className="sr-only">View notifications</span>
-              </Button>
+              </Button> */}
 
               {/* Profile dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src="/placeholder.svg?height=32&width=32" alt="User" />
-                      <AvatarFallback>AD</AvatarFallback>
-                    </Avatar>
+                  <Button
+                    variant="ghost"
+                    className="relative h-8 w-8 rounded-full p-0"
+                  >
+                    <User className="h-5 w-5 text-foreground" />
+                    <span className="sr-only">Open user menu </span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56" align="end" forceMount>
-                  <DropdownMenuLabel className="font-normal">
-                    <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">Admin User</p>
-                      <p className="text-xs leading-none text-muted-foreground">admin@fpt.edu.vn</p>
-                    </div>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem>
-                    <User className="mr-2 h-4 w-4" />
-                    <span>Hồ sơ</span>
+
+                <DropdownMenuContent
+                  className="w-56 z-50"
+                  align="end"
+                  sideOffset={8}
+                >
+                  <DropdownMenuItem asChild>
+                    <Link
+                      href="/dashboard/profile"
+                      className="flex items-center"
+                    >
+                      <Mail className="mr-2 h-4 w-4" />
+                      <span className="truncate">
+                        {me?.email ?? "Xem hồ sơ"}
+                      </span>
+                    </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <Settings className="mr-2 h-4 w-4" />
-                    <span>Cài đặt</span>
-                  </DropdownMenuItem>
+
                   <DropdownMenuSeparator />
+
                   <DropdownMenuItem onClick={handleLogout}>
                     <LogOut className="mr-2 h-4 w-4" />
-                    <span>Đăng xuất</span>
+                    <span>Logout</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -228,5 +257,5 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <main className="py-8 px-4 sm:px-6 lg:px-8">{children}</main>
       </div>
     </div>
-  )
+  );
 }

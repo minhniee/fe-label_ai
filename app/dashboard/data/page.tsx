@@ -15,7 +15,7 @@ export default function DataManagementPage() {
       </div>
 
       {/* Tabs for Upload and Explorer */}
-      <Tabs defaultValue="upload" className="space-y-6">
+      <Tabs defaultValue="explorer" className="space-y-6">
         <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
           <TabsTrigger value="explorer">Khám phá dữ liệu</TabsTrigger>
           <TabsTrigger value="upload">Tải lên dữ liệu</TabsTrigger>

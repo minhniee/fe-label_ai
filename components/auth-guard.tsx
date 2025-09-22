@@ -5,19 +5,28 @@ import type React from "react"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 
-interface User {
+interface FrontendUserLegacy {
   email: string
   name: string
   role: "admin" | "senior_labeler" | "labeler"
 }
 
+interface BackendUser {
+  user_id: number
+  username: string
+  email: string
+  role_id: number
+  role_name: string
+}
+
 interface AuthGuardProps {
   children: React.ReactNode
   allowedRoles?: string[]
+  allowedRoleIds?: number[]
 }
 
-export function AuthGuard({ children, allowedRoles }: AuthGuardProps) {
-  const [user, setUser] = useState<User | null>(null)
+export function AuthGuard({ children, allowedRoles, allowedRoleIds }: AuthGuardProps) {
+  const [user, setUser] = useState<BackendUser | FrontendUserLegacy | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
@@ -28,11 +37,29 @@ export function AuthGuard({ children, allowedRoles }: AuthGuardProps) {
       return
     }
 
-    const userData = JSON.parse(userStr) as User
+    const userData = JSON.parse(userStr) as BackendUser | FrontendUserLegacy
 
-    if (allowedRoles && !allowedRoles.includes(userData.role)) {
-      router.push("/dashboard")
-      return
+    // Authorization checks (supports both legacy and backend formats)
+    if (allowedRoles || allowedRoleIds) {
+      let isAllowed = true
+
+      if ("role" in userData && allowedRoles) {
+        isAllowed = allowedRoles.includes(userData.role)
+      }
+
+      if ("role_id" in userData && allowedRoleIds) {
+        isAllowed = allowedRoleIds.includes(userData.role_id)
+      }
+
+      // Fallback: if only allowedRoles provided and we have backend user, compare by role_name (case-insensitive)
+      if (!isAllowed && "role_name" in userData && allowedRoles) {
+        isAllowed = allowedRoles.map((r) => r.toLowerCase()).includes(userData.role_name.toLowerCase())
+      }
+
+      if (!isAllowed) {
+        router.push("/dashboard")
+        return
+      }
     }
 
     setUser(userData)

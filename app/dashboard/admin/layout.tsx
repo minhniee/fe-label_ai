@@ -6,5 +6,6 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode
 }) {
-  return <AuthGuard allowedRoles={["admin"]}>{children}</AuthGuard>
+  // Allow by backend role_id as well: SuperAdmin=1, Admin=2
+  return <AuthGuard allowedRoles={["admin", "superadmin"]} allowedRoleIds={[1, 2]}>{children}</AuthGuard>
 }

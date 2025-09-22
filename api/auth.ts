@@ -14,6 +14,15 @@ export interface TokenResponse {
   user: any
 }
 
+export interface MeResponse {
+  user_id: number
+  username: string
+  email: string
+  role_id: number
+  role_name: string
+  created_at: string
+}
+
 export async function registerUser(payload: RegisterPayload) {
   return apiRequest("/auth/register", {
     method: "POST",
@@ -34,6 +43,22 @@ export function persistAuth(token: TokenResponse) {
     if (token.refresh_token) localStorage.setItem("refresh_token", token.refresh_token)
     if (token.user) localStorage.setItem("user", JSON.stringify(token.user))
   } catch {}
+}
+
+export async function getMe() {
+  return apiRequest<MeResponse>("/auth/me", { method: "GET", auth: true })
+}
+
+export async function logout() {
+  try {
+    await apiRequest("/auth/logout", { method: "POST", auth: true })
+  } finally {
+    try {
+      localStorage.removeItem("access_token")
+      localStorage.removeItem("refresh_token")
+      localStorage.removeItem("user")
+    } catch {}
+  }
 }
 
 

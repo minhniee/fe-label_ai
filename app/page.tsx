@@ -26,11 +26,11 @@ export default function LoginPage() {
       const roleId = token.user?.role_id
       // Role mapping: 1: SuperAdmin, 2: Admin, 3: Manager, 4: Labeler
       if (roleId === 1 || roleId === 2) {
-        window.location.href = "/dashboard/admin"
+        window.location.href = "/dashboard"
       } else if (roleId === 3) {
         window.location.href = "/dashboard"
       } else {
-        window.location.href = "/dashboard/tasks"
+        window.location.href = "/dashboard"
       }
     } catch (err: any) {
       setLoginError(err?.message || "Đăng nhập thất bại")
