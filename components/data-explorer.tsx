@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,131 +15,97 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Search, Filter, Download, Edit, History, MoreHorizontal, ChevronLeft, ChevronRight } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Search, Filter, Download, Edit, History, MoreHorizontal, ChevronLeft, ChevronRight, Eye, Trash2, Database } from "lucide-react"
+import { getDatasets, deleteDataset, type Dataset } from "@/api/datasets"
 
-interface DataRecord {
-  id: string
-  studentId: string
-  name: string
-  email: string
-  phone: string
-  program: string
-  score: number
-  status: "pending" | "approved" | "rejected"
-  submissionDate: string
-  lastModified: string
-  modifiedBy: string
+interface DatasetRecord extends Dataset {
+  created_by_username: string
+  version_count: number
+  latest_version: number
 }
 
 export function DataExplorer() {
   const [searchTerm, setSearchTerm] = useState("")
-  const [selectedProgram, setSelectedProgram] = useState("all")
-  const [selectedStatus, setSelectedStatus] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
-  const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null)
+  const [datasets, setDatasets] = useState<DatasetRecord[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [selectedDataset, setSelectedDataset] = useState<DatasetRecord | null>(null)
+  const [isDetailOpen, setIsDetailOpen] = useState(false)
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [deletingDataset, setDeletingDataset] = useState<DatasetRecord | null>(null)
 
-  // Mock data
-  const [data] = useState<DataRecord[]>([
-    {
-      id: "1",
-      studentId: "SV001",
-      name: "Nguyễn Văn An",
-      email: "an.nguyen@student.fpt.edu.vn",
-      phone: "0901234567",
-      program: "Công nghệ thông tin",
-      score: 8.5,
-      status: "approved",
-      submissionDate: "2024-01-15",
-      lastModified: "2024-01-16",
-      modifiedBy: "admin@fpt.edu.vn",
-    },
-    {
-      id: "2",
-      studentId: "SV002",
-      name: "Trần Thị Bình",
-      email: "binh.tran@student.fpt.edu.vn",
-      phone: "0901234568",
-      program: "Kinh doanh quốc tế",
-      score: 7.8,
-      status: "pending",
-      submissionDate: "2024-01-14",
-      lastModified: "2024-01-14",
-      modifiedBy: "system",
-    },
-    {
-      id: "3",
-      studentId: "SV003",
-      name: "Lê Văn Cường",
-      email: "cuong.le@student.fpt.edu.vn",
-      phone: "0901234569",
-      program: "Thiết kế đồ họa",
-      score: 6.2,
-      status: "rejected",
-      submissionDate: "2024-01-13",
-      lastModified: "2024-01-15",
-      modifiedBy: "admin@fpt.edu.vn",
-    },
-    {
-      id: "4",
-      studentId: "SV004",
-      name: "Phạm Thị Dung",
-      email: "dung.pham@student.fpt.edu.vn",
-      phone: "0901234570",
-      program: "Công nghệ thông tin",
-      score: 9.1,
-      status: "approved",
-      submissionDate: "2024-01-12",
-      lastModified: "2024-01-13",
-      modifiedBy: "admin@fpt.edu.vn",
-    },
-    {
-      id: "5",
-      studentId: "SV005",
-      name: "Hoàng Văn Em",
-      email: "em.hoang@student.fpt.edu.vn",
-      phone: "0901234571",
-      program: "Marketing",
-      score: 7.5,
-      status: "pending",
-      submissionDate: "2024-01-11",
-      lastModified: "2024-01-11",
-      modifiedBy: "system",
-    },
-  ])
-
-  const programs = ["Công nghệ thông tin", "Kinh doanh quốc tế", "Thiết kế đồ họa", "Marketing"]
   const itemsPerPage = 10
-  const totalPages = Math.ceil(data.length / itemsPerPage)
+  const totalPages = Math.ceil(datasets.length / itemsPerPage)
 
-  const filteredData = data.filter((record) => {
+  // Load datasets on mount
+  useEffect(() => {
+    loadDatasets()
+  }, [])
+
+  const loadDatasets = async () => {
+    try {
+      setLoading(true)
+      setError("")
+      const data = await getDatasets()
+      setDatasets(data as DatasetRecord[])
+    } catch (err: any) {
+      setError(err?.message || "Không thể tải danh sách datasets")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleViewDetail = (dataset: DatasetRecord) => {
+    setSelectedDataset(dataset)
+    setIsDetailOpen(true)
+  }
+
+  const handleDeleteClick = (dataset: DatasetRecord) => {
+    setDeletingDataset(dataset)
+    setIsDeleteOpen(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingDataset) return
+
+    try {
+      await deleteDataset(deletingDataset.dataset_id)
+      setDatasets(datasets.filter(d => d.dataset_id !== deletingDataset.dataset_id))
+      setIsDeleteOpen(false)
+      setDeletingDataset(null)
+    } catch (err: any) {
+      setError(err?.message || "Xóa dataset thất bại")
+    }
+  }
+
+  const filteredData = datasets.filter((dataset) => {
     const matchesSearch =
-      record.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      record.studentId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      record.email.toLowerCase().includes(searchTerm.toLowerCase())
+      dataset.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      dataset.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      dataset.created_by_username.toLowerCase().includes(searchTerm.toLowerCase())
 
-    const matchesProgram = selectedProgram === "all" || record.program === selectedProgram
-    const matchesStatus = selectedStatus === "all" || record.status === selectedStatus
-
-    return matchesSearch && matchesProgram && matchesStatus
+    return matchesSearch
   })
 
   const paginatedData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
 
-  const getStatusBadge = (status: DataRecord["status"]) => {
-    switch (status) {
-      case "approved":
-        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Đã duyệt</Badge>
-      case "pending":
-        return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Chờ duyệt</Badge>
-      case "rejected":
-        return <Badge variant="destructive">Từ chối</Badge>
-    }
-  }
-
-  const handleCellEdit = (id: string, field: string, value: string) => {
-    // TODO: Implement cell editing logic
-    console.log("Edit cell:", { id, field, value })
-    setEditingCell(null)
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("vi-VN", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit"
+    })
   }
 
   return (
@@ -148,10 +114,10 @@ export function DataExplorer() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Search className="h-5 w-5" />
-            Khám phá dữ liệu
+            <Database className="h-5 w-5" />
+            Quản lý Dataset
           </CardTitle>
-          <CardDescription>Tìm kiếm, lọc và chỉnh sửa dữ liệu tuyển sinh một cách trực quan</CardDescription>
+          <CardDescription>Tìm kiếm và quản lý các dataset trong hệ thống</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row gap-4">
@@ -159,42 +125,23 @@ export function DataExplorer() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Tìm kiếm theo tên, mã sinh viên, email..."
+                  placeholder="Tìm kiếm theo tên dataset, mô tả, người tạo..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
                 />
               </div>
             </div>
-            <Select value={selectedProgram} onValueChange={setSelectedProgram}>
-              <SelectTrigger className="w-full sm:w-[200px]">
-                <SelectValue placeholder="Chọn ngành học" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tất cả ngành học</SelectItem>
-                {programs.map((program) => (
-                  <SelectItem key={program} value={program}>
-                    {program}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-              <SelectTrigger className="w-full sm:w-[150px]">
-                <SelectValue placeholder="Trạng thái" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tất cả</SelectItem>
-                <SelectItem value="approved">Đã duyệt</SelectItem>
-                <SelectItem value="pending">Chờ duyệt</SelectItem>
-                <SelectItem value="rejected">Từ chối</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button variant="outline">
-              <Download className="h-4 w-4 mr-2" />
-              Xuất dữ liệu
+            <Button variant="outline" onClick={loadDatasets}>
+              <Database className="h-4 w-4 mr-2" />
+              Làm mới
             </Button>
           </div>
+          {error && (
+            <div className="mt-4 text-sm text-destructive bg-destructive/10 p-2 rounded">
+              {error}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -203,118 +150,200 @@ export function DataExplorer() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Bảng dữ liệu</CardTitle>
+              <CardTitle>Danh sách Dataset</CardTitle>
               <CardDescription>
-                Hiển thị {filteredData.length} bản ghi (trang {currentPage} / {totalPages})
+                Hiển thị {filteredData.length} dataset (trang {currentPage} / {totalPages})
               </CardDescription>
             </div>
-            <Button variant="outline" size="sm">
-              <Filter className="h-4 w-4 mr-2" />
-              Bộ lọc nâng cao
-            </Button>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Mã SV</TableHead>
-                  <TableHead>Họ tên</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Ngành học</TableHead>
-                  <TableHead>Điểm</TableHead>
-                  <TableHead>Trạng thái</TableHead>
-                  <TableHead>Ngày nộp</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginatedData.map((record) => (
-                  <TableRow key={record.id}>
-                    <TableCell className="font-medium">{record.studentId}</TableCell>
-                    <TableCell>{record.name}</TableCell>
-                    <TableCell className="text-muted-foreground">{record.email}</TableCell>
-                    <TableCell>{record.program}</TableCell>
-                    <TableCell>
-                      <span
-                        className={`font-medium ${record.score >= 8 ? "text-green-600" : record.score >= 7 ? "text-yellow-600" : "text-red-600"}`}
-                      >
-                        {record.score}
-                      </span>
-                    </TableCell>
-                    <TableCell>{getStatusBadge(record.status)}</TableCell>
-                    <TableCell className="text-muted-foreground">{record.submissionDate}</TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Thao tác</DropdownMenuLabel>
-                          <DropdownMenuItem>
-                            <Edit className="mr-2 h-4 w-4" />
-                            Chỉnh sửa
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <History className="mr-2 h-4 w-4" />
-                            Lịch sử thay đổi
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-red-600">Xóa bản ghi</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
+          {loading ? (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">Đang tải...</p>
+            </div>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Tên Dataset</TableHead>
+                    <TableHead>Mô tả</TableHead>
+                    <TableHead>Người tạo</TableHead>
+                    <TableHead>Versions</TableHead>
+                    <TableHead>Ngày tạo</TableHead>
+                    <TableHead>Cập nhật</TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {paginatedData.map((dataset) => (
+                    <TableRow key={dataset.dataset_id}>
+                      <TableCell className="font-medium">{dataset.name}</TableCell>
+                      <TableCell className="text-muted-foreground max-w-xs truncate">
+                        {dataset.description || "Không có mô tả"}
+                      </TableCell>
+                      <TableCell>{dataset.created_by_username}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">
+                          {dataset.version_count} versions 
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {formatDate(dataset.created_at)}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {formatDate(dataset.updated_at)}
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Thao tác</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => handleViewDetail(dataset)}>
+                              <Eye className="mr-2 h-4 w-4" />
+                              Xem chi tiết
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              className="text-red-600"
+                              onClick={() => handleDeleteClick(dataset)}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Xóa dataset
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
 
           {/* Pagination */}
-          <div className="flex items-center justify-between mt-4">
-            <div className="text-sm text-muted-foreground">
-              Hiển thị {(currentPage - 1) * itemsPerPage + 1} -{" "}
-              {Math.min(currentPage * itemsPerPage, filteredData.length)} trong tổng số {filteredData.length} bản ghi
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Trước
-              </Button>
-              <div className="flex items-center gap-1">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                  <Button
-                    key={page}
-                    variant={currentPage === page ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setCurrentPage(page)}
-                    className="w-8 h-8 p-0"
-                  >
-                    {page}
-                  </Button>
-                ))}
+          {!loading && (
+            <div className="flex items-center justify-between mt-4">
+              <div className="text-sm text-muted-foreground">
+                Hiển thị {(currentPage - 1) * itemsPerPage + 1} -{" "}
+                {Math.min(currentPage * itemsPerPage, filteredData.length)} trong tổng số {filteredData.length} dataset
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                disabled={currentPage === totalPages}
-              >
-                Sau
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Trước
+                </Button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <Button
+                      key={page}
+                      variant={currentPage === page ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setCurrentPage(page)}
+                      className="w-8 h-8 p-0"
+                    >
+                      {page}
+                    </Button>
+                  ))}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Sau
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Dataset Detail Dialog */}
+      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Chi tiết Dataset</DialogTitle>
+            <DialogDescription>Thông tin chi tiết về dataset đã chọn</DialogDescription>
+          </DialogHeader>
+          {selectedDataset && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Tên Dataset</label>
+                  <p className="text-lg font-semibold">{selectedDataset.name}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">ID</label>
+                  <p className="text-lg font-mono">{selectedDataset.dataset_id}</p>
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Mô tả</label>
+                <p className="text-sm">{selectedDataset.description || "Không có mô tả"}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Người tạo</label>
+                  <p className="text-sm">{selectedDataset.created_by_username}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Số versions</label>
+                  <p className="text-sm">{selectedDataset.version_count} (Latest: v{selectedDataset.latest_version})</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Ngày tạo</label>
+                  <p className="text-sm">{formatDate(selectedDataset.created_at)}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Cập nhật lần cuối</label>
+                  <p className="text-sm">{formatDate(selectedDataset.updated_at)}</p>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDetailOpen(false)}>
+              Đóng
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Xác nhận xóa dataset</DialogTitle>
+            <DialogDescription>
+              Bạn có chắc chắn muốn xóa dataset "{deletingDataset?.name}"? 
+              Hành động này không thể hoàn tác và sẽ xóa tất cả dữ liệu liên quan.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>
+              Hủy
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteConfirm}>
+              Xóa dataset
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -11,9 +11,10 @@ import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Upload, FileText, Calendar, Eye, Download, CheckCircle, AlertCircle, Clock } from "lucide-react"
+import { Upload, FileText, Calendar, Eye, Download, CheckCircle, AlertCircle, Clock, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { getDatasets, createDatasetVersion, getDatasetVersions, uploadFileToVersion, getVersionFiles, type Dataset, type DatasetVersion, type DataFile } from "@/api/datasets"
+import { getDatasets, createDatasetVersion, getDatasetVersions, uploadFileToVersion, getVersionFiles, createDataset, type Dataset, type DatasetVersion, type DataFile } from "@/api/datasets"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 
 export function DataUpload() {
   const [dragActive, setDragActive] = useState(false)
@@ -26,11 +27,22 @@ export function DataUpload() {
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
 
+  // Dataset creation state
+  const [isCreateDatasetOpen, setIsCreateDatasetOpen] = useState(false)
+  const [newDataset, setNewDataset] = useState({
+    name: "",
+    description: "",
+  })
+  const [isCreatingDataset, setIsCreatingDataset] = useState(false)
+  const [datasetError, setDatasetError] = useState("")
+  const [datasetSuccess, setDatasetSuccess] = useState("")
+
   // Data state
   const [datasets, setDatasets] = useState<Dataset[]>([])
   const [versions, setVersions] = useState<DatasetVersion[]>([])
   const [files, setFiles] = useState<DataFile[]>([])
   const [loading, setLoading] = useState(false)
+  const [selectedVersion, setSelectedVersion] = useState<DatasetVersion | null>(null)
 
   // Load datasets on mount
   useEffect(() => {
@@ -48,8 +60,13 @@ export function DataUpload() {
   useEffect(() => {
     if (versionId) {
       loadFiles(parseInt(versionId))
+      // Find and set the selected version
+      const version = versions.find(v => v.version_id.toString() === versionId)
+      setSelectedVersion(version || null)
+    } else {
+      setSelectedVersion(null)
     }
-  }, [versionId])
+  }, [versionId, versions])
 
   const loadDatasets = async () => {
     try {
@@ -78,6 +95,40 @@ export function DataUpload() {
       setFiles(data)
     } catch (err: any) {
       setError(err?.message || "Không thể tải danh sách files")
+    }
+  }
+
+  const handleCreateDataset = async () => {
+    if (!newDataset.name.trim()) {
+      setDatasetError("Tên dataset là bắt buộc")
+      return
+    }
+
+    try {
+      setIsCreatingDataset(true)
+      setDatasetError("")
+      setDatasetSuccess("")
+
+      const dataset = await createDataset(newDataset.name, newDataset.description)
+      
+      setDatasetSuccess(`Dataset "${dataset.name}" đã được tạo thành công!`)
+      
+      // Reset form
+      setNewDataset({ name: "", description: "" })
+      
+      // Reload datasets to show the new one
+      loadDatasets()
+      
+      // Close dialog after a short delay
+      setTimeout(() => {
+        setIsCreateDatasetOpen(false)
+        setDatasetSuccess("")
+      }, 2000)
+      
+    } catch (err: any) {
+      setDatasetError(err?.message || "Tạo dataset thất bại")
+    } finally {
+      setIsCreatingDataset(false)
     }
   }
 
@@ -198,7 +249,61 @@ export function DataUpload() {
         <CardContent className="space-y-4">
           {/* Dataset Selection */}
           <div className="space-y-2">
-            <Label htmlFor="dataset">Chọn Dataset</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="dataset">Chọn Dataset</Label>
+              <Dialog open={isCreateDatasetOpen} onOpenChange={setIsCreateDatasetOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create new Dataset
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Tạo Dataset mới</DialogTitle>
+                    <DialogDescription>Tạo dataset mới để quản lý dữ liệu gán nhãn</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="dataset-name">Tên Dataset *</Label>
+                      <Input
+                        id="dataset-name"
+                        placeholder="Nhập tên dataset"
+                        value={newDataset.name}
+                        onChange={(e) => setNewDataset({ ...newDataset, name: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="dataset-description">Mô tả</Label>
+                      <Input
+                        id="dataset-description"
+                        placeholder="Nhập mô tả dataset (tùy chọn)"
+                        value={newDataset.description}
+                        onChange={(e) => setNewDataset({ ...newDataset, description: e.target.value })}
+                      />
+                    </div>
+                    {datasetError && (
+                      <div className="text-sm text-destructive bg-destructive/10 p-2 rounded">
+                        {datasetError}
+                      </div>
+                    )}
+                    {datasetSuccess && (
+                      <div className="text-sm text-green-600 bg-green-100 p-2 rounded">
+                        {datasetSuccess}
+                      </div>
+                    )}
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsCreateDatasetOpen(false)}>
+                      Hủy
+                    </Button>
+                    <Button onClick={handleCreateDataset} disabled={isCreatingDataset}>
+                      {isCreatingDataset ? "Đang tạo..." : "Tạo Dataset"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
             <Select value={selectedDatasetId} onValueChange={setSelectedDatasetId}>
               <SelectTrigger>
                 <SelectValue placeholder="Chọn dataset để upload file" />
@@ -320,8 +425,8 @@ export function DataUpload() {
             Files đã upload
           </CardTitle>
           <CardDescription>
-            {versionId 
-              ? `Files trong version ${versionId}` 
+            {selectedVersion 
+              ? `Files trong version v${selectedVersion.version_number} - ${selectedVersion.changelog || "No description"}` 
               : "Chọn dataset và version để xem files"
             }
           </CardDescription>
@@ -353,6 +458,11 @@ export function DataUpload() {
                         <h4 className="font-medium">{file.file_name}</h4>
                         {getStatusIcon(file)}
                         {getStatusBadge(file)}
+                        {selectedVersion && (
+                          <Badge variant="outline" className="text-xs">
+                            v{selectedVersion.version_number}
+                          </Badge>
+                        )}
                       </div>
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
@@ -361,6 +471,11 @@ export function DataUpload() {
                         </span>
                         <span>{formatFileSize(file.file_size)}</span>
                         {file.line_count && <span>{file.line_count.toLocaleString()} dòng</span>}
+                        {selectedVersion && (
+                          <span className="text-blue-600">
+                            Version: {selectedVersion.changelog || "No description"}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>

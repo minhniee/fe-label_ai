@@ -35,6 +35,23 @@ export async function getDatasets() {
   return apiRequest<Dataset[]>("/datasets", { auth: true })
 }
 
+// Create dataset
+export async function createDataset(name: string, description?: string) {
+  return apiRequest<Dataset>("/datasets", {
+    method: "POST",
+    body: { name, description: description || "" },
+    auth: true
+  })
+}
+
+// Delete dataset
+export async function deleteDataset(datasetId: number) {
+  return apiRequest<void>(`/datasets/${datasetId}`, {
+    method: "DELETE",
+    auth: true
+  })
+}
+
 // Create dataset version
 export async function createDatasetVersion(datasetId: number, changelog?: string) {
   return apiRequest<DatasetVersion>(`/datasets/${datasetId}/versions`, {
