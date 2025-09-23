@@ -18,7 +18,7 @@ export default function AdminPage() {
       </div>
 
       {/* Admin Tabs */}
-      <Tabs defaultValue="statistics" className="space-y-6">
+      <Tabs defaultValue="batches" className="space-y-6">
         <TabsList className="grid w-full grid-cols-6 lg:w-[900px]">
           <TabsTrigger value="batches">Quản lý Batch</TabsTrigger>
           <TabsTrigger value="agreement">Inter-Annotator</TabsTrigger>
