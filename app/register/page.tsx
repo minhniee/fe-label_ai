@@ -41,39 +41,39 @@ export default function RegisterPage() {
 
     const usernameVal = formData.name.trim()
     if (!usernameVal) {
-      newErrors.name = "Username là bắt buộc"
+      newErrors.name = "Username is required"
     } else if (usernameVal.length < 3) {
-      newErrors.name = "Username phải có ít nhất 3 ký tự"
+      newErrors.name = "Username must be at least 3 characters"
     } else if (usernameVal.length > 50) {
-      newErrors.name = "Username phải nhỏ hơn 50 ký tự"
+      newErrors.name = "Username must be less than 50 characters"
     }
 
     const emailVal = formData.email.trim()
     if (!emailVal) {
-      newErrors.email = "Email là bắt buộc"
+      newErrors.email = "Email is required"
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal)) {
-      newErrors.email = "Email không hợp lệ"
+      newErrors.email = "Invalid email format"
     }
 
     // Mirror backend password strength rules
     if (!formData.password) {
-      newErrors.password = "Mật khẩu là bắt buộc"
+      newErrors.password = "Password is required"
     } else if (formData.password.length < 8) {
-      newErrors.password = "Mật khẩu phải có ít nhất 8 ký tự"
+      newErrors.password = "Password must be at least 8 characters"
     } else if (!/[A-Z]/.test(formData.password)) {
-      newErrors.password = "Mật khẩu phải có ít nhất 1 chữ hoa"
+      newErrors.password = "Password must have at least 1 uppercase letter"
     } else if (!/[a-z]/.test(formData.password)) {
-      newErrors.password = "Mật khẩu phải có ít nhất 1 chữ thường"
+      newErrors.password = "Password must have at least 1 lowercase letter"
     } else if (!/[0-9]/.test(formData.password)) {
-      newErrors.password = "Mật khẩu phải có ít nhất 1 chữ số"
+      newErrors.password = "Password must have at least 1 number"
     } else if (!/[!@#$%^&*()_+\-=[\]{}|;:,.<>?]/.test(formData.password)) {
-      newErrors.password = "Mật khẩu phải có ít nhất 1 ký tự đặc biệt"
+      newErrors.password = "Password must have at least 1 special character"
     }
 
     if (!formData.confirmPassword) {
-      newErrors.confirmPassword = "Xác nhận mật khẩu là bắt buộc"
+      newErrors.confirmPassword = "Password confirmation is required"
     } else if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = "Mật khẩu xác nhận không khớp"
+      newErrors.confirmPassword = "Password confirmation does not match"
     }
 
     setErrors(newErrors)
@@ -125,7 +125,7 @@ export default function RegisterPage() {
       // Redirect to dashboard after successful login
       window.location.href = "/dashboard"
     } catch (err: any) {
-      setServerError(err?.message || "Có lỗi xảy ra. Vui lòng thử lại.")
+      setServerError(err?.message || "An error occurred. Please try again.")
     } finally {
       setIsSubmitting(false)
     }
@@ -141,8 +141,8 @@ export default function RegisterPage() {
               <GraduationCap className="h-8 w-8 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-foreground">F-ALT</h1>
-              <p className="text-sm text-muted-foreground">FPTU Admissions Platform</p>
+              <h1 className="text-2xl font-bold text-foreground">Label-AI</h1>
+              <p className="text-sm text-muted-foreground">AI Labeling Platform</p>
             </div>
           </div>
           <p className="text-muted-foreground text-sm">AI Labeling & Training Platform</p>
@@ -155,10 +155,10 @@ export default function RegisterPage() {
               <Link href="/" className="text-muted-foreground hover:text-foreground">
                 <ArrowLeft className="h-4 w-4" />
               </Link>
-              <CardTitle className="text-2xl text-card-foreground">Đăng ký tài khoản</CardTitle>
+              <CardTitle className="text-2xl text-card-foreground">Register Account</CardTitle>
             </div>
             <CardDescription className="text-muted-foreground">
-              Tạo tài khoản mới để truy cập hệ thống F-ALT
+              Create a new account to access the Label-AI system
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -190,7 +190,7 @@ export default function RegisterPage() {
                     <p className={`text-xs ${isUsernameValid ? "text-emerald-500" : "text-muted-foreground"}`}>
                       <span className="inline-flex items-center gap-1">
                         <CheckCircle className={`h-3 w-3 ${isUsernameValid ? "text-emerald-500" : "text-muted-foreground"}`} />
-                        3 - 50 ký tự
+                        3 - 50 characters
                       </span>
                     </p>
                   </div>
@@ -221,13 +221,13 @@ export default function RegisterPage() {
                     <p className={`text-xs ${emailHasAt ? "text-emerald-500" : "text-muted-foreground"}`}>
                       <span className="inline-flex items-center gap-1">
                         <CheckCircle className={`h-3 w-3 ${emailHasAt ? "text-emerald-500" : "text-muted-foreground"}`} />
-                        Email phải có ký tự @
+                        Email must contain @
                       </span>
                     </p>
                     <p className={`text-xs ${isEmailValid ? "text-emerald-500" : "text-muted-foreground"}`}>
                       <span className="inline-flex items-center gap-1">
                         <CheckCircle className={`h-3 w-3 ${isEmailValid ? "text-emerald-500" : "text-muted-foreground"}`} />
-                        Định dạng email hợp lệ
+                        Valid email format
                       </span>
                     </p>
                   </div>
@@ -240,13 +240,13 @@ export default function RegisterPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="password" className="text-card-foreground">
-                  Mật khẩu
+                  Password
                 </Label>
                 <div className="relative">
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="Nhập mật khẩu"
+                    placeholder="Enter password"
                     value={formData.password}
                     onChange={(e) => handleInputChange("password", e.target.value)}
                     onFocus={() => setIsPasswordFocused(true)}
@@ -275,31 +275,31 @@ export default function RegisterPage() {
                     <p className={` ${pwdLen ? "text-emerald-500" : "text-muted-foreground"}`}>
                       <span className="inline-flex items-center gap-1">
                         <CheckCircle className={`h-3 w-3 ${pwdLen ? "text-emerald-500" : "text-muted-foreground"}`} />
-                        Ít nhất 8 ký tự
+                        At least 8 characters
                       </span>
                     </p>
                     <p className={` ${pwdUpper ? "text-emerald-500" : "text-muted-foreground"}`}>
                       <span className="inline-flex items-center gap-1">
                         <CheckCircle className={`h-3 w-3 ${pwdUpper ? "text-emerald-500" : "text-muted-foreground"}`} />
-                        Có chữ hoa
+                        Has uppercase
                       </span>
                     </p>
                     <p className={` ${pwdLower ? "text-emerald-500" : "text-muted-foreground"}`}>
                       <span className="inline-flex items-center gap-1">
                         <CheckCircle className={`h-3 w-3 ${pwdLower ? "text-emerald-500" : "text-muted-foreground"}`} />
-                        Có chữ thường
+                        Has lowercase
                       </span>
                     </p>
                     <p className={` ${pwdDigit ? "text-emerald-500" : "text-muted-foreground"}`}>
                       <span className="inline-flex items-center gap-1">
                         <CheckCircle className={`h-3 w-3 ${pwdDigit ? "text-emerald-500" : "text-muted-foreground"}`} />
-                        Có chữ số
+                        Has number
                       </span>
                     </p>
                     <p className={` ${pwdSpecial ? "text-emerald-500" : "text-muted-foreground"}`}>
                       <span className="inline-flex items-center gap-1">
                         <CheckCircle className={`h-3 w-3 ${pwdSpecial ? "text-emerald-500" : "text-muted-foreground"}`} />
-                        Có ký tự đặc biệt
+                        Has special character
                       </span>
                     </p>
                   </div>
@@ -308,13 +308,13 @@ export default function RegisterPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword" className="text-card-foreground">
-                  Xác nhận mật khẩu
+                  Confirm Password
                 </Label>
                 <div className="relative">
                   <Input
                     id="confirmPassword"
                     type={showConfirmPassword ? "text" : "password"}
-                    placeholder="Nhập lại mật khẩu"
+                    placeholder="Re-enter password"
                     value={formData.confirmPassword}
                     onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
                     onFocus={() => setIsConfirmFocused(true)}
@@ -343,7 +343,7 @@ export default function RegisterPage() {
                     <p className={`text-xs ${isConfirmValid ? "text-emerald-500" : "text-muted-foreground"}`}>
                       <span className="inline-flex items-center gap-1">
                         <CheckCircle className={`h-3 w-3 ${isConfirmValid ? "text-emerald-500" : "text-muted-foreground"}`} />
-                        Trùng với mật khẩu
+                        Matches password
                       </span>
                     </p>
                   </div>
@@ -355,15 +355,15 @@ export default function RegisterPage() {
                 className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
                 disabled={isSubmitting}
               >
-                {isSubmitting ? "Đang đăng ký..." : "Đăng ký"}
+                {isSubmitting ? "Registering..." : "Register"}
               </Button>
             </form>
 
             <div className="mt-4 text-center">
               <p className="text-sm text-muted-foreground">
-                Đã có tài khoản?{" "}
+                Already have an account?{" "}
                 <Link href="/" className="text-primary hover:text-primary/80 underline-offset-4 hover:underline">
-                  Đăng nhập ngay
+                  Login now
                 </Link>
               </p>
             </div>
@@ -372,8 +372,8 @@ export default function RegisterPage() {
 
         {/* Footer */}
         <div className="mt-8 text-center text-xs text-muted-foreground">
-          <p>© 2024 FPT University. All rights reserved.</p>
-          <p className="mt-1">Internal Use Only - F-ALT Platform v1.0</p>
+          <p>© 2024 Label-AI Platform. All rights reserved.</p>
+          <p className="mt-1">Internal Use Only - Label-AI Platform v1.0</p>
         </div>
       </div>
     </div>

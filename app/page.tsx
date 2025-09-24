@@ -33,7 +33,7 @@ export default function LoginPage() {
         window.location.href = "/dashboard"
       }
     } catch (err: any) {
-      setLoginError(err?.message || "Đăng nhập thất bại")
+      setLoginError(err?.message || "Login failed")
     }
   }
 
@@ -47,8 +47,8 @@ export default function LoginPage() {
               <GraduationCap className="h-8 w-8 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-foreground">F-ALT</h1>
-              <p className="text-sm text-muted-foreground">FPTU Admissions Platform</p>
+              <h1 className="text-2xl font-bold text-foreground">Label-AI</h1>
+              <p className="text-sm text-muted-foreground">AI Labeling Platform</p>
             </div>
           </div>
           <p className="text-muted-foreground text-sm">AI Labeling & Training Platform</p>
@@ -57,21 +57,21 @@ export default function LoginPage() {
         {/* Login Card */}
         <Card className="shadow-lg border-0 bg-card/80 backdrop-blur-sm">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl text-center text-card-foreground">Đăng nhập</CardTitle>
+            <CardTitle className="text-2xl text-center text-card-foreground">Login</CardTitle>
             <CardDescription className="text-center text-muted-foreground">
-              Nhập thông tin đăng nhập để truy cập hệ thống
+              Enter your credentials to access the system
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="identifier" className="text-card-foreground">
-                  Tài khoản (Email hoặc Username)
+                  Account (Email or Username)
                 </Label>
                 <Input
                   id="identifier"
                   type="text"
-                  placeholder="your.email@example.com hoặc username"
+                  placeholder="your.email@example.com or username"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
                   required
@@ -81,13 +81,13 @@ export default function LoginPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="password" className="text-card-foreground">
-                  Mật khẩu
+                  Password
                 </Label>
                 <div className="relative">
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="Nhập mật khẩu"
+                    placeholder="Enter password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
@@ -112,7 +112,7 @@ export default function LoginPage() {
               {loginError && <div className="text-sm text-destructive bg-destructive/10 p-2 rounded">{loginError}</div>}
 
               <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
-                Đăng nhập
+                Login
               </Button>
             </form>
 
@@ -121,17 +121,17 @@ export default function LoginPage() {
                 href="/forgot-password"
                 className="text-sm text-primary hover:text-primary/80 underline-offset-4 hover:underline"
               >
-                Quên mật khẩu?
+                Forgot password?
               </Link>
             </div>
             <div className="mt-2 text-center">
               <p className="text-sm text-muted-foreground">
-                Chưa có tài khoản?{" "}
+                Don't have an account?{" "}
                 <Link
                   href="/register"
                   className="text-primary hover:text-primary/80 underline-offset-4 hover:underline"
                 >
-                  Đăng ký ngay
+                  Register now
                 </Link>
               </p>
             </div>
@@ -140,8 +140,8 @@ export default function LoginPage() {
 
         {/* Footer */}
         <div className="mt-8 text-center text-xs text-muted-foreground">
-          <p>© 2024 FPT University. All rights reserved.</p>
-          <p className="mt-1">Internal Use Only - F-ALT Platform v1.0</p>
+          <p>© 2024 Label-AI Platform. All rights reserved.</p>
+          <p className="mt-1">Internal Use Only - Label-AI Platform v1.0</p>
         </div>
       </div>
     </div>

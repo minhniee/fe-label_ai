@@ -154,14 +154,14 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
         }));
         setUsers(uiUsers);
         toast({
-          title: "Tải thành công",
-          description: `Đã tải ${uiUsers.length} người dùng`,
+          title: "Success",
+          description: `Loaded ${uiUsers.length} users`,
         });
       } catch (e: any) {
-        setError(e?.message || "Không thể tải danh sách người dùng");
+        setError(e?.message || "Failed to load users");
         toast({
-          title: "Lỗi",
-          description: e?.message || "Không thể tải danh sách người dùng",
+          title: "Error",
+          description: e?.message || "Failed to load users",
           variant: "destructive",
         });
       } finally {
@@ -193,14 +193,14 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
       setNewUser({ username: "", email: "", role_id: 4, password: "" });
       setIsAddUserOpen(false);
       toast({
-        title: "Tạo thành công",
-        description: `Đã tạo người dùng ${created.username}`,
+        title: "Success",
+        description: `Created user ${created.username}`,
       });
     } catch (e: any) {
-      setError(e?.message || "Không thể tạo người dùng");
+      setError(e?.message || "Failed to create user");
       toast({
-        title: "Lỗi",
-        description: e?.message || "Không thể tạo người dùng",
+        title: "Error",
+        description: e?.message || "Failed to create user",
         variant: "destructive",
       });
     }
@@ -225,8 +225,8 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
       editForm.role_id < editOriginalRoleId
     ) {
       toast({
-        title: "Không hợp lệ",
-        description: "Bạn không thể hạ cấp vai trò của chính mình.",
+        title: "Invalid",
+        description: "You cannot downgrade your own role.",
         variant: "destructive",
       });
       return;
@@ -253,14 +253,14 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
       setIsEditOpen(false);
       setEditingUserId(null);
       toast({
-        title: "Cập nhật thành công",
-        description: `Đã cập nhật người dùng ${updated.username}`,
+        title: "Success",
+        description: `Updated user ${updated.username}`,
       });
     } catch (e: any) {
-      setError(e?.message || "Không thể cập nhật người dùng");
+      setError(e?.message || "Failed to update user");
       toast({
-        title: "Lỗi",
-        description: e?.message || "Không thể cập nhật người dùng",
+        title: "Error",
+        description: e?.message || "Failed to update user",
         variant: "destructive",
       });
     }
@@ -279,14 +279,14 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
       await apiDeleteUser(deleteTarget.id);
       setUsers((prev) => prev.filter((u) => u.id !== deleteTarget.id));
       toast({
-        title: "Đã xóa",
-        description: `Đã xóa người dùng ${deleteTarget.name}`,
+        title: "Deleted",
+        description: `Deleted user ${deleteTarget.name}`,
       });
     } catch (e: any) {
-      setError(e?.message || "Không thể xóa người dùng");
+      setError(e?.message || "Failed to delete user");
       toast({
-        title: "Lỗi",
-        description: e?.message || "Không thể xóa người dùng",
+        title: "Error",
+        description: e?.message || "Failed to delete user",
         variant: "destructive",
       });
     } finally {
@@ -328,14 +328,14 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Tổng người dùng
+              Total Users
             </CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{users.length}</div>
             <p className="text-xs text-muted-foreground">
-              Người dùng trong hệ thống
+              Users in system
             </p>
           </CardContent>
         </Card>
@@ -347,7 +347,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{countBy("superadmin")}</div>
-            <p className="text-xs text-muted-foreground">Quyền cao nhất</p>
+            <p className="text-xs text-muted-foreground">Highest privileges</p>
           </CardContent>
         </Card>
 
@@ -358,7 +358,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{countBy("admin")}</div>
-            <p className="text-xs text-muted-foreground">Quản trị viên</p>
+            <p className="text-xs text-muted-foreground">Administrators</p>
           </CardContent>
         </Card>
 
@@ -369,7 +369,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{countBy("manager")}</div>
-            <p className="text-xs text-muted-foreground">Quản lý/Phân công</p>
+            <p className="text-xs text-muted-foreground">Managers</p>
           </CardContent>
         </Card>
 
@@ -380,7 +380,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{countBy("labeler")}</div>
-            <p className="text-xs text-muted-foreground">Người gán nhãn</p>
+            <p className="text-xs text-muted-foreground">Labelers</p>
           </CardContent>
         </Card>
       </div>
@@ -392,20 +392,20 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Xóa người dùng?</AlertDialogTitle>
+            <AlertDialogTitle>Delete user?</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget ? (
                 <span>
-                  Bạn chắc chắn muốn xóa <b>{deleteTarget.name}</b>? Hành động
-                  này không thể hoàn tác.
+                  Are you sure you want to delete <b>{deleteTarget.name}</b>? This action
+                  cannot be undone.
                 </span>
               ) : null}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDeleteUser}>
-              Xóa
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -416,31 +416,31 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Danh sách người dùng</CardTitle>
+              <CardTitle>User List</CardTitle>
               <CardDescription>
-                Quản lý tài khoản và phân quyền người dùng trong hệ thống
+                Manage user accounts and permissions in the system
               </CardDescription>
             </div>
             <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
               <DialogTrigger asChild>
                 <Button>
                   <Plus className="h-4 w-4 mr-2" />
-                  Thêm người dùng
+                  Add User
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Thêm người dùng mới</DialogTitle>
+                  <DialogTitle>Add New User</DialogTitle>
                   <DialogDescription>
-                    Tạo tài khoản mới cho người dùng trong hệ thống
+                    Create a new user account in the system
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="username">Tên đăng nhập</Label>
+                    <Label htmlFor="username">Username</Label>
                     <Input
                       id="username"
-                      placeholder="Nhập username"
+                      placeholder="Enter username"
                       value={newUser.username}
                       onChange={(e) =>
                         setNewUser({ ...newUser, username: e.target.value })
@@ -452,7 +452,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
                     <Input
                       id="email"
                       type="email"
-                      placeholder="user@fpt.edu.vn"
+                      placeholder="user@example.com"
                       value={newUser.email}
                       onChange={(e) =>
                         setNewUser({ ...newUser, email: e.target.value })
@@ -460,11 +460,11 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="password">Mật khẩu</Label>
+                    <Label htmlFor="password">Password</Label>
                     <Input
                       id="password"
                       type="password"
-                      placeholder="Nhập mật khẩu mạnh"
+                      placeholder="Enter strong password"
                       value={newUser.password}
                       onChange={(e) =>
                         setNewUser({ ...newUser, password: e.target.value })
@@ -472,7 +472,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="role">Vai trò</Label>
+                    <Label htmlFor="role">Role</Label>
                     <Select
                       value={String(newUser.role_id)}
                       onValueChange={(value) =>
@@ -480,7 +480,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
                       }
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Chọn vai trò" />
+                        <SelectValue placeholder="Select role" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="1">SuperAdmin</SelectItem>
@@ -496,9 +496,9 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
                     variant="outline"
                     onClick={() => setIsAddUserOpen(false)}
                   >
-                    Hủy
+                    Cancel
                   </Button>
-                  <Button onClick={handleAddUser}>Thêm người dùng</Button>
+                  <Button onClick={handleAddUser}>Add User</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -508,14 +508,14 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
           {error && <div className="text-sm text-red-600 mb-3">{error}</div>}
           {loading && (
             <div className="text-sm text-muted-foreground mb-3">
-              Đang tải...
+              Loading...
             </div>
           )}
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Người dùng</TableHead>
-                <TableHead>Vai trò</TableHead>
+                <TableHead>User</TableHead>
+                <TableHead>Role</TableHead>
                 <TableHead></TableHead>
               </TableRow>
             </TableHeader>
@@ -545,10 +545,10 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Thao tác</DropdownMenuLabel>
+                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuItem onClick={() => openEditDialog(user)}>
                           <Edit className="mr-2 h-4 w-4" />
-                          Chỉnh sửa
+                          Edit
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
@@ -559,7 +559,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
                           disabled={user.role === "superadmin" ? true : false}
                         >
                           <Trash2 className="mr-2 h-4 w-4" />
-                          Xóa người dùng
+                          Delete User
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -575,17 +575,17 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Chỉnh sửa người dùng</DialogTitle>
+            <DialogTitle>Edit User</DialogTitle>
             <DialogDescription>
-              Cập nhật thông tin người dùng (không đổi mật khẩu tại đây)
+              Update user information (password changes not available here)
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="edit-username">Tên đăng nhập</Label>
+              <Label htmlFor="edit-username">Username</Label>
               <Input
                 id="edit-username"
-                placeholder="Nhập username"
+                placeholder="Enter username"
                 value={editForm.username}
                 onChange={(e) =>
                   setEditForm({ ...editForm, username: e.target.value })
@@ -597,7 +597,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
               <Input
                 id="edit-email"
                 type="email"
-                placeholder="user@fpt.edu.vn"
+                placeholder="user@example.com"
                 value={editForm.email}
                 onChange={(e) =>
                   setEditForm({ ...editForm, email: e.target.value })
@@ -605,7 +605,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-role">Vai trò</Label>
+              <Label htmlFor="edit-role">Role</Label>
               <Select
                 value={String(editForm.role_id)}
                 onValueChange={(value) =>
@@ -613,7 +613,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Chọn vai trò" />
+                  <SelectValue placeholder="Select role" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="1">SuperAdmin</SelectItem>
@@ -626,14 +626,14 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
                 editingUserId === currentUserId &&
                 editForm.role_id < editOriginalRoleId && (
                   <p className="text-xs text-red-600">
-                    Bạn không thể hạ cấp vai trò của chính mình.
+                    You cannot downgrade your own role.
                   </p>
                 )}
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditOpen(false)}>
-              Hủy
+              Cancel
             </Button>
             <Button
               onClick={handleUpdateUser}
@@ -646,7 +646,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
                 )
               }
             >
-              Lưu thay đổi
+              Save Changes
             </Button>
           </DialogFooter>
         </DialogContent>

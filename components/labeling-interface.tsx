@@ -37,56 +37,43 @@ export function LabelingInterface() {
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null)
   const [selectedLabel, setSelectedLabel] = useState<string>("")
   const [notes, setNotes] = useState<string>("")
-  const [progress, setProgress] = useState({ current: 1, total: 5000, completed: 3400 })
-
-  // Mock current question data
-  const mockQuestion: Question = {
-    id: "Q001",
-    studentId: "SV2024001",
-    studentName: "Nguyễn Văn An",
-    email: "an.nguyen@student.fpt.edu.vn",
-    phone: "0901234567",
-    program: "Công nghệ thông tin",
-    gpa: 8.5,
-    essay:
-      "Tôi luôn đam mê công nghệ và mong muốn trở thành một lập trình viên giỏi. Từ nhỏ, tôi đã tự học lập trình và tạo ra nhiều dự án nhỏ. Tôi tin rằng FPT University sẽ giúp tôi phát triển kỹ năng và kiến thức cần thiết để thành công trong ngành IT. Tôi có kinh nghiệm làm việc nhóm qua các dự án học tập và luôn sẵn sàng học hỏi những điều mới.",
-    extracurricular: ["Câu lạc bộ lập trình", "Tình nguyện viên", "Thể thao"],
-    submissionDate: "2024-01-15",
-  }
+  const [progress, setProgress] = useState({ current: 1, total: 0, completed: 0 })
 
   const labelOptions: LabelOption[] = [
     {
       id: "high_potential",
-      label: "Tiềm năng cao",
-      description: "Ứng viên có tiềm năng cao, phù hợp với chương trình",
+      label: "High Potential",
+      description: "Candidate has high potential, suitable for the program",
       hotkey: "1",
       color: "bg-green-100 text-green-800",
     },
     {
       id: "medium_potential",
-      label: "Tiềm năng trung bình",
-      description: "Ứng viên có tiềm năng trung bình, cần xem xét thêm",
+      label: "Medium Potential",
+      description: "Candidate has medium potential, needs further consideration",
       hotkey: "2",
       color: "bg-yellow-100 text-yellow-800",
     },
     {
       id: "low_potential",
-      label: "Tiềm năng thấp",
-      description: "Ứng viên có tiềm năng thấp, không phù hợp",
+      label: "Low Potential",
+      description: "Candidate has low potential, not suitable",
       hotkey: "3",
       color: "bg-red-100 text-red-800",
     },
     {
       id: "needs_review",
-      label: "Cần xem xét",
-      description: "Cần thêm thông tin hoặc đánh giá từ chuyên gia",
+      label: "Needs Review",
+      description: "Needs additional information or expert evaluation",
       hotkey: "4",
       color: "bg-blue-100 text-blue-800",
     },
   ]
 
+  // Load current question from API
   useEffect(() => {
-    setCurrentQuestion(mockQuestion)
+    // TODO: Load current question from API
+    // setCurrentQuestion(questionData)
   }, [])
 
   useEffect(() => {
@@ -281,7 +268,7 @@ export function LabelingInterface() {
           </CardHeader>
           <CardContent>
             <Textarea
-              placeholder="Nhập ghi chú về lý do gán nhãn này..."
+              placeholder="Enter notes about the reason for this label..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               className="resize-none"

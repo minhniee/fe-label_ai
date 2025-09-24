@@ -55,79 +55,7 @@ interface NewLabel {
 }
 
 export function LabelManagement() {
-  const [labelSets, setLabelSets] = useState<LabelSet[]>([
-    {
-      id: "1",
-      name: "Phân loại tiềm năng tuyển sinh",
-      description: "Bộ nhãn chính để đánh giá tiềm năng của ứng viên tuyển sinh",
-      labels: [
-        {
-          id: "1",
-          label: "Tiềm năng cao",
-          description: "Ứng viên có tiềm năng cao, phù hợp với chương trình",
-          hotkey: "1",
-          color: "bg-green-100 text-green-800",
-        },
-        {
-          id: "2",
-          label: "Tiềm năng trung bình",
-          description: "Ứng viên có tiềm năng trung bình, cần xem xét thêm",
-          hotkey: "2",
-          color: "bg-yellow-100 text-yellow-800",
-        },
-        {
-          id: "3",
-          label: "Tiềm năng thấp",
-          description: "Ứng viên có tiềm năng thấp, không phù hợp",
-          hotkey: "3",
-          color: "bg-red-100 text-red-800",
-        },
-        {
-          id: "4",
-          label: "Cần xem xét",
-          description: "Cần thêm thông tin hoặc đánh giá từ chuyên gia",
-          hotkey: "4",
-          color: "bg-blue-100 text-blue-800",
-        },
-      ],
-      createdDate: "2024-01-01",
-      isActive: true,
-      usageCount: 3400,
-      hasExistingData: true,
-    },
-    {
-      id: "2",
-      name: "Đánh giá năng lực học tập",
-      description: "Bộ nhãn đánh giá khả năng học tập và thích ứng của ứng viên",
-      labels: [
-        {
-          id: "5",
-          label: "Xuất sắc",
-          description: "Năng lực học tập xuất sắc",
-          hotkey: "1",
-          color: "bg-purple-100 text-purple-800",
-        },
-        {
-          id: "6",
-          label: "Tốt",
-          description: "Năng lực học tập tốt",
-          hotkey: "2",
-          color: "bg-blue-100 text-blue-800",
-        },
-        {
-          id: "7",
-          label: "Trung bình",
-          description: "Năng lực học tập trung bình",
-          hotkey: "3",
-          color: "bg-yellow-100 text-yellow-800",
-        },
-      ],
-      createdDate: "2024-01-05",
-      isActive: false,
-      usageCount: 0,
-      hasExistingData: false,
-    },
-  ])
+  const [labelSets, setLabelSets] = useState<LabelSet[]>([])
 
   const [isAddLabelSetOpen, setIsAddLabelSetOpen] = useState(false)
   const [isEditLabelOpen, setIsEditLabelOpen] = useState(false)
@@ -142,14 +70,14 @@ export function LabelManagement() {
   })
 
   const colorOptions = [
-    { value: "bg-green-100 text-green-800", label: "Xanh lá", preview: "bg-green-100" },
-    { value: "bg-blue-100 text-blue-800", label: "Xanh dương", preview: "bg-blue-100" },
-    { value: "bg-yellow-100 text-yellow-800", label: "Vàng", preview: "bg-yellow-100" },
-    { value: "bg-red-100 text-red-800", label: "Đỏ", preview: "bg-red-100" },
-    { value: "bg-purple-100 text-purple-800", label: "Tím", preview: "bg-purple-100" },
-    { value: "bg-orange-100 text-orange-800", label: "Cam", preview: "bg-orange-100" },
-    { value: "bg-pink-100 text-pink-800", label: "Hồng", preview: "bg-pink-100" },
-    { value: "bg-gray-100 text-gray-800", label: "Xám", preview: "bg-gray-100" },
+    { value: "bg-green-100 text-green-800", label: "Green", preview: "bg-green-100" },
+    { value: "bg-blue-100 text-blue-800", label: "Blue", preview: "bg-blue-100" },
+    { value: "bg-yellow-100 text-yellow-800", label: "Yellow", preview: "bg-yellow-100" },
+    { value: "bg-red-100 text-red-800", label: "Red", preview: "bg-red-100" },
+    { value: "bg-purple-100 text-purple-800", label: "Purple", preview: "bg-purple-100" },
+    { value: "bg-orange-100 text-orange-800", label: "Orange", preview: "bg-orange-100" },
+    { value: "bg-pink-100 text-pink-800", label: "Pink", preview: "bg-pink-100" },
+    { value: "bg-gray-100 text-gray-800", label: "Gray", preview: "bg-gray-100" },
   ]
 
   const addNewLabelToForm = () => {

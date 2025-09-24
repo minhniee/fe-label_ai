@@ -46,15 +46,15 @@ export function TaskList({ tasks, onTaskAction }: TaskListProps) {
   const getPriorityText = (priority: string) => {
     switch (priority) {
       case "urgent":
-        return "Khẩn cấp"
+        return "Urgent"
       case "high":
-        return "Cao"
+        return "High"
       case "normal":
-        return "Bình thường"
+        return "Normal"
       case "low":
-        return "Thấp"
+        return "Low"
       default:
-        return "Không xác định"
+        return "Unknown"
     }
   }
 
@@ -76,15 +76,15 @@ export function TaskList({ tasks, onTaskAction }: TaskListProps) {
   const getStatusText = (status: string) => {
     switch (status) {
       case "completed":
-        return "Hoàn thành"
+        return "Completed"
       case "in-progress":
-        return "Đang thực hiện"
+        return "In Progress"
       case "pending":
-        return "Chờ xử lý"
+        return "Pending"
       case "overdue":
-        return "Quá hạn"
+        return "Overdue"
       default:
-        return "Không xác định"
+        return "Unknown"
     }
   }
 
@@ -106,7 +106,7 @@ export function TaskList({ tasks, onTaskAction }: TaskListProps) {
                   <h3 className="text-lg font-semibold text-gray-900">{task.title}</h3>
                   <Badge className={getPriorityColor(task.priority)}>{getPriorityText(task.priority)}</Badge>
                   <Badge className={getStatusColor(task.status)}>{getStatusText(task.status)}</Badge>
-                  {isOverdue(task.dueDate) && <Badge className="bg-red-100 text-red-800">Quá hạn</Badge>}
+                  {isOverdue(task.dueDate) && <Badge className="bg-red-100 text-red-800">Overdue</Badge>}
                 </div>
                 <p className="text-gray-600 mb-3">{task.description}</p>
 
@@ -114,24 +114,24 @@ export function TaskList({ tasks, onTaskAction }: TaskListProps) {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                   <div className="flex items-center gap-2 text-sm text-gray-600">
                     <User className="h-4 w-4" />
-                    <span>Giao bởi: {task.assignedBy}</span>
+                    <span>Assigned by: {task.assignedBy}</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm text-gray-600">
                     <Calendar className="h-4 w-4" />
-                    <span>Hạn: {new Date(task.dueDate).toLocaleDateString("vi-VN")}</span>
+                    <span>Due: {new Date(task.dueDate).toLocaleDateString("en-US")}</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm text-gray-600">
                     <Clock className="h-4 w-4" />
-                    <span>Ước tính: {task.estimatedTime}</span>
+                    <span>Estimated: {task.estimatedTime}</span>
                   </div>
                 </div>
 
                 {/* Progress */}
                 <div className="mb-4">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-700">Tiến độ</span>
+                    <span className="text-sm font-medium text-gray-700">Progress</span>
                     <span className="text-sm text-gray-600">
-                      {task.questionsCompleted}/{task.questionsTotal} câu hỏi ({task.progress}%)
+                      {task.questionsCompleted}/{task.questionsTotal} questions ({task.progress}%)
                     </span>
                   </div>
                   <Progress value={task.progress} className="h-2" />
@@ -151,17 +151,17 @@ export function TaskList({ tasks, onTaskAction }: TaskListProps) {
               <div className="flex items-center gap-2 ml-4">
                 {task.status === "pending" && (
                   <Button size="sm" onClick={() => onTaskAction(task.id, "start")}>
-                    Bắt đầu
+                    Start
                   </Button>
                 )}
                 {task.status === "in-progress" && (
                   <Button size="sm" onClick={() => onTaskAction(task.id, "continue")}>
-                    Tiếp tục
+                    Continue
                   </Button>
                 )}
                 {task.status === "completed" && (
                   <Button size="sm" variant="outline" onClick={() => onTaskAction(task.id, "view")}>
-                    Xem chi tiết
+                    View Details
                   </Button>
                 )}
 
@@ -172,9 +172,9 @@ export function TaskList({ tasks, onTaskAction }: TaskListProps) {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => onTaskAction(task.id, "edit")}>Chỉnh sửa</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => onTaskAction(task.id, "duplicate")}>Nhân bản</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => onTaskAction(task.id, "archive")}>Lưu trữ</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onTaskAction(task.id, "edit")}>Edit</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onTaskAction(task.id, "duplicate")}>Duplicate</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onTaskAction(task.id, "archive")}>Archive</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>

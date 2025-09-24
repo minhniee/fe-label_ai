@@ -74,7 +74,7 @@ export function DataUpload() {
       const data = await getDatasets()
       setDatasets(data)
     } catch (err: any) {
-      setError(err?.message || "Không thể tải danh sách datasets")
+      setError(err?.message || "Failed to load datasets")
     } finally {
       setLoading(false)
     }
@@ -85,7 +85,7 @@ export function DataUpload() {
       const data = await getDatasetVersions(datasetId)
       setVersions(data)
     } catch (err: any) {
-      setError(err?.message || "Không thể tải danh sách versions")
+      setError(err?.message || "Failed to load versions")
     }
   }
 
@@ -94,13 +94,13 @@ export function DataUpload() {
       const data = await getVersionFiles(versionId)
       setFiles(data)
     } catch (err: any) {
-      setError(err?.message || "Không thể tải danh sách files")
+      setError(err?.message || "Failed to load files")
     }
   }
 
   const handleCreateDataset = async () => {
     if (!newDataset.name.trim()) {
-      setDatasetError("Tên dataset là bắt buộc")
+      setDatasetError("Dataset name is required")
       return
     }
 
@@ -126,7 +126,7 @@ export function DataUpload() {
       }, 2000)
       
     } catch (err: any) {
-      setDatasetError(err?.message || "Tạo dataset thất bại")
+      setDatasetError(err?.message || "Failed to create dataset")
     } finally {
       setIsCreatingDataset(false)
     }
@@ -163,17 +163,17 @@ export function DataUpload() {
       setSelectedFile(file)
       setError("")
     } else {
-      setError("Chỉ hỗ trợ file CSV và Excel (.xlsx, .xls)")
+      setError("Only CSV and Excel files (.xlsx, .xls) are supported")
     }
   }
 
   const handleUpload = async () => {
     if (!selectedFile) {
-      setError("Vui lòng chọn file")
+      setError("Please select a file")
       return
     }
     if (!selectedDatasetId) {
-      setError("Vui lòng chọn dataset")
+      setError("Please select a dataset")
       return
     }
 
@@ -208,7 +208,7 @@ export function DataUpload() {
       setDescription("")
       
     } catch (err: any) {
-      setError(err?.message || "Upload thất bại")
+      setError(err?.message || "Upload failed")
     } finally {
       setIsUploading(false)
     }
@@ -268,7 +268,7 @@ export function DataUpload() {
                       <Label htmlFor="dataset-name">Tên Dataset *</Label>
                       <Input
                         id="dataset-name"
-                        placeholder="Nhập tên dataset"
+                        placeholder="Enter dataset name"
                         value={newDataset.name}
                         onChange={(e) => setNewDataset({ ...newDataset, name: e.target.value })}
                       />
@@ -277,7 +277,7 @@ export function DataUpload() {
                       <Label htmlFor="dataset-description">Mô tả</Label>
                       <Input
                         id="dataset-description"
-                        placeholder="Nhập mô tả dataset (tùy chọn)"
+                        placeholder="Enter dataset description (optional)"
                         value={newDataset.description}
                         onChange={(e) => setNewDataset({ ...newDataset, description: e.target.value })}
                       />
@@ -298,7 +298,7 @@ export function DataUpload() {
                       Hủy
                     </Button>
                     <Button onClick={handleCreateDataset} disabled={isCreatingDataset}>
-                      {isCreatingDataset ? "Đang tạo..." : "Tạo Dataset"}
+                      {isCreatingDataset ? "Creating..." : "Create Dataset"}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -306,7 +306,7 @@ export function DataUpload() {
             </div>
             <Select value={selectedDatasetId} onValueChange={setSelectedDatasetId}>
               <SelectTrigger>
-                <SelectValue placeholder="Chọn dataset để upload file" />
+                <SelectValue placeholder="Select dataset to upload file" />
               </SelectTrigger>
               <SelectContent>
                 {datasets.map((dataset) => (
@@ -324,7 +324,7 @@ export function DataUpload() {
               <Label htmlFor="version">Chọn Version (hoặc để trống để tạo mới)</Label>
               <Select value={versionId} onValueChange={setVersionId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Chọn version hoặc để trống để tạo mới" />
+                  <SelectValue placeholder="Select version or leave empty to create new" />
                 </SelectTrigger>
                 <SelectContent>
                   {versions.map((version) => (
@@ -387,7 +387,7 @@ export function DataUpload() {
             <Label htmlFor="description">Mô tả phiên bản </Label>
             <Textarea 
               id="description" 
-              placeholder="Nhập nhật ký thay đổi cho phiên bản dữ liệu này..." 
+              placeholder="Enter changelog for this data version..." 
               className="resize-none"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -412,7 +412,7 @@ export function DataUpload() {
             disabled={!selectedFile || !selectedDatasetId || isUploading}
             className="w-full"
           >
-            {isUploading ? "Đang upload..." : "Upload File"}
+            {isUploading ? "Uploading..." : "Upload File"}
           </Button>
         </CardContent>
       </Card>
@@ -427,7 +427,7 @@ export function DataUpload() {
           <CardDescription>
             {selectedVersion 
               ? `Files trong version v${selectedVersion.version_number} - ${selectedVersion.changelog || "No description"}` 
-              : "Chọn dataset và version để xem files"
+              : "Select dataset and version to view files"
             }
           </CardDescription>
         </CardHeader>
@@ -439,7 +439,7 @@ export function DataUpload() {
           ) : files.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-muted-foreground">
-                {versionId ? "Chưa có file nào trong version này" : "Chọn dataset và version để xem files"}
+                {versionId ? "No files in this version" : "Select dataset and version to view files"}
               </p>
             </div>
           ) : (

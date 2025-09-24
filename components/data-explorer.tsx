@@ -47,7 +47,7 @@ export function DataExplorer() {
       const data = await getDatasets()
       setDatasets(data as DatasetRecord[])
     } catch (err: any) {
-      setError(err?.message || "Không thể tải danh sách datasets")
+      setError(err?.message || "Failed to load datasets")
     } finally {
       setLoading(false)
     }
@@ -67,7 +67,7 @@ export function DataExplorer() {
       setIsDeleteOpen(false)
       setDeletingDataset(null)
     } catch (err: any) {
-      setError(err?.message || "Xóa dataset thất bại")
+      setError(err?.message || "Failed to delete dataset")
     }
   }
 
@@ -100,7 +100,7 @@ export function DataExplorer() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Tìm kiếm theo tên dataset, mô tả, người tạo..."
+                  placeholder="Search by dataset name, description, creator..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -154,7 +154,7 @@ export function DataExplorer() {
                     <TableRow key={dataset.dataset_id}>
                       <TableCell className="font-medium">{dataset.name}</TableCell>
                       <TableCell className="text-muted-foreground max-w-xs truncate">
-                        {dataset.description || "Không có mô tả"}
+                        {dataset.description || "No description"}
                       </TableCell>
                       <TableCell>{dataset.created_by_username}</TableCell>
                       <TableCell>

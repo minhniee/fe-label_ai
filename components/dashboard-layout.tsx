@@ -42,7 +42,7 @@ const navigation = [
     icon: LayoutDashboard,
   },
   {
-    name: "Nhiệm vụ",
+    name: "Tasks",
     href: "/dashboard/tasks",
     icon: CheckSquare,
   },
@@ -203,7 +203,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
             <div className="flex flex-1 items-center">
               <h1 className="text-lg font-semibold text-foreground">
-                FPTU Admissions AI Platform
+                Label-AI Platform
               </h1>
             </div>
             <div className="flex items-center gap-x-4 lg:gap-x-6">
@@ -249,7 +249,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     >
                       <Mail className="mr-2 h-4 w-4" />
                       <span className="truncate">
-                        {me?.email ?? "Xem hồ sơ"}
+                        {me?.email ?? "View Profile"}
                       </span>
                     </Link>
                   </DropdownMenuItem>
