@@ -184,28 +184,28 @@ export function DataExport() {
         return (
           <Badge variant="secondary" className="bg-gray-100 text-gray-800">
             <Clock className="w-3 h-3 mr-1" />
-            Chờ xử lý
+            Pending
           </Badge>
         )
       case "processing":
         return (
           <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
             <Settings className="w-3 h-3 mr-1 animate-spin" />
-            Đang xử lý
+            Processing
           </Badge>
         )
       case "completed":
         return (
           <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
             <CheckCircle className="w-3 h-3 mr-1" />
-            Hoàn thành
+            Completed
           </Badge>
         )
       case "failed":
         return (
           <Badge variant="destructive">
             <AlertCircle className="w-3 h-3 mr-1" />
-            Thất bại
+            Failed
           </Badge>
         )
     }
@@ -230,47 +230,47 @@ export function DataExport() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tổng Export</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Exports</CardTitle>
             <Download className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{exportJobs.length}</div>
-            <p className="text-xs text-muted-foreground">Tất cả job export</p>
+            <p className="text-xs text-muted-foreground">All export jobs</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Hoàn thành</CardTitle>
+            <CardTitle className="text-sm font-medium">Completed</CardTitle>
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{exportJobs.filter((j) => j.status === "completed").length}</div>
-            <p className="text-xs text-muted-foreground">Sẵn sàng tải xuống</p>
+            <p className="text-xs text-muted-foreground">Ready to download</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Đang xử lý</CardTitle>
+            <CardTitle className="text-sm font-medium">Processing</CardTitle>
             <Settings className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{exportJobs.filter((j) => j.status === "processing").length}</div>
-            <p className="text-xs text-muted-foreground">Đang tạo file</p>
+            <p className="text-xs text-muted-foreground">Generating files</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tổng records</CardTitle>
+            <CardTitle className="text-sm font-medium">Total records</CardTitle>
             <Database className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {exportJobs.reduce((sum, job) => sum + job.totalRecords, 0).toLocaleString()}
             </div>
-            <p className="text-xs text-muted-foreground">Đã xuất dữ liệu</p>
+            <p className="text-xs text-muted-foreground">Exported</p>
           </CardContent>
         </Card>
       </div>
@@ -280,8 +280,8 @@ export function DataExport() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Xuất dữ liệu đã gán nhãn</CardTitle>
-              <CardDescription>Xuất dữ liệu đã được làm sạch và gán nhãn cho Machine Learning</CardDescription>
+              <CardTitle>Export Labeled Data</CardTitle>
+              <CardDescription>Export cleaned and labeled data for Machine Learning</CardDescription>
             </div>
             <Dialog open={isCreateExportOpen} onOpenChange={setIsCreateExportOpen}>
               <DialogTrigger asChild>
@@ -292,24 +292,24 @@ export function DataExport() {
               </DialogTrigger>
               <DialogContent className="max-w-4xl">
                 <DialogHeader>
-                  <DialogTitle>Tạo Export dữ liệu mới</DialogTitle>
-                  <DialogDescription>Cấu hình và xuất dữ liệu đã gán nhãn theo định dạng ML</DialogDescription>
+                  <DialogTitle>Create New Data Export</DialogTitle>
+                  <DialogDescription>Configure and export labeled data for ML formats</DialogDescription>
                 </DialogHeader>
                 <div className="grid grid-cols-2 gap-6">
                   {/* Basic Settings */}
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="export-name">Tên Export</Label>
+                      <Label htmlFor="export-name">Export Name</Label>
                       <Input
                         id="export-name"
-                        placeholder="Ví dụ: Export Batch 001 - CSV"
+                        placeholder="e.g., Export Batch 001 - CSV"
                         value={newExport.name}
                         onChange={(e) => setNewExport({ ...newExport, name: e.target.value })}
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="format">Định dạng</Label>
+                      <Label htmlFor="format">Format</Label>
                       <Select
                         value={newExport.format}
                         onValueChange={(value: ExportJob["format"]) => setNewExport({ ...newExport, format: value })}
@@ -328,7 +328,7 @@ export function DataExport() {
 
                     <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-2">
-                        <Label htmlFor="date-from">Từ ngày</Label>
+                        <Label htmlFor="date-from">From date</Label>
                         <Input
                           id="date-from"
                           type="date"
@@ -337,7 +337,7 @@ export function DataExport() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="date-to">Đến ngày</Label>
+                        <Label htmlFor="date-to">To date</Label>
                         <Input
                           id="date-to"
                           type="date"
@@ -351,7 +351,7 @@ export function DataExport() {
                   {/* Filters */}
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label>Chọn Batch</Label>
+                      <Label>Select Batches</Label>
                       <div className="max-h-32 overflow-y-auto border rounded-md p-2 space-y-2">
                         <div className="flex items-center space-x-2">
                           <Checkbox
@@ -366,7 +366,7 @@ export function DataExport() {
                             }}
                           />
                           <Label htmlFor="all-batches" className="text-sm font-medium">
-                            Tất cả Batch
+                            All Batches
                           </Label>
                         </div>
                         {availableBatches.map((batch) => (
@@ -385,7 +385,7 @@ export function DataExport() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Trạng thái nhãn</Label>
+                      <Label>Label Status</Label>
                       <div className="grid grid-cols-2 gap-2">
                         {["completed", "reviewed", "approved", "disagreement"].map((status) => (
                           <div key={status} className="flex items-center space-x-2">
@@ -395,10 +395,10 @@ export function DataExport() {
                               onCheckedChange={(checked) => handleLabelStatusSelection(status, checked as boolean)}
                             />
                             <Label htmlFor={status} className="text-sm font-normal">
-                              {status === "completed" && "Hoàn thành"}
-                              {status === "reviewed" && "Đã review"}
-                              {status === "approved" && "Đã duyệt"}
-                              {status === "disagreement" && "Có bất đồng"}
+                              {status === "completed" && "Completed"}
+                              {status === "reviewed" && "Reviewed"}
+                              {status === "approved" && "Approved"}
+                              {status === "disagreement" && "Disagreement"}
                             </Label>
                           </div>
                         ))}
@@ -409,7 +409,7 @@ export function DataExport() {
                   {/* Advanced Options */}
                   <div className="col-span-2 space-y-4">
                     <div className="space-y-2">
-                      <Label>Chọn Annotator</Label>
+                      <Label>Select Annotators</Label>
                       <div className="grid grid-cols-4 gap-2">
                         {availableAnnotators.map((annotator) => (
                           <div key={annotator} className="flex items-center space-x-2">
@@ -427,7 +427,7 @@ export function DataExport() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Tùy chọn Export</Label>
+                      <Label>Export Options</Label>
                       <div className="grid grid-cols-3 gap-4">
                         <div className="flex items-center space-x-2">
                           <Checkbox
@@ -438,7 +438,7 @@ export function DataExport() {
                             }
                           />
                           <Label htmlFor="include-metadata" className="text-sm">
-                            Bao gồm metadata
+                            Include metadata
                           </Label>
                         </div>
                         <div className="flex items-center space-x-2">
@@ -450,7 +450,7 @@ export function DataExport() {
                             }
                           />
                           <Label htmlFor="include-confidence" className="text-sm">
-                            Độ tin cậy
+                            Confidence score
                           </Label>
                         </div>
                         <div className="flex items-center space-x-2">
@@ -462,7 +462,7 @@ export function DataExport() {
                             }
                           />
                           <Label htmlFor="include-disagreements" className="text-sm">
-                            Bất đồng
+                            Disagreements
                           </Label>
                         </div>
                       </div>
@@ -471,9 +471,9 @@ export function DataExport() {
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setIsCreateExportOpen(false)}>
-                    Hủy
+                    Cancel
                   </Button>
-                  <Button onClick={handleCreateExport}>Tạo Export</Button>
+                  <Button onClick={handleCreateExport}>Create Export</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -519,7 +519,7 @@ export function DataExport() {
                     {job.status === "completed" && (
                       <Button size="sm">
                         <Download className="h-4 w-4 mr-1" />
-                        Tải xuống
+                        Download
                       </Button>
                     )}
                   </div>

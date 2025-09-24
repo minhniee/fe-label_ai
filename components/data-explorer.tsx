@@ -83,7 +83,7 @@ export function DataExplorer() {
   const paginatedData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("vi-VN", {
+    return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
@@ -123,9 +123,9 @@ export function DataExplorer() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Danh sách Dataset</CardTitle>
+              <CardTitle>Datasets</CardTitle>
               <CardDescription>
-                Hiển thị {filteredData.length} dataset (trang {currentPage} / {totalPages})
+                Showing {filteredData.length} datasets (page {currentPage} / {totalPages})
               </CardDescription>
             </div>
           </div>
@@ -133,19 +133,19 @@ export function DataExplorer() {
         <CardContent>
           {loading ? (
             <div className="text-center py-8">
-              <p className="text-muted-foreground">Đang tải...</p>
+              <p className="text-muted-foreground">Loading...</p>
             </div>
           ) : (
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Tên Dataset</TableHead>
-                    <TableHead>Mô tả</TableHead>
-                    <TableHead>Người tạo</TableHead>
+                    <TableHead>Dataset Name</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Created by</TableHead>
                     <TableHead>Versions</TableHead>
-                    <TableHead>Ngày tạo</TableHead>
-                    <TableHead>Cập nhật</TableHead>
+                    <TableHead>Created at</TableHead>
+                    <TableHead>Updated at</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -175,7 +175,7 @@ export function DataExplorer() {
                               onClick={() => handleDeleteClick(dataset)}
                             >
                               <Trash2 className="mr-2 h-4 w-4" />
-                              Xóa dataset
+                              Delete dataset
                             </Badge>
                       </TableCell>
                     </TableRow>
@@ -189,8 +189,7 @@ export function DataExplorer() {
           {!loading && (
             <div className="flex items-center justify-between mt-4">
               <div className="text-sm text-muted-foreground">
-                Hiển thị {(currentPage - 1) * itemsPerPage + 1} -{" "}
-                {Math.min(currentPage * itemsPerPage, filteredData.length)} trong tổng số {filteredData.length} dataset
+                Showing {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredData.length)} of {filteredData.length} datasets
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -200,7 +199,7 @@ export function DataExplorer() {
                   disabled={currentPage === 1}
                 >
                   <ChevronLeft className="h-4 w-4" />
-                  Trước
+                  Previous
                 </Button>
                 <div className="flex items-center gap-1">
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
@@ -221,7 +220,7 @@ export function DataExplorer() {
                   onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                   disabled={currentPage === totalPages}
                 >
-                  Sau
+                  Next
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
@@ -234,18 +233,18 @@ export function DataExplorer() {
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Xác nhận xóa dataset</DialogTitle>
+            <DialogTitle>Confirm dataset deletion</DialogTitle>
             <DialogDescription>
-              Bạn có chắc chắn muốn xóa dataset "{deletingDataset?.name}"? 
-              Hành động này không thể hoàn tác và sẽ xóa tất cả dữ liệu liên quan.
+              Are you sure you want to delete dataset "{deletingDataset?.name}"?
+              This action cannot be undone and will remove all related data.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>
-              Hủy
+              Cancel
             </Button>
             <Button variant="destructive" onClick={handleDeleteConfirm}>
-              Xóa dataset
+              Delete dataset
             </Button>
           </DialogFooter>
         </DialogContent>

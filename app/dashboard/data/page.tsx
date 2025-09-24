@@ -8,17 +8,17 @@ export default function DataManagementPage() {
     <div className="space-y-6">
       {/* Page Header */}
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Quản lý Dữ liệu</h1>
+        <h1 className="text-3xl font-bold text-foreground">Data Management</h1>
         <p className="text-muted-foreground mt-2">
-          Tải lên, quản lý và khám phá dữ liệu tuyển sinh cho hệ thống AI
+          Upload, manage, and explore datasets for the AI system
         </p>
       </div>
 
       {/* Tabs for Upload and Explorer */}
       <Tabs defaultValue="explorer" className="space-y-6">
         <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
-          <TabsTrigger value="explorer">Khám phá dữ liệu</TabsTrigger>
-          <TabsTrigger value="upload">Tải lên dữ liệu</TabsTrigger>
+          <TabsTrigger value="explorer">Explore data</TabsTrigger>
+          <TabsTrigger value="upload">Upload data</TabsTrigger>
         </TabsList>
 
         <TabsContent value="upload" className="space-y-6">
