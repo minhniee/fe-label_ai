@@ -18,9 +18,9 @@ export function FPTLogo({
   href = "/dashboard",
 }: FPTLogoProps) {
   const dimension = {
-    sm: 110,
-    md: 130,
-    lg: 150,
+    sm: 130,
+    md: 150,
+    lg: 170,
   }[size];
 
   const textSizeClasses = {

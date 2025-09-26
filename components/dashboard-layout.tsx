@@ -5,31 +5,19 @@ import type React from "react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { FPTLogo } from "./fpt-logo";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { HeaderBar } from "./header-bar";
+import { SidebarNav } from "./sidebar-nav";
 import {
   LayoutDashboard,
   Database,
   Tag,
   Brain,
   Settings,
-  LogOut,
-  Menu,
-  User,
   CheckSquare,
-  Mail,
-  ChevronDown,
-  Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Menu } from "lucide-react";
 import { getMe, logout, type MeResponse } from "@/api/auth";
 
 interface DashboardLayoutProps {
@@ -72,6 +60,7 @@ const navigation = [
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [me, setMe] = useState<MeResponse | null>(null);
 
   useEffect(() => {
@@ -93,13 +82,22 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Mobile sidebar */}
+      <div className="fixed inset-x-0 top-0 z-50 h-16 border-b bg-background">
+        <HeaderBar
+          me={me}
+          onLogout={handleLogout}
+          navigation={navigation}
+          pathname={pathname}
+          onCloseMobile={() => setSidebarOpen(false)}
+        />
+      </div>
+
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-        <SheetContent side="left" className="w-64 p-0">
+        <SheetContent
+          side="left"
+          className="top-16 h-[calc(100vh-4rem)] w-64 p-0"
+        >
           <div className="flex h-full flex-col">
-            <div className="flex h-16 items-center px-6 border-b border-border">
-              <FPTLogo size="sm" />
-            </div>
             <nav className="flex-1 space-y-1 px-3 py-4">
               {navigation.map((item) => {
                 const isActive = pathname === item.href;
@@ -125,147 +123,22 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </SheetContent>
       </Sheet>
 
-      {/* Desktop sidebar */}
-      <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-64 lg:flex-col">
-        <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-sidebar border-r border-sidebar-border px-6">
-          <div className="flex h-16 shrink-0 items-center">
-            <FPTLogo size="sm" />
+      <div className={cn("hidden lg:fixed lg:top-16 lg:bottom-0 lg:z-40 lg:flex lg:flex-col transition-all", sidebarCollapsed ? "lg:w-16" : "lg:w-64") }>
+        <div className={cn("flex grow flex-col gap-y-5 overflow-y-auto bg-sidebar border-r border-sidebar-border", sidebarCollapsed ? "px-2" : "px-6") }>
+          <div className="flex items-center justify-center py-3">
+            <button
+              onClick={() => setSidebarCollapsed((v) => !v)}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-sidebar-accent text-sidebar-foreground"
+              title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              <Menu className="h-5 w-5" />
+            </button>
           </div>
-          <nav className="flex flex-1 flex-col">
-            <ul role="list" className="flex flex-1 flex-col gap-y-7">
-              <li>
-                <ul role="list" className="-mx-2 space-y-1">
-                  {navigation.map((item) => {
-                    const isActive = pathname === item.href;
-                    return (
-                      <li key={item.name}>
-                        <Link
-                          href={item.href}
-                          className={cn(
-                            "group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors",
-                            isActive
-                              ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                              : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                          )}
-                        >
-                          <item.icon className="h-5 w-5 shrink-0" />
-                          {item.name}
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </li>
-            </ul>
-          </nav>
+          <SidebarNav items={navigation} collapsed={sidebarCollapsed} />
         </div>
       </div>
 
-      {/* Main content */}
-      <div className="lg:pl-64">
-        {/* Top bar */}
-        <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-border bg-background px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="sm" className="lg:hidden">
-                <Menu className="h-5 w-5" />
-                <span className="sr-only">Open sidebar</span>
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="w-64 p-0">
-              <div className="flex h-full flex-col">
-                <div className="flex h-16 items-center px-6 border-b border-border">
-                  <FPTLogo size="sm" />
-                </div>
-                <nav className="flex-1 space-y-1 px-3 py-4">
-                  {navigation.map((item) => {
-                    const isActive = pathname === item.href;
-                    return (
-                      <Link
-                        key={item.name}
-                        href={item.href}
-                        className={cn(
-                          "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                          isActive
-                            ? "bg-primary text-primary-foreground"
-                            : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                        )}
-                      >
-                        <item.icon className="h-4 w-4" />
-                        {item.name}
-                      </Link>
-                    );
-                  })}
-                </nav>
-              </div>
-            </SheetContent>
-          </Sheet>
-
-          <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
-            <div className="flex flex-1 items-center">
-              <h1 className="text-lg font-semibold text-foreground">
-                Label-AI Platform
-              </h1>
-            </div>
-            <div className="flex items-center gap-x-4 lg:gap-x-6">
-              {/* Notifications */}
-              <Button variant="ghost" size="sm">
-                <Bell className="h-5 w-5" />
-                <span className="sr-only">View notifications</span>
-              </Button>
-
-              {/* Profile dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    className="h-8 rounded-full px-2 pr-2.5"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-muted">
-                        <User className="h-4 w-4 text-foreground" />
-                      </div>
-
-                      {/* “Typography” = span/text */}
-                      <span className="text-sm font-medium max-w-[120px] truncate">
-                        {me?.username ?? "User"}
-                      </span>
-
-                      {/* endIcon */}
-                      <ChevronDown className="h-4 w-4 opacity-70" />
-                    </div>
-                    <span className="sr-only">Open user menu</span>
-                  </Button>
-                </DropdownMenuTrigger>
-
-                <DropdownMenuContent
-                  className="w-56 z-50"
-                  align="end"
-                  sideOffset={8}
-                >
-                  <DropdownMenuItem asChild>
-                    <Link
-                      href="/dashboard/profile"
-                      className="flex items-center"
-                    >
-                      <Mail className="mr-2 h-4 w-4" />
-                      <span className="truncate">
-                        {me?.email ?? "View Profile"}
-                      </span>
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout}>
-                    <LogOut className="mr-2 h-4 w-4" />
-                    <span>Logout</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-        </div>
-
-        {/* Page content */}
+      <div className={cn("pt-16 transition-all", sidebarCollapsed ? "lg:pl-16" : "lg:pl-64") }>
         <main className="py-8 px-4 sm:px-6 lg:px-8">{children}</main>
       </div>
     </div>
