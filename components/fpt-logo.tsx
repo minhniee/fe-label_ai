@@ -1,34 +1,55 @@
-import { GraduationCap } from "lucide-react"
+import Image from "next/image";
+import Link from "next/link";
+import { Montserrat } from "next/font/google"; 
 
 interface FPTLogoProps {
-  size?: "sm" | "md" | "lg"
-  showText?: boolean
+  size?: "sm" | "md" | "lg";
+  showText?: boolean;
+  href?: string;
 }
+export const montserrat = Montserrat({
+  subsets: ["latin"],
+  weight: ["600", "700"], 
+});
 
-export function FPTLogo({ size = "md", showText = true }: FPTLogoProps) {
-  const sizeClasses = {
-    sm: "h-6 w-6",
-    md: "h-8 w-8",
-    lg: "h-12 w-12",
-  }
+export function FPTLogo({
+  size = "md",
+  showText = true,
+  href = "/dashboard",
+}: FPTLogoProps) {
+  const dimension = {
+    sm: 110,
+    md: 130,
+    lg: 150,
+  }[size];
 
   const textSizeClasses = {
-    sm: "text-lg",
-    md: "text-xl",
-    lg: "text-3xl",
-  }
+    sm: "text-sm",
+    md: "text-base",
+    lg: "text-lg",
+  };
 
   return (
-    <div className="flex items-center gap-3">
-      <div className="bg-primary rounded-full p-2">
-        <GraduationCap className={`${sizeClasses[size]} text-primary-foreground`} />
-      </div>
+    <Link
+      href={href}
+      className="flex items-center gap-3 group cursor-pointer select-none"
+    >
+      <Image
+        src="/favicon.ico"
+        alt="FPT University Logo"
+        width={dimension}
+        height={dimension}
+        priority
+      />
       {showText && (
         <div>
-          <h1 className={`${textSizeClasses[size]} font-bold text-foreground`}>F-ALT</h1>
-          <p className="text-xs text-muted-foreground">FPTU Admissions Platform</p>
+          <h1
+            className={`${montserrat.className} ${textSizeClasses[size]} font-semibold tracking-tight text-[color:#e26d28] group-hover:text-[color:#e26a25] transition-colors`}
+          >
+            Lable-AI
+          </h1>
         </div>
       )}
-    </div>
-  )
+    </Link>
+  );
 }

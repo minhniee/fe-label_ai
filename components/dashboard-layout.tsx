@@ -27,6 +27,7 @@ import {
   CheckSquare,
   Mail,
   ChevronDown,
+  Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getMe, logout, type MeResponse } from "@/api/auth";
@@ -208,10 +209,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             </div>
             <div className="flex items-center gap-x-4 lg:gap-x-6">
               {/* Notifications */}
-              {/* <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm">
                 <Bell className="h-5 w-5" />
                 <span className="sr-only">View notifications</span>
-              </Button> */}
+              </Button>
 
               {/* Profile dropdown */}
               <DropdownMenu>

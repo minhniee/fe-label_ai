@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Eye, EyeOff, GraduationCap } from "lucide-react"
+import { Eye, EyeOff } from "lucide-react"
 import Link from "next/link"
 import { loginUser, persistAuth } from "@/api/auth"
+import { FPTLogo } from "@/components/fpt-logo"
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
@@ -42,14 +43,8 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo and Title */}
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center mb-4">
-            <div className="bg-primary rounded-full p-3 mr-3">
-              <GraduationCap className="h-8 w-8 text-primary-foreground" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">Label-AI</h1>
-              <p className="text-sm text-muted-foreground">AI Labeling Platform</p>
-            </div>
+          <div className="flex items-center justify-center mb-2">
+            <FPTLogo size="lg" showText={true} />
           </div>
           <p className="text-muted-foreground text-sm">AI Labeling & Training Platform</p>
         </div>
