@@ -372,7 +372,7 @@ export function BatchManagement() {
     <div className="space-y-6">
       {/* Batch Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Tổng Batch</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
@@ -385,7 +385,7 @@ export function BatchManagement() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Tổng câu hỏi</CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
@@ -398,7 +398,7 @@ export function BatchManagement() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Hoàn thành</CardTitle>
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
@@ -409,7 +409,7 @@ export function BatchManagement() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Tiến độ trung bình</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />

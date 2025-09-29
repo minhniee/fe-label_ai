@@ -138,7 +138,7 @@ export function LabelingInterface() {
       {/* Question Details - Left Column */}
       <div className="lg:col-span-2 space-y-6">
         {/* Progress Bar */}
-        <Card>
+        <Card className="bg-white/90">
           <CardContent className="pt-6">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -160,7 +160,7 @@ export function LabelingInterface() {
         </Card>
 
         {/* Student Information */}
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <User className="h-5 w-5" />
@@ -199,7 +199,7 @@ export function LabelingInterface() {
         </Card>
 
         {/* Essay */}
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
@@ -214,7 +214,7 @@ export function LabelingInterface() {
         </Card>
 
         {/* Extracurricular Activities */}
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader>
             <CardTitle>Hoạt động ngoại khóa</CardTitle>
           </CardHeader>
@@ -233,7 +233,7 @@ export function LabelingInterface() {
       {/* Labeling Panel - Right Column */}
       <div className="space-y-6">
         {/* Label Selection */}
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader>
             <CardTitle>Gán nhãn</CardTitle>
             <CardDescription>Chọn nhãn phù hợp cho ứng viên này</CardDescription>
@@ -261,7 +261,7 @@ export function LabelingInterface() {
         </Card>
 
         {/* Notes */}
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader>
             <CardTitle>Ghi chú</CardTitle>
             <CardDescription>Thêm ghi chú cho quyết định gán nhãn (tùy chọn)</CardDescription>
@@ -278,7 +278,7 @@ export function LabelingInterface() {
         </Card>
 
         {/* Hotkeys Guide */}
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Keyboard className="h-4 w-4" />

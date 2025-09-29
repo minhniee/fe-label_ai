@@ -138,7 +138,7 @@ export function DataLabelingInterface() {
 
   return (
     <div className="space-y-6">
-      <Card>
+      <Card className="bg-white/90">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Database className="h-5 w-5" />
@@ -173,7 +173,7 @@ export function DataLabelingInterface() {
       </Card>
 
       {selectedDataset && (
-        <Card>
+        <Card className="bg-white/90">
           <CardContent className="pt-6">
             <div className="flex gap-4 items-center">
               <div className="flex-1">
@@ -193,7 +193,7 @@ export function DataLabelingInterface() {
       )}
 
       {selectedDataset && (
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileSpreadsheet className="h-5 w-5" />

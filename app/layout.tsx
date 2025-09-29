@@ -7,7 +7,7 @@ import { Suspense } from "react"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "F-ALT - FPTU Admissions AI Labeling & Training Platform",
+  title: "FPTU Lable-AI",
   description:
     "Internal platform for managing data, labeling, AI training, and tracking admissions progress at FPT University",
   generator: "v0.app",

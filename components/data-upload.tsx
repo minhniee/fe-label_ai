@@ -236,7 +236,7 @@ export function DataUpload() {
   return (
     <div className="space-y-6">
       {/* Upload Section */}
-      <Card>
+      <Card className="bg-white/90">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Upload className="h-5 w-5" />
@@ -418,7 +418,7 @@ export function DataUpload() {
       </Card>
 
       {/* Files List */}
-      <Card>
+      <Card className="bg-white/90">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />

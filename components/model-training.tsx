@@ -203,7 +203,7 @@ export function ModelTraining() {
 
       {/* Current Training Status */}
       {currentTraining && (
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Brain className="h-5 w-5" />

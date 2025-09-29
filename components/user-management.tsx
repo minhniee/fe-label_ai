@@ -325,7 +325,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
     <div className="space-y-6">
       {/* User Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
               Total Users
@@ -340,7 +340,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">SuperAdmin</CardTitle>
             <Shield className="h-4 w-4 text-muted-foreground" />
@@ -351,7 +351,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Admin</CardTitle>
             <Shield className="h-4 w-4 text-muted-foreground" />
@@ -362,7 +362,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Manager</CardTitle>
             <Briefcase className="h-4 w-4 text-muted-foreground" />
@@ -373,7 +373,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Labeler</CardTitle>
             <Mail className="h-4 w-4 text-muted-foreground" />

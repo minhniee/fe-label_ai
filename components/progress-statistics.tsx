@@ -95,7 +95,7 @@ export function ProgressStatistics() {
     <div className="space-y-6">
       {/* Overall Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Tổng câu hỏi</CardTitle>
             <Target className="h-4 w-4 text-muted-foreground" />
@@ -106,7 +106,7 @@ export function ProgressStatistics() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Đã hoàn thành</CardTitle>
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
@@ -117,7 +117,7 @@ export function ProgressStatistics() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Người gán nhãn</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
@@ -128,7 +128,7 @@ export function ProgressStatistics() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Độ chính xác TB</CardTitle>
             <Award className="h-4 w-4 text-muted-foreground" />
@@ -139,7 +139,7 @@ export function ProgressStatistics() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Còn lại</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
@@ -152,7 +152,7 @@ export function ProgressStatistics() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Tiến độ</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
@@ -167,7 +167,7 @@ export function ProgressStatistics() {
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Label Distribution Pie Chart */}
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader>
             <CardTitle>Phân bố nhãn</CardTitle>
             <CardDescription>Tỷ lệ các loại nhãn đã được gán</CardDescription>
@@ -206,7 +206,7 @@ export function ProgressStatistics() {
         </Card>
 
         {/* Daily Progress Bar Chart */}
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader>
             <CardTitle>Tiến độ hàng ngày</CardTitle>
             <CardDescription>Số lượng câu hỏi được gán nhãn mỗi ngày</CardDescription>

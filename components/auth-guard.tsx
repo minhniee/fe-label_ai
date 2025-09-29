@@ -1,32 +1,24 @@
 "use client"
 
 import type React from "react"
-
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-
-interface FrontendUserLegacy {
-  email: string
-  name: string
-  role: "admin" | "senior_labeler" | "labeler"
-}
 
 interface BackendUser {
   user_id: number
   username: string
   email: string
   role_id: number
-  role_name: string
+  role_name?: string
 }
 
 interface AuthGuardProps {
   children: React.ReactNode
-  allowedRoles?: string[]
   allowedRoleIds?: number[]
 }
 
-export function AuthGuard({ children, allowedRoles, allowedRoleIds }: AuthGuardProps) {
-  const [user, setUser] = useState<BackendUser | FrontendUserLegacy | null>(null)
+export function AuthGuard({ children, allowedRoleIds }: AuthGuardProps) {
+  const [user, setUser] = useState<BackendUser | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
@@ -37,34 +29,19 @@ export function AuthGuard({ children, allowedRoles, allowedRoleIds }: AuthGuardP
       return
     }
 
-    const userData = JSON.parse(userStr) as BackendUser | FrontendUserLegacy
+    const parsed = JSON.parse(userStr) as BackendUser
 
-    // Authorization checks (supports both legacy and backend formats)
-    if (allowedRoles || allowedRoleIds) {
-      let isAllowed = true
-
-      if ("role" in userData && allowedRoles) {
-        isAllowed = allowedRoles.includes(userData.role)
-      }
-
-      if ("role_id" in userData && allowedRoleIds) {
-        isAllowed = allowedRoleIds.includes(userData.role_id)
-      }
-
-      // Fallback: if only allowedRoles provided and we have backend user, compare by role_name (case-insensitive)
-      if (!isAllowed && "role_name" in userData && allowedRoles) {
-        isAllowed = allowedRoles.map((r) => r.toLowerCase()).includes(userData.role_name.toLowerCase())
-      }
-
+    if (allowedRoleIds && allowedRoleIds.length > 0) {
+      const isAllowed = allowedRoleIds.includes(parsed.role_id)
       if (!isAllowed) {
         router.push("/dashboard")
         return
       }
     }
 
-    setUser(userData)
+    setUser(parsed)
     setLoading(false)
-  }, [router, allowedRoles])
+  }, [router, allowedRoleIds])
 
   if (loading) {
     return (
@@ -74,21 +51,17 @@ export function AuthGuard({ children, allowedRoles, allowedRoleIds }: AuthGuardP
     )
   }
 
-  if (!user) {
-    return null
-  }
+  if (!user) return null
 
   return <>{children}</>
 }
 
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<BackendUser | null>(null)
 
   useEffect(() => {
     const userStr = localStorage.getItem("user")
-    if (userStr) {
-      setUser(JSON.parse(userStr))
-    }
+    if (userStr) setUser(JSON.parse(userStr))
   }, [])
 
   const logout = () => {

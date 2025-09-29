@@ -119,7 +119,7 @@ export function DataExplorer() {
 
 
       {/* Data Table */}
-      <Card>
+        <Card className="bg-white/90">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
