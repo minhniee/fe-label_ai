@@ -35,7 +35,7 @@ export function FPTLogo({
       className="flex items-center gap-3 group cursor-pointer select-none"
     >
       <Image
-        src="/fptu_logo.png"
+        src="/favicon.ico"
         alt="FPT University Logo"
         width={dimension}
         height={dimension}

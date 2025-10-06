@@ -122,22 +122,22 @@ export function LabelingAdmin() {
   const getStatusBadge = (status: Batch["status"]) => {
     switch (status) {
       case "completed":
-        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Hoàn thành</Badge>
+        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Completed</Badge>
       case "in_progress":
-        return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">Đang thực hiện</Badge>
+        return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">In progress</Badge>
       case "pending":
-        return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Chờ xử lý</Badge>
+        return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Pending</Badge>
       case "review":
-        return <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">Đang review</Badge>
+        return <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">In review</Badge>
     }
   }
 
   const getLabelerStatusBadge = (status: Labeler["status"]) => {
     switch (status) {
       case "active":
-        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Hoạt động</Badge>
+        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Active</Badge>
       case "inactive":
-        return <Badge variant="secondary">Không hoạt động</Badge>
+        return <Badge variant="secondary">Inactive</Badge>
     }
   }
 
@@ -152,51 +152,51 @@ export function LabelingAdmin() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tổng người gán nhãn</CardTitle>
+            <CardTitle className="text-sm font-medium">Total labelers</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{labelers.length}</div>
             <p className="text-xs text-muted-foreground">
-              {labelers.filter((l) => l.status === "active").length} đang hoạt động
+              {labelers.filter((l) => l.status === "active").length} active
             </p>
           </CardContent>
         </Card>
 
         <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tổng batch</CardTitle>
+            <CardTitle className="text-sm font-medium">Total batches</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{batches.length}</div>
             <p className="text-xs text-muted-foreground">
-              {batches.filter((b) => b.status === "completed").length} hoàn thành
+              {batches.filter((b) => b.status === "completed").length} completed
             </p>
           </CardContent>
         </Card>
 
         <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Đang xử lý</CardTitle>
+            <CardTitle className="text-sm font-medium">In progress</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{batches.filter((b) => b.status === "in_progress").length}</div>
-            <p className="text-xs text-muted-foreground">batch đang thực hiện</p>
+            <p className="text-xs text-muted-foreground">batches in progress</p>
           </CardContent>
         </Card>
 
         <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Độ chính xác TB</CardTitle>
+            <CardTitle className="text-sm font-medium">Avg. accuracy</CardTitle>
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {(labelers.reduce((acc, l) => acc + l.accuracy, 0) / labelers.length).toFixed(1)}%
             </div>
-            <p className="text-xs text-muted-foreground">của tất cả labeler</p>
+            <p className="text-xs text-muted-foreground">across all labelers</p>
           </CardContent>
         </Card>
       </div>
@@ -206,17 +206,17 @@ export function LabelingAdmin() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Plus className="h-5 w-5" />
-            Giao tác vụ mới
+            Assign new task
           </CardTitle>
-          <CardDescription>Tạo và giao batch gán nhãn cho người thực hiện</CardDescription>
+          <CardDescription>Create and assign labeling batches to labelers</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="labeler-select">Chọn người gán nhãn</Label>
+              <Label htmlFor="labeler-select">Select labeler</Label>
               <Select value={selectedLabeler} onValueChange={setSelectedLabeler}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Chọn labeler" />
+                  <SelectValue placeholder="Select labeler" />
                 </SelectTrigger>
                 <SelectContent>
                   {labelers
@@ -230,7 +230,7 @@ export function LabelingAdmin() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="batch-size">Số lượng câu hỏi</Label>
+              <Label htmlFor="batch-size">Number of questions</Label>
               <Input
                 id="batch-size"
                 type="number"
@@ -241,7 +241,7 @@ export function LabelingAdmin() {
             </div>
             <div className="flex items-end">
               <Button onClick={handleAssignBatch} disabled={!selectedLabeler || !batchSize} className="w-full">
-                Giao tác vụ
+                Assign task
               </Button>
             </div>
           </div>
@@ -251,19 +251,19 @@ export function LabelingAdmin() {
       {/* Labeler Performance */}
       <Card>
         <CardHeader>
-          <CardTitle>Hiệu suất người gán nhãn</CardTitle>
-          <CardDescription>Theo dõi tiến độ và chất lượng công việc của từng người</CardDescription>
+          <CardTitle>Labeler performance</CardTitle>
+          <CardDescription>Track progress and quality for each labeler</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Tên</TableHead>
-                <TableHead>Vai trò</TableHead>
-                <TableHead>Tiến độ</TableHead>
-                <TableHead>Độ chính xác</TableHead>
-                <TableHead>Hoạt động cuối</TableHead>
-                <TableHead>Trạng thái</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Progress</TableHead>
+                <TableHead>Accuracy</TableHead>
+                <TableHead>Last activity</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead></TableHead>
               </TableRow>
             </TableHeader>
@@ -316,19 +316,19 @@ export function LabelingAdmin() {
       {/* Batch Management */}
       <Card>
         <CardHeader>
-          <CardTitle>Quản lý batch</CardTitle>
-          <CardDescription>Danh sách các batch gán nhãn và trạng thái thực hiện</CardDescription>
+          <CardTitle>Batch management</CardTitle>
+          <CardDescription>List of labeling batches and their status</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Batch ID</TableHead>
-                <TableHead>Tên batch</TableHead>
-                <TableHead>Người thực hiện</TableHead>
-                <TableHead>Tiến độ</TableHead>
-                <TableHead>Trạng thái</TableHead>
-                <TableHead>Hạn chót</TableHead>
+                <TableHead>Batch name</TableHead>
+                <TableHead>Assignees</TableHead>
+                <TableHead>Progress</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Deadline</TableHead>
                 <TableHead></TableHead>
               </TableRow>
             </TableHeader>

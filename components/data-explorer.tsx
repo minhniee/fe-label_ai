@@ -107,9 +107,6 @@ export function DataExplorer() {
                 />
               </div>
             </div>
-            <Button variant="outline" onClick={loadDatasets}>
-              <RefreshCw />
-            </Button>
           </div>
           {error && (
             <div className="mt-4 text-sm text-destructive bg-destructive/10 p-2 rounded">

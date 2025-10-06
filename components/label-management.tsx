@@ -187,49 +187,49 @@ export function LabelManagement() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tổng bộ nhãn</CardTitle>
+            <CardTitle className="text-sm font-medium">Total label sets</CardTitle>
             <Tags className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{labelSets.length}</div>
             <p className="text-xs text-muted-foreground">
-              {labelSets.filter((set) => set.isActive).length} đang sử dụng
+              {labelSets.filter((set) => set.isActive).length} in use
             </p>
           </CardContent>
         </Card>
 
         <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tổng nhãn</CardTitle>
+            <CardTitle className="text-sm font-medium">Total labels</CardTitle>
             <Tags className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{labelSets.reduce((acc, set) => acc + set.labels.length, 0)}</div>
-            <p className="text-xs text-muted-foreground">Trong tất cả bộ nhãn</p>
+            <p className="text-xs text-muted-foreground">Across all label sets</p>
           </CardContent>
         </Card>
 
         <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Đã sử dụng</CardTitle>
+            <CardTitle className="text-sm font-medium">Used</CardTitle>
             <Keyboard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {labelSets.reduce((acc, set) => acc + set.usageCount, 0).toLocaleString()}
             </div>
-            <p className="text-xs text-muted-foreground">Lần gán nhãn</p>
+            <p className="text-xs text-muted-foreground">Labeling times</p>
           </CardContent>
         </Card>
 
         <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Bộ nhãn hoạt động</CardTitle>
+            <CardTitle className="text-sm font-medium">Active label set</CardTitle>
             <Tags className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{labelSets.filter((set) => set.isActive).length}</div>
-            <p className="text-xs text-muted-foreground">{labelSets.find((set) => set.isActive)?.name || "Không có"}</p>
+            <p className="text-xs text-muted-foreground">{labelSets.find((set) => set.isActive)?.name || "None"}</p>
           </CardContent>
         </Card>
       </div>
@@ -239,37 +239,37 @@ export function LabelManagement() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Quản lý bộ nhãn</CardTitle>
-              <CardDescription>Tạo và quản lý các bộ nhãn để phân loại dữ liệu</CardDescription>
+              <CardTitle>Label set management</CardTitle>
+              <CardDescription>Create and manage label sets for data classification</CardDescription>
             </div>
             <Dialog open={isAddLabelSetOpen} onOpenChange={setIsAddLabelSetOpen}>
               <DialogTrigger asChild>
                 <Button>
                   <Plus className="h-4 w-4 mr-2" />
-                  Thêm bộ nhãn
+                  Add label set
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>Thêm bộ nhãn mới</DialogTitle>
-                  <DialogDescription>Tạo bộ nhãn mới với tên, mô tả và các nhãn cụ thể</DialogDescription>
+                  <DialogTitle>Add a new label set</DialogTitle>
+                  <DialogDescription>Create a new label set with name, description and labels</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="labelset-name">Tên bộ nhãn *</Label>
+                      <Label htmlFor="labelset-name">Label set name *</Label>
                       <Input
                         id="labelset-name"
-                        placeholder="Ví dụ: Phân loại tiềm năng tuyển sinh"
+                        placeholder="e.g., Enrollment potential classification"
                         value={newLabelSet.name}
                         onChange={(e) => setNewLabelSet({ ...newLabelSet, name: e.target.value })}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="labelset-description">Mô tả *</Label>
+                      <Label htmlFor="labelset-description">Description *</Label>
                       <Textarea
                         id="labelset-description"
-                        placeholder="Mô tả mục đích sử dụng bộ nhãn này"
+                        placeholder="Describe the purpose of this label set"
                         value={newLabelSet.description}
                         onChange={(e) => setNewLabelSet({ ...newLabelSet, description: e.target.value })}
                         rows={3}
@@ -279,10 +279,10 @@ export function LabelManagement() {
 
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <Label className="text-base font-medium">Nhãn trong bộ nhãn</Label>
+                      <Label className="text-base font-medium">Labels in set</Label>
                       <Button type="button" variant="outline" size="sm" onClick={addNewLabelToForm}>
                         <Plus className="h-4 w-4 mr-2" />
-                        Thêm nhãn
+                        Add label
                       </Button>
                     </div>
 
@@ -290,7 +290,7 @@ export function LabelManagement() {
                       <Alert>
                         <AlertCircle className="h-4 w-4" />
                         <AlertDescription>
-                          Bộ nhãn cần có ít nhất một nhãn. Nhấn "Thêm nhãn" để bắt đầu.
+                          A label set needs at least one label. Click "Add label" to start.
                         </AlertDescription>
                       </Alert>
                     )}
@@ -300,15 +300,15 @@ export function LabelManagement() {
                         <Card key={index} className="p-4 bg-white/90">
                           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <div className="space-y-2">
-                              <Label>Tên nhãn *</Label>
+                              <Label>Label name *</Label>
                               <Input
-                                placeholder="Ví dụ: Tiềm năng cao"
+                                placeholder="e.g., High potential"
                                 value={label.label}
                                 onChange={(e) => updateLabelInForm(index, "label", e.target.value)}
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>Phím tắt</Label>
+                              <Label>Hotkey</Label>
                               <Input
                                 placeholder="1-9"
                                 maxLength={1}
@@ -317,7 +317,7 @@ export function LabelManagement() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>Màu sắc</Label>
+                              <Label>Color</Label>
                               <Select
                                 value={label.color}
                                 onValueChange={(value) => updateLabelInForm(index, "color", value)}
@@ -350,19 +350,19 @@ export function LabelManagement() {
                             </div>
                           </div>
                           <div className="mt-3 space-y-2">
-                            <Label>Mô tả</Label>
+                            <Label>Description</Label>
                             <Textarea
-                              placeholder="Mô tả chi tiết về nhãn này"
+                              placeholder="Detailed description for this label"
                               value={label.description}
                               onChange={(e) => updateLabelInForm(index, "description", e.target.value)}
                               rows={2}
                             />
                           </div>
                           <div className="mt-3">
-                            <Label className="text-sm text-muted-foreground">Xem trước:</Label>
+                            <Label className="text-sm text-muted-foreground">Preview:</Label>
                             <div className="mt-1">
                               <Badge className={label.color}>
-                                {label.label || "Tên nhãn"} ({label.hotkey})
+                                {label.label || "Label name"} ({label.hotkey})
                               </Badge>
                             </div>
                           </div>
@@ -373,13 +373,13 @@ export function LabelManagement() {
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setIsAddLabelSetOpen(false)}>
-                    Hủy
+                    Cancel
                   </Button>
                   <Button
                     onClick={handleAddLabelSet}
                     disabled={!newLabelSet.name || !newLabelSet.description || newLabelSet.labels.length === 0}
-                  >
-                    Tạo bộ nhãn
+                >
+                    Create label set
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -396,19 +396,19 @@ export function LabelManagement() {
                       <div className="flex items-center gap-2">
                         <CardTitle className="text-lg">{labelSet.name}</CardTitle>
                         {labelSet.isActive && (
-                          <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Đang sử dụng</Badge>
+                          <Badge className="bg-green-100 text-green-800 hover:bg-green-100">In use</Badge>
                         )}
                         {labelSet.hasExistingData && (
                           <Badge variant="outline" className="bg-blue-50 text-blue-700">
-                            Có dữ liệu hiện tại
+                            Has current data
                           </Badge>
                         )}
                       </div>
                       <CardDescription>{labelSet.description}</CardDescription>
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                        <span>Tạo: {labelSet.createdDate}</span>
-                        <span>{labelSet.labels.length} nhãn</span>
-                        <span>{labelSet.usageCount.toLocaleString()} lần sử dụng</span>
+                        <span>Created: {labelSet.createdDate}</span>
+                        <span>{labelSet.labels.length} labels</span>
+                        <span>{labelSet.usageCount.toLocaleString()} uses</span>
                       </div>
                     </div>
                     <DropdownMenu>
@@ -418,14 +418,14 @@ export function LabelManagement() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Thao tác</DropdownMenuLabel>
+                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuItem onClick={() => handleEditLabels(labelSet)}>
                           <Edit className="mr-2 h-4 w-4" />
-                          Chỉnh sửa nhãn
+                          Edit label
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleToggleActive(labelSet.id)}>
                           <Tags className="mr-2 h-4 w-4" />
-                          {labelSet.isActive ? "Ngừng sử dụng" : "Sử dụng"}
+                          {labelSet.isActive ? "Deactivate" : "Activate"}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
@@ -434,7 +434,7 @@ export function LabelManagement() {
                           disabled={labelSet.isActive || labelSet.usageCount > 0}
                         >
                           <Trash2 className="mr-2 h-4 w-4" />
-                          Xóa bộ nhãn
+                          Delete label set
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

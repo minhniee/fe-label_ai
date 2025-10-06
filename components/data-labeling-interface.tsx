@@ -264,9 +264,9 @@ export function DataLabelingInterface() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Database className="h-5 w-5" />
-            Chọn Dataset
+            Select Dataset
           </CardTitle>
-          <CardDescription>Chọn bộ dữ liệu để bắt đầu gán nhãn</CardDescription>
+          <CardDescription>Select a dataset to start labeling</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {error && (

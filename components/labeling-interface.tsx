@@ -128,7 +128,7 @@ export function LabelingInterface() {
   }
 
   if (!currentQuestion) {
-    return <div>Đang tải...</div>
+    return <div>Loading...</div>
   }
 
   const progressPercentage = (progress.completed / progress.total) * 100
@@ -144,7 +144,7 @@ export function LabelingInterface() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Tiến độ gán nhãn</span>
+                  <span className="text-sm font-medium">Labeling progress</span>
                 </div>
                 <Badge variant="outline">
                   {progress.current} / {progress.total}
@@ -152,7 +152,7 @@ export function LabelingInterface() {
               </div>
               <Progress value={progressPercentage} className="h-2" />
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Đã hoàn thành: {progress.completed.toLocaleString()}</span>
+                <span>Completed: {progress.completed.toLocaleString()}</span>
                 <span>{progressPercentage.toFixed(1)}%</span>
               </div>
             </div>
@@ -164,18 +164,18 @@ export function LabelingInterface() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <User className="h-5 w-5" />
-              Thông tin ứng viên
+              Candidate information
             </CardTitle>
             <CardDescription>ID: {currentQuestion.id}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label className="text-sm font-medium text-muted-foreground">Mã sinh viên</Label>
+                <Label className="text-sm font-medium text-muted-foreground">Student ID</Label>
                 <p className="font-medium">{currentQuestion.studentId}</p>
               </div>
               <div>
-                <Label className="text-sm font-medium text-muted-foreground">Họ tên</Label>
+                <Label className="text-sm font-medium text-muted-foreground">Full name</Label>
                 <p className="font-medium">{currentQuestion.studentName}</p>
               </div>
               <div>
@@ -183,11 +183,11 @@ export function LabelingInterface() {
                 <p className="text-muted-foreground">{currentQuestion.email}</p>
               </div>
               <div>
-                <Label className="text-sm font-medium text-muted-foreground">Số điện thoại</Label>
+                <Label className="text-sm font-medium text-muted-foreground">Phone number</Label>
                 <p className="text-muted-foreground">{currentQuestion.phone}</p>
               </div>
               <div>
-                <Label className="text-sm font-medium text-muted-foreground">Ngành học</Label>
+                <Label className="text-sm font-medium text-muted-foreground">Major</Label>
                 <p className="font-medium">{currentQuestion.program}</p>
               </div>
               <div>
@@ -203,7 +203,7 @@ export function LabelingInterface() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
-              Bài luận động lực
+              Motivation essay
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -216,7 +216,7 @@ export function LabelingInterface() {
         {/* Extracurricular Activities */}
         <Card className="bg-white/90">
           <CardHeader>
-            <CardTitle>Hoạt động ngoại khóa</CardTitle>
+            <CardTitle>Extracurricular activities</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
@@ -235,8 +235,8 @@ export function LabelingInterface() {
         {/* Label Selection */}
         <Card className="bg-white/90">
           <CardHeader>
-            <CardTitle>Gán nhãn</CardTitle>
-            <CardDescription>Chọn nhãn phù hợp cho ứng viên này</CardDescription>
+            <CardTitle>Labeling</CardTitle>
+            <CardDescription>Select appropriate labels for this candidate</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <RadioGroup value={selectedLabel} onValueChange={setSelectedLabel}>
@@ -263,8 +263,8 @@ export function LabelingInterface() {
         {/* Notes */}
         <Card className="bg-white/90">
           <CardHeader>
-            <CardTitle>Ghi chú</CardTitle>
-            <CardDescription>Thêm ghi chú cho quyết định gán nhãn (tùy chọn)</CardDescription>
+            <CardTitle>Notes</CardTitle>
+            <CardDescription>Add notes for labeling decision (optional)</CardDescription>
           </CardHeader>
           <CardContent>
             <Textarea
@@ -282,7 +282,7 @@ export function LabelingInterface() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Keyboard className="h-4 w-4" />
-              Phím tắt
+              Hotkeys
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -297,19 +297,19 @@ export function LabelingInterface() {
               ))}
               <div className="border-t pt-2 mt-2">
                 <div className="flex justify-between">
-                  <span>Lưu & Tiếp theo</span>
+                  <span>Save & Next</span>
                   <Badge variant="outline" className="text-xs">
                     Ctrl+Enter
                   </Badge>
                 </div>
                 <div className="flex justify-between">
-                  <span>Câu hỏi trước</span>
+                  <span>Previous</span>
                   <Badge variant="outline" className="text-xs">
                     Ctrl+←
                   </Badge>
                 </div>
                 <div className="flex justify-between">
-                  <span>Câu hỏi sau</span>
+                  <span>Next</span>
                   <Badge variant="outline" className="text-xs">
                     Ctrl+→
                   </Badge>
@@ -323,16 +323,16 @@ export function LabelingInterface() {
         <div className="space-y-3">
           <Button onClick={handleSave} disabled={!selectedLabel} className="w-full" size="lg">
             <Save className="h-4 w-4 mr-2" />
-            Lưu & Tiếp theo
+            Save & Next
           </Button>
           <div className="grid grid-cols-2 gap-2">
             <Button variant="outline" onClick={handlePrevious} disabled={progress.current === 1}>
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Trước
+              Previous
             </Button>
             <Button variant="outline" onClick={handleSkip}>
               <SkipForward className="h-4 w-4 mr-2" />
-              Bỏ qua
+              Skip
             </Button>
           </div>
         </div>

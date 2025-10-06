@@ -5,6 +5,7 @@ import { GeistMono } from "geist/font/mono"
 import { Analytics } from "@vercel/analytics/next"
 import { Suspense } from "react"
 import { QueryProvider } from "@/components/query-provider"
+import { Toaster } from "@/components/ui/toaster"
 import "./globals.css"
 
 export const metadata: Metadata = {
@@ -25,6 +26,7 @@ export default function RootLayout({
         <QueryProvider>
           <Suspense fallback={null}>{children}</Suspense>
           <Analytics />
+          <Toaster />
         </QueryProvider>
       </body>
     </html>

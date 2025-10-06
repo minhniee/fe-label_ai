@@ -111,7 +111,7 @@ export function DataUpload() {
 
       const dataset = await createDataset(newDataset.name, newDataset.description)
       
-      setDatasetSuccess(`Dataset "${dataset.name}" đã được tạo thành công!`)
+      setDatasetSuccess(`Dataset "${dataset.name}" was created successfully!`)
       
       // Reset form
       setNewDataset({ name: "", description: "" })
@@ -198,7 +198,7 @@ export function DataUpload() {
       const uploadedFile = await uploadFileToVersion(currentVersionId, selectedFile)
       
       setUploadProgress(100)
-      setSuccess(`Upload thành công: ${uploadedFile.file_name}`)
+      setSuccess(`Upload successful: ${uploadedFile.file_name}`)
       
       // Reload files to show the new upload
       loadFiles(currentVersionId)
@@ -219,7 +219,7 @@ export function DataUpload() {
   }
 
   const getStatusBadge = (file: DataFile) => {
-    return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Hoàn thành</Badge>
+    return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Completed</Badge>
   }
 
   const formatFileSize = (bytes?: number) => {
@@ -240,17 +240,17 @@ export function DataUpload() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Upload className="h-5 w-5" />
-            Tải lên dữ liệu mới
+            Upload new data
           </CardTitle>
           <CardDescription>
-            Tải lên file CSV hoặc Excel chứa dữ liệu tuyển sinh để gán nhãn và huấn luyện AI
+            Upload CSV or Excel files containing admission data for labeling and AI training
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Dataset Selection */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label htmlFor="dataset">Chọn Dataset</Label>
+              <Label htmlFor="dataset">Select Dataset</Label>
               <Dialog open={isCreateDatasetOpen} onOpenChange={setIsCreateDatasetOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm">
@@ -260,12 +260,12 @@ export function DataUpload() {
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Tạo Dataset mới</DialogTitle>
-                    <DialogDescription>Tạo dataset mới để quản lý dữ liệu gán nhãn</DialogDescription>
+                    <DialogTitle>Create new Dataset</DialogTitle>
+                    <DialogDescription>Create a new dataset to manage labeled data</DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="dataset-name">Tên Dataset *</Label>
+                      <Label htmlFor="dataset-name">Dataset Name *</Label>
                       <Input
                         id="dataset-name"
                         placeholder="Enter dataset name"
@@ -274,7 +274,7 @@ export function DataUpload() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="dataset-description">Mô tả</Label>
+                      <Label htmlFor="dataset-description">Description</Label>
                       <Input
                         id="dataset-description"
                         placeholder="Enter dataset description (optional)"
@@ -295,7 +295,7 @@ export function DataUpload() {
                   </div>
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setIsCreateDatasetOpen(false)}>
-                      Hủy
+                      Cancel
                     </Button>
                     <Button onClick={handleCreateDataset} disabled={isCreatingDataset}>
                       {isCreatingDataset ? "Creating..." : "Create Dataset"}
@@ -321,7 +321,7 @@ export function DataUpload() {
           {/* Version Selection */}
           {selectedDatasetId && (
             <div className="space-y-2">
-              <Label htmlFor="version">Chọn Version (hoặc để trống để tạo mới)</Label>
+              <Label htmlFor="version">Select Version (or leave empty to create new)</Label>
               <Select value={versionId} onValueChange={setVersionId}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select version or leave empty to create new" />
@@ -350,9 +350,9 @@ export function DataUpload() {
           >
             <Upload className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
             <div className="space-y-2">
-              <p className="text-lg font-medium">Kéo thả file vào đây hoặc</p>
+              <p className="text-lg font-medium">Drag and drop a file here or</p>
               <Button variant="outline" onClick={() => document.getElementById("file-upload")?.click()}>
-                Chọn file
+                Choose file
               </Button>
               <input
                 id="file-upload"
@@ -362,10 +362,10 @@ export function DataUpload() {
                 onChange={(e) => e.target.files && handleFiles(e.target.files)}
               />
             </div>
-            <p className="text-sm text-muted-foreground mt-4">Hỗ trợ file CSV, Excel (.xlsx, .xls). Tối đa 10MB.</p>
+            <p className="text-sm text-muted-foreground mt-4">Supports CSV or Excel (.xlsx, .xls). Max 10MB.</p>
             {selectedFile && (
               <div className="mt-4 p-2 bg-accent rounded">
-                <p className="text-sm font-medium">File đã chọn: {selectedFile.name}</p>
+                <p className="text-sm font-medium">Selected file: {selectedFile.name}</p>
                 <p className="text-xs text-muted-foreground">Size: {formatFileSize(selectedFile.size)}</p>
               </div>
             )}
@@ -375,7 +375,7 @@ export function DataUpload() {
           {isUploading && (
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
-                <span>Đang tải lên...</span>
+                <span>Uploading...</span>
                 <span>{uploadProgress}%</span>
               </div>
               <Progress value={uploadProgress} />
@@ -384,7 +384,7 @@ export function DataUpload() {
 
           {/* Description Input */}
           <div className="space-y-2">
-            <Label htmlFor="description">Mô tả phiên bản </Label>
+            <Label htmlFor="description">Version description </Label>
             <Textarea 
               id="description" 
               placeholder="Enter changelog for this data version..." 
@@ -422,7 +422,7 @@ export function DataUpload() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            Files đã upload
+            Uploaded files
           </CardTitle>
           <CardDescription>
             {selectedVersion 
@@ -434,7 +434,7 @@ export function DataUpload() {
         <CardContent>
           {loading ? (
             <div className="text-center py-8">
-              <p className="text-muted-foreground">Đang tải...</p>
+              <p className="text-muted-foreground">Loading...</p>
             </div>
           ) : files.length === 0 ? (
             <div className="text-center py-8">
@@ -470,7 +470,7 @@ export function DataUpload() {
                           {formatDate(file.uploaded_at)}
                         </span>
                         <span>{formatFileSize(file.file_size)}</span>
-                        {file.line_count && <span>{file.line_count.toLocaleString()} dòng</span>}
+                        {file.line_count && <span>{file.line_count.toLocaleString()} lines</span>}
                         {selectedVersion && (
                           <span className="text-blue-600">
                             Version: {selectedVersion.changelog || "No description"}
@@ -482,11 +482,11 @@ export function DataUpload() {
                   <div className="flex items-center gap-2">
                     <Button variant="outline" size="sm">
                       <Eye className="h-4 w-4 mr-2" />
-                      Xem dữ liệu
+                      View data
                     </Button>
                     <Button variant="outline" size="sm">
                       <Download className="h-4 w-4 mr-2" />
-                      Tải xuống
+                      Download
                     </Button>
                   </div>
                 </div>

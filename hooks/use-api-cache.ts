@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { QUERY_KEYS, queryInvalidation } from '@/lib/query-client'
 import { apiCache, CACHE_KEYS, cacheUtils } from '@/lib/cache'
 import { useCallback } from 'react'
+import { toast } from '@/hooks/use-toast'
 
 // Generic hook for cached API calls
 export function useCachedQuery<T>(
@@ -160,6 +161,7 @@ export function useCreateUser() {
       // Invalidate users cache
       queryInvalidation.invalidateUsers()
       apiCache.delete(CACHE_KEYS.USERS)
+      toast({ title: 'Add user successfully' })
     },
   })
 }
@@ -177,6 +179,7 @@ export function useUpdateUser() {
       queryInvalidation.invalidateUser(userId)
       queryInvalidation.invalidateUsers()
       cacheUtils.invalidateUser(userId)
+      toast({ title: 'Update user successfully' })
     },
   })
 }
@@ -189,11 +192,10 @@ export function useDeleteUser() {
       const { deleteUser } = await import('@/api/users')
       return deleteUser(userId)
     },
-    onSuccess: (_, userId) => {
+    onSuccess: () => {
       // Invalidate users cache
       queryInvalidation.invalidateUsers()
-      queryInvalidation.invalidateUser(userId)
-      cacheUtils.invalidateUser(userId)
+      toast({ title: 'Delete user successfully' })
     },
   })
 }
@@ -210,6 +212,7 @@ export function useCreateDataset() {
       // Invalidate datasets cache
       queryInvalidation.invalidateDatasets()
       apiCache.delete(CACHE_KEYS.DATASETS)
+      toast({ title: 'Add dataset successfully' })
     },
   })
 }
@@ -227,6 +230,7 @@ export function useDeleteDataset() {
       queryInvalidation.invalidateDatasets()
       queryInvalidation.invalidateDataset(datasetId)
       cacheUtils.invalidateDataset(datasetId)
+      toast({ title: 'Delete dataset successfully' })
     },
   })
 }
@@ -239,10 +243,9 @@ export function useCreateDatasetVersion() {
       const { createDatasetVersion } = await import('@/api/datasets')
       return createDatasetVersion(datasetId, changelog)
     },
-    onSuccess: (_, { datasetId }) => {
+    onSuccess: () => {
       // Invalidate dataset versions cache
-      queryInvalidation.invalidateDatasetVersions(datasetId)
-      queryInvalidation.invalidateDataset(datasetId)
+      toast({ title: 'Create version successfully' })
     },
   })
 }
@@ -255,9 +258,9 @@ export function useUploadFile() {
       const { uploadFileToVersion } = await import('@/api/datasets')
       return uploadFileToVersion(versionId, file, fileType)
     },
-    onSuccess: (_, { versionId }) => {
+    onSuccess: () => {
       // Invalidate version files cache
-      queryInvalidation.invalidateVersionFiles(versionId)
+      toast({ title: 'Upload file successfully' })
     },
   })
 }
