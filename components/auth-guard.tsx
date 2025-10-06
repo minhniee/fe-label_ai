@@ -3,6 +3,7 @@
 import type React from "react"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { getMe } from "@/api/auth"
 
 interface BackendUser {
   user_id: number
@@ -23,24 +24,55 @@ export function AuthGuard({ children, allowedRoleIds }: AuthGuardProps) {
   const router = useRouter()
 
   useEffect(() => {
-    const userStr = localStorage.getItem("user")
-    if (!userStr) {
-      router.push("/")
-      return
-    }
+    let cancelled = false
 
-    const parsed = JSON.parse(userStr) as BackendUser
+    const verify = async () => {
+      try {
+        // Prefer cached user if available
+        const cached = typeof window !== "undefined" ? localStorage.getItem("user") : null
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached) as BackendUser
+            if (!cancelled) setUser(parsed)
+          } catch {}
+        }
 
-    if (allowedRoleIds && allowedRoleIds.length > 0) {
-      const isAllowed = allowedRoleIds.includes(parsed.role_id)
-      if (!isAllowed) {
-        router.push("/dashboard")
-        return
+        // If we have a token, confirm with backend (fixes intermittent missing cached user)
+        const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null
+        let me: BackendUser | null = null
+        if (token) {
+          try {
+            const resp = await getMe()
+            me = resp as unknown as BackendUser
+            try { localStorage.setItem("user", JSON.stringify(me)) } catch {}
+          } catch {
+            me = null
+          }
+        }
+
+        const effective = (me ?? (cached ? (JSON.parse(cached) as BackendUser) : null))
+
+        if (!effective) {
+          if (!cancelled) router.push("/")
+          return
+        }
+
+        if (allowedRoleIds && allowedRoleIds.length > 0) {
+          const isAllowed = allowedRoleIds.includes(effective.role_id)
+          if (!isAllowed) {
+            if (!cancelled) router.push("/dashboard")
+            return
+          }
+        }
+
+        if (!cancelled) setUser(effective)
+      } finally {
+        if (!cancelled) setLoading(false)
       }
     }
 
-    setUser(parsed)
-    setLoading(false)
+    verify()
+    return () => { cancelled = true }
   }, [router, allowedRoleIds])
 
   if (loading) {
