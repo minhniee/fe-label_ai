@@ -54,7 +54,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import {
   Users,
   Plus,
@@ -153,17 +153,6 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
           role: mapRoleIdToUiRole(u.role_id),
         }));
         setUsers(uiUsers);
-        toast({
-          title: "Success",
-          description: `Loaded ${uiUsers.length} users`,
-        });
-      } catch (e: any) {
-        setError(e?.message || "Failed to load users");
-        toast({
-          title: "Error",
-          description: e?.message || "Failed to load users",
-          variant: "destructive",
-        });
       } finally {
         setLoading(false);
       }
@@ -505,7 +494,6 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
           </div>
         </CardHeader>
         <CardContent>
-          {error && <div className="text-sm text-red-600 mb-3">{error}</div>}
           {loading && (
             <div className="text-sm text-muted-foreground mb-3">
               Loading...

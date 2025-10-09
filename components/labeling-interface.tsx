@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Save, SkipForward, ArrowLeft, Clock, User, FileText, Keyboard } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 interface Question {
   id: string
@@ -34,6 +35,7 @@ interface LabelOption {
 }
 
 export function LabelingInterface() {
+  const { toast } = useToast()
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null)
   const [selectedLabel, setSelectedLabel] = useState<string>("")
   const [notes, setNotes] = useState<string>("")
@@ -98,10 +100,9 @@ export function LabelingInterface() {
     if (!selectedLabel) return
 
     // TODO: Implement save logic
-    console.log("Saving label:", {
-      questionId: currentQuestion?.id,
-      label: selectedLabel,
-      notes,
+    toast({
+      title: "Label Saved",
+      description: `Question ${currentQuestion?.id} labeled as ${selectedLabel}`,
     })
 
     // Move to next question

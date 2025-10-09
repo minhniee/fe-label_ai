@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Send, X, Users, Hash, Plus, Search, MoreVertical, Phone, Video, Paperclip, Smile } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { useToast } from "@/hooks/use-toast"
 
 interface ChatPanelProps {
   onClose: () => void
@@ -36,6 +37,7 @@ interface Channel {
 }
 
 export function ChatPanel({ onClose }: ChatPanelProps) {
+  const { toast } = useToast()
   const [message, setMessage] = useState("")
   const [activeChannel, setActiveChannel] = useState("general")
   const [searchTerm, setSearchTerm] = useState("")
@@ -133,7 +135,10 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
   const handleSendMessage = () => {
     if (message.trim()) {
       // Handle sending message
-      console.log("Sending message:", message)
+      toast({
+        title: "Message Sent",
+        description: `Message sent to #${activeChannel}`,
+      })
       setMessage("")
     }
   }

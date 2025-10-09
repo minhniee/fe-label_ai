@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Users, Package, Clock, CheckCircle, Plus, Eye, Settings } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 interface Labeler {
   id: string
@@ -35,6 +36,7 @@ interface Batch {
 }
 
 export function LabelingAdmin() {
+  const { toast } = useToast()
   const [selectedLabeler, setSelectedLabeler] = useState<string>("")
   const [batchSize, setBatchSize] = useState<string>("100")
 
@@ -143,7 +145,10 @@ export function LabelingAdmin() {
 
   const handleAssignBatch = () => {
     // TODO: Implement batch assignment logic
-    console.log("Assigning batch:", { labeler: selectedLabeler, size: batchSize })
+    toast({
+      title: "Batch Assignment",
+      description: `Assigning batch of ${batchSize} questions to ${selectedLabeler}`,
+    })
   }
 
   return (

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import { Search, ChevronLeft, ChevronRight, Trash2, Database, RefreshCw } from "lucide-react"
 import { getDatasets, deleteDataset, type Dataset } from "@/api/datasets"
+import { useToast } from "@/hooks/use-toast"
 
 interface DatasetRecord extends Dataset {
   created_by_username: string
@@ -24,6 +25,7 @@ interface DatasetRecord extends Dataset {
 }
 
 export function DataExplorer() {
+  const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
   const [datasets, setDatasets] = useState<DatasetRecord[]>([])
@@ -47,7 +49,13 @@ export function DataExplorer() {
       const data = await getDatasets()
       setDatasets(data as DatasetRecord[])
     } catch (err: any) {
-      setError(err?.message || "Failed to load datasets")
+      const errorMsg = err?.message || "Failed to load datasets"
+      setError(errorMsg)
+      toast({
+        title: "Error",
+        description: errorMsg,
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }
@@ -66,8 +74,18 @@ export function DataExplorer() {
       setDatasets(datasets.filter(d => d.dataset_id !== deletingDataset.dataset_id))
       setIsDeleteOpen(false)
       setDeletingDataset(null)
+      toast({
+        title: "Success",
+        description: `Dataset "${deletingDataset.name}" deleted successfully`,
+      })
     } catch (err: any) {
-      setError(err?.message || "Failed to delete dataset")
+      const errorMsg = err?.message || "Failed to delete dataset"
+      setError(errorMsg)
+      toast({
+        title: "Error",
+        description: errorMsg,
+        variant: "destructive",
+      })
     }
   }
 

@@ -11,12 +11,14 @@ import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Upload, FileText, Calendar, Eye, Download, CheckCircle, AlertCircle, Clock, Plus } from "lucide-react"
+import { Upload, FileText, Calendar, Eye, Download, CheckCircle, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getDatasets, createDatasetVersion, getDatasetVersions, uploadFileToVersion, getVersionFiles, createDataset, type Dataset, type DatasetVersion, type DataFile } from "@/api/datasets"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { useToast } from "@/hooks/use-toast"
 
 export function DataUpload() {
+  const { toast } = useToast()
   const [dragActive, setDragActive] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [isUploading, setIsUploading] = useState(false)
@@ -111,22 +113,23 @@ export function DataUpload() {
 
       const dataset = await createDataset(newDataset.name, newDataset.description)
       
-      setDatasetSuccess(`Dataset "${dataset.name}" was created successfully!`)
-      
       // Reset form
       setNewDataset({ name: "", description: "" })
       
       // Reload datasets to show the new one
       loadDatasets()
       
-      // Close dialog after a short delay
-      setTimeout(() => {
-        setIsCreateDatasetOpen(false)
-        setDatasetSuccess("")
-      }, 2000)
+      // Close dialog
+      setIsCreateDatasetOpen(false)
       
     } catch (err: any) {
-      setDatasetError(err?.message || "Failed to create dataset")
+      const errorMsg = err?.message || "Failed to create dataset"
+      setDatasetError(errorMsg)
+      toast({
+        title: "Error",
+        description: errorMsg,
+        variant: "destructive",
+      })
     } finally {
       setIsCreatingDataset(false)
     }
@@ -198,7 +201,12 @@ export function DataUpload() {
       const uploadedFile = await uploadFileToVersion(currentVersionId, selectedFile)
       
       setUploadProgress(100)
-      setSuccess(`Upload successful: ${uploadedFile.file_name}`)
+      
+      // Show success toast
+      toast({
+        title: "Upload Successful",
+        description: `File "${uploadedFile.file_name}" uploaded successfully!`,
+      })
       
       // Reload files to show the new upload
       loadFiles(currentVersionId)
@@ -206,9 +214,15 @@ export function DataUpload() {
       // Reset form
       setSelectedFile(null)
       setDescription("")
-      
+    
     } catch (err: any) {
-      setError(err?.message || "Upload failed")
+      const errorMsg = err?.message || "Upload failed"
+      setError(errorMsg)
+      toast({
+        title: "Upload Failed",
+        description: errorMsg,
+        variant: "destructive",
+      })
     } finally {
       setIsUploading(false)
     }
@@ -283,13 +297,8 @@ export function DataUpload() {
                       />
                     </div>
                     {datasetError && (
-                      <div className="text-sm text-destructive bg-destructive/10 p-2 rounded">
+                      <div className="text-sm text-destructive bg-destructive/10 p-2 rounded break-words whitespace-pre-wrap overflow-hidden max-w-full">
                         {datasetError}
-                      </div>
-                    )}
-                    {datasetSuccess && (
-                      <div className="text-sm text-green-600 bg-green-100 p-2 rounded">
-                        {datasetSuccess}
                       </div>
                     )}
                   </div>
@@ -394,15 +403,10 @@ export function DataUpload() {
             />
           </div>
 
-          {/* Error/Success Messages */}
+          {/* Error Message */}
           {error && (
-            <div className="text-sm text-destructive bg-destructive/10 p-2 rounded">
+            <div className="text-sm text-destructive bg-destructive/10 p-2 rounded break-words whitespace-pre-wrap overflow-hidden max-w-full">
               {error}
-            </div>
-          )}
-          {success && (
-            <div className="text-sm text-green-600 bg-green-100 p-2 rounded">
-              {success}
             </div>
           )}
 

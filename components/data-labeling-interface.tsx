@@ -39,10 +39,12 @@ import {
   type DatasetVersion,
   type DataFile,
 } from "@/api/datasets";
+import { useToast } from "@/hooks/use-toast";
 
 type GridRow = { id: string } & Record<string, any>;
 
 export function DataLabelingInterface() {
+  const { toast } = useToast()
   const [selectedDataset, setSelectedDataset] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -93,7 +95,13 @@ export function DataLabelingInterface() {
       const data = await getDatasets();
       setDatasets(data);
     } catch (err: any) {
-      setError(err?.message || "Failed to load datasets");
+      const errorMsg = err?.message || "Failed to load datasets";
+      setError(errorMsg);
+      toast({
+        title: "Error",
+        description: errorMsg,
+        variant: "destructive",
+      });
     } finally {
       setLoadingDatasets(false);
     }
@@ -109,7 +117,13 @@ export function DataLabelingInterface() {
         setSelectedVersion(latestVersion.version_id.toString());
       }
     } catch (err: any) {
-      setError(err?.message || "Failed to load versions");
+      const errorMsg = err?.message || "Failed to load versions";
+      setError(errorMsg);
+      toast({
+        title: "Error",
+        description: errorMsg,
+        variant: "destructive",
+      });
     }
   };
 
@@ -119,7 +133,13 @@ export function DataLabelingInterface() {
       setFiles(data);
       // Don't auto-load, let user select
     } catch (err: any) {
-      setError(err?.message || "Failed to load files");
+      const errorMsg = err?.message || "Failed to load files";
+      setError(errorMsg);
+      toast({
+        title: "Error",
+        description: errorMsg,
+        variant: "destructive",
+      });
     }
   };
 
