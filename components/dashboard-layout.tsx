@@ -78,10 +78,13 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   // Filter navigation items for Manager(3) and Labeler(4)
   const visibleNavigation = (() => {
     if (!me) return navigation;
-    if (me.role_id === 3 || me.role_id === 4) {
-      return navigation.filter((i) => i.name !== "Model Dashboard" && i.name !== "Admin");
+    // Manager (3) and Labeler (4) cannot see Model Dashboard and Admin
+    let items = navigation.filter((i) => i.name !== "Model Dashboard" && i.name !== "Admin");
+    // Labeler (4) additionally cannot see Data Management
+    if (me.role_id === 4) {
+      items = items.filter((i) => i.name !== "Data Management");
     }
-    return navigation;
+    return items;
   })();
 
   const handleLogout = async () => {
