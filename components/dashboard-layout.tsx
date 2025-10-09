@@ -1,6 +1,6 @@
 "use client";
 
-import type React from "react";
+import React from "react";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -19,6 +19,14 @@ import {
 import { cn } from "@/lib/utils";
 import { Menu } from "lucide-react";
 import { getMe, logout, type MeResponse } from "@/api/auth";
+import {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbSeparator,
+  BreadcrumbPage,
+} from "@/components/ui/breadcrumb";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -75,16 +83,18 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     loadMe();
   }, []);
 
-  // Filter navigation items for Manager(3) and Labeler(4)
+  // Filter navigation items only for Manager(3) and Labeler(4)
   const visibleNavigation = (() => {
     if (!me) return navigation;
-    // Manager (3) and Labeler (4) cannot see Model Dashboard and Admin
-    let items = navigation.filter((i) => i.name !== "Model Dashboard" && i.name !== "Admin");
-    // Labeler (4) additionally cannot see Data Management
-    if (me.role_id === 4) {
-      items = items.filter((i) => i.name !== "Data Management");
+    if (me.role_id === 3 || me.role_id === 4) {
+      let items = navigation.filter((i) => i.name !== "Model Dashboard" && i.name !== "Admin");
+      if (me.role_id === 4) {
+        items = items.filter((i) => i.name !== "Data Management");
+      }
+      return items;
     }
-    return items;
+    // SuperAdmin(1) and Admin(2) see everything
+    return navigation;
   })();
 
   const handleLogout = async () => {
@@ -151,7 +161,57 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       </div>
 
       <div className={cn("pt-16 transition-all", sidebarCollapsed ? "lg:pl-16" : "lg:pl-64") }>
-        <main className="py-8 px-4 sm:px-6 lg:px-8">{children}</main>
+        <main className="py-8 px-4 sm:px-6 lg:px-8">
+          {/* Breadcrumb */}
+          <div className="mb-4">
+            <Breadcrumb>
+              <BreadcrumbList>
+                {(() => {
+                  const segments = pathname.split('/').filter(Boolean);
+                  const inDashboard = segments[0] === 'dashboard';
+                  // If only /dashboard → show Dashboard.
+                  // If deeper, start from the functional tab (tasks/data/labeling/models/admin/...)
+                  const parts = inDashboard ? (segments.length === 1 ? ['dashboard'] : segments.slice(1)) : segments;
+
+                  const titleMap: Record<string, string> = {
+                    dashboard: 'Dashboard',
+                    tasks: 'Tasks',
+                    data: 'Data Management',
+                    labeling: 'Labeling',
+                    models: 'Model Dashboard',
+                    admin: 'Admin',
+                  };
+
+                  const toTitle = (slug: string) => titleMap[slug] ?? slug.replace(/[-_]/g, '_');
+
+                  const hrefFrom = (idx: number) => {
+                    const base = inDashboard ? '/dashboard' : '';
+                    return `${base}/${parts.slice(0, idx + 1).join('/')}`;
+                  };
+
+                  return parts.map((seg, idx) => {
+                    const isLast = idx === parts.length - 1;
+                    const label = toTitle(seg);
+                    return (
+                      <React.Fragment key={idx}>
+                        <BreadcrumbItem>
+                          {isLast ? (
+                            <BreadcrumbPage>{label}</BreadcrumbPage>
+                          ) : (
+                            <BreadcrumbLink href={hrefFrom(idx)}>{label}</BreadcrumbLink>
+                          )}
+                        </BreadcrumbItem>
+                        {!isLast && <BreadcrumbSeparator />}
+                      </React.Fragment>
+                    );
+                  });
+                })()}
+              </BreadcrumbList>
+            </Breadcrumb>
+          </div>
+
+          {children}
+        </main>
       </div>
     </div>
   );
