@@ -23,7 +23,6 @@ export default function DashboardPage() {
       {/* Page Header */}
       <div>
         <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-muted-foreground mt-2">Tổng quan hệ thống gán nhãn và huấn luyện AI cho tuyển sinh FPTU</p>
       </div>
 
       {/* Statistics Cards */}

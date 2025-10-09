@@ -132,17 +132,16 @@ export default function TasksPage() {
   })
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="space-y-6">
       {/* Main Content */}
       <div className={`flex-1 transition-all duration-300 ${isChatOpen ? "mr-80" : ""}`}>
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Assignment</h1>
+        </div>
         <div className="p-6">
           {/* Header */}
           <div className="mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Nhiệm vụ của tôi</h1>
-                <p className="text-gray-600">Quản lý và theo dõi các nhiệm vụ được giao</p>
-              </div>
+            {/* <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <Button
                   variant="outline"
@@ -157,7 +156,7 @@ export default function TasksPage() {
                   <Bell className="h-4 w-4" />
                 </Button>
               </div>
-            </div>
+            </div> */}
 
             {/* Search and Filter */}
             <div className="flex items-center gap-4 mb-4">

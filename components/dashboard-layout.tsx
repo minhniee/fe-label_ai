@@ -75,6 +75,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     loadMe();
   }, []);
 
+  // Filter navigation items for Manager(3) and Labeler(4)
+  const visibleNavigation = (() => {
+    if (!me) return navigation;
+    if (me.role_id === 3 || me.role_id === 4) {
+      return navigation.filter((i) => i.name !== "Model Dashboard" && i.name !== "Admin");
+    }
+    return navigation;
+  })();
+
   const handleLogout = async () => {
     await logout();
     window.location.href = "/";
@@ -86,7 +95,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <HeaderBar
           me={me}
           onLogout={handleLogout}
-          navigation={navigation}
+          navigation={visibleNavigation}
           pathname={pathname}
           onCloseMobile={() => setSidebarOpen(false)}
         />
@@ -99,7 +108,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         >
           <div className="flex h-full flex-col">
             <nav className="flex-1 space-y-1 px-3 py-4">
-              {navigation.map((item) => {
+              {visibleNavigation.map((item) => {
                 const isActive = pathname === item.href;
                 return (
                   <Link
@@ -134,7 +143,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               <Menu className="h-5 w-5" />
             </button>
           </div>
-          <SidebarNav items={navigation} collapsed={sidebarCollapsed} />
+          <SidebarNav items={visibleNavigation} collapsed={sidebarCollapsed} />
         </div>
       </div>
 

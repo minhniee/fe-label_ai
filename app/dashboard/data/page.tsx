@@ -9,9 +9,7 @@ export default function DataManagementPage() {
       {/* Page Header */}
       <div>
         <h1 className="text-3xl font-bold text-foreground">Data Management</h1>
-        <p className="text-muted-foreground mt-2">
-          Upload, manage, and explore datasets for the AI system
-        </p>
+        
       </div>
 
       {/* Tabs for Upload and Explorer */}

@@ -10,16 +10,15 @@ export default function LabelingPage() {
     <div className="space-y-6">
       {/* Page Header */}
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Gán nhãn dữ liệu</h1>
-        <p className="text-muted-foreground mt-2">Gán nhãn cho dữ liệu tuyển sinh để huấn luyện mô hình AI</p>
+        <h1 className="text-3xl font-bold text-foreground">Labeling</h1>
       </div>
 
       {/* Tabs for Labeling and Admin */}
       <Tabs defaultValue="data-labeling" className="space-y-6">
         <TabsList className="grid w-full grid-cols-3 lg:w-[600px]">
-          <TabsTrigger value="data-labeling">Dữ liệu & Gán nhãn</TabsTrigger>
-          <TabsTrigger value="labeling">Gán nhãn nhanh</TabsTrigger>
-          <TabsTrigger value="admin">Quản lý</TabsTrigger>
+          <TabsTrigger value="data-labeling">Data and Labeling</TabsTrigger>
+          <TabsTrigger value="labeling">Fast Labeling</TabsTrigger>
+          <TabsTrigger value="admin">Manage</TabsTrigger>
         </TabsList>
 
         <TabsContent value="data-labeling" className="space-y-6">

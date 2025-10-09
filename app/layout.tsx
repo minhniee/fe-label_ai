@@ -11,7 +11,6 @@ export const metadata: Metadata = {
   title: "FPTU Lable-AI",
   description:
     "Internal platform for managing data, labeling, AI training, and tracking admissions progress at FPT University",
-  generator: "v0.app",
 }
 
 const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600", "700"], display: "swap", variable: "--font-inter" })
