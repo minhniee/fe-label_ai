@@ -125,11 +125,7 @@ export function DataUpload() {
     } catch (err: any) {
       const errorMsg = err?.message || "Failed to create dataset"
       setDatasetError(errorMsg)
-      toast({
-        title: "Error",
-        description: errorMsg,
-        variant: "destructive",
-      })
+      toast({ title: "Failed to create dataset", variant: "destructive" })
     } finally {
       setIsCreatingDataset(false)
     }
@@ -203,10 +199,7 @@ export function DataUpload() {
       setUploadProgress(100)
       
       // Show success toast
-      toast({
-        title: "Upload Successful",
-        description: `File "${uploadedFile.file_name}" uploaded successfully!`,
-      })
+      toast({ title: "Uploaded file successfully!" })
       
       // Reload files to show the new upload
       loadFiles(currentVersionId)
@@ -218,11 +211,7 @@ export function DataUpload() {
     } catch (err: any) {
       const errorMsg = err?.message || "Upload failed"
       setError(errorMsg)
-      toast({
-        title: "Upload Failed",
-        description: errorMsg,
-        variant: "destructive",
-      })
+      toast({ title: "Upload failed", variant: "destructive" })
     } finally {
       setIsUploading(false)
     }

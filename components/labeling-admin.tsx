@@ -145,10 +145,7 @@ export function LabelingAdmin() {
 
   const handleAssignBatch = () => {
     // TODO: Implement batch assignment logic
-    toast({
-      title: "Batch Assignment",
-      description: `Assigning batch of ${batchSize} questions to ${selectedLabeler}`,
-    })
+    toast({ title: "Assigning batch successfully!" })
   }
 
   return (

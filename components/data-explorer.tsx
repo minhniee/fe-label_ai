@@ -51,11 +51,7 @@ export function DataExplorer() {
     } catch (err: any) {
       const errorMsg = err?.message || "Failed to load datasets"
       setError(errorMsg)
-      toast({
-        title: "Error",
-        description: errorMsg,
-        variant: "destructive",
-      })
+      toast({ title: "Failed to load datasets", variant: "destructive" })
     } finally {
       setLoading(false)
     }
@@ -74,18 +70,11 @@ export function DataExplorer() {
       setDatasets(datasets.filter(d => d.dataset_id !== deletingDataset.dataset_id))
       setIsDeleteOpen(false)
       setDeletingDataset(null)
-      toast({
-        title: "Success",
-        description: `Dataset "${deletingDataset.name}" deleted successfully`,
-      })
+      toast({ title: "Deleted dataset successfully!" })
     } catch (err: any) {
       const errorMsg = err?.message || "Failed to delete dataset"
       setError(errorMsg)
-      toast({
-        title: "Error",
-        description: errorMsg,
-        variant: "destructive",
-      })
+      toast({ title: "Failed to delete dataset", variant: "destructive" })
     }
   }
 

@@ -116,20 +116,14 @@ export function ModelTraining() {
 
   const handleExportData = (format: "csv" | "jsonl") => {
     // TODO: Implement data export logic
-    toast({
-      title: "Data Export",
-      description: `Exporting data in ${format} format`,
-    })
+    toast({ title: "Exporting data..." })
   }
 
   const handleStartTraining = () => {
     if (!selectedDataVersion || !modelName) return
 
     // TODO: Implement training start logic
-    toast({
-      title: "Training Started",
-      description: `Starting training for model "${modelName}" with data version ${selectedDataVersion}`,
-    })
+    toast({ title: "Started training!" })
     setIsTraining(true)
   }
 

@@ -100,10 +100,7 @@ export function LabelingInterface() {
     if (!selectedLabel) return
 
     // TODO: Implement save logic
-    toast({
-      title: "Label Saved",
-      description: `Question ${currentQuestion?.id} labeled as ${selectedLabel}`,
-    })
+    toast({ title: "Saved label successfully!" })
 
     // Move to next question
     handleNext()

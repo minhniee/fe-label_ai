@@ -135,10 +135,7 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
   const handleSendMessage = () => {
     if (message.trim()) {
       // Handle sending message
-      toast({
-        title: "Message Sent",
-        description: `Message sent to #${activeChannel}`,
-      })
+    toast({ title: "Message sent!" })
       setMessage("")
     }
   }
