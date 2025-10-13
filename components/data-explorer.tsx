@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import { Search, ChevronLeft, ChevronRight, Trash2, Database, RefreshCw } from "lucide-react"
 import { getDatasets, deleteDataset, type Dataset } from "@/api/datasets"
+import { useToast } from "@/hooks/use-toast"
 
 interface DatasetRecord extends Dataset {
   created_by_username: string
@@ -24,6 +25,7 @@ interface DatasetRecord extends Dataset {
 }
 
 export function DataExplorer() {
+  const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
   const [datasets, setDatasets] = useState<DatasetRecord[]>([])
@@ -47,7 +49,9 @@ export function DataExplorer() {
       const data = await getDatasets()
       setDatasets(data as DatasetRecord[])
     } catch (err: any) {
-      setError(err?.message || "Failed to load datasets")
+      const errorMsg = err?.message || "Failed to load datasets"
+      setError(errorMsg)
+      toast({ title: "Failed to load datasets", variant: "destructive" })
     } finally {
       setLoading(false)
     }
@@ -66,8 +70,11 @@ export function DataExplorer() {
       setDatasets(datasets.filter(d => d.dataset_id !== deletingDataset.dataset_id))
       setIsDeleteOpen(false)
       setDeletingDataset(null)
+      toast({ title: "Deleted dataset successfully!" })
     } catch (err: any) {
-      setError(err?.message || "Failed to delete dataset")
+      const errorMsg = err?.message || "Failed to delete dataset"
+      setError(errorMsg)
+      toast({ title: "Failed to delete dataset", variant: "destructive" })
     }
   }
 
@@ -107,9 +114,6 @@ export function DataExplorer() {
                 />
               </div>
             </div>
-            <Button variant="outline" onClick={loadDatasets}>
-              <RefreshCw />
-            </Button>
           </div>
           {error && (
             <div className="mt-4 text-sm text-destructive bg-destructive/10 p-2 rounded">
@@ -119,7 +123,7 @@ export function DataExplorer() {
 
 
       {/* Data Table */}
-      <Card>
+        <Card className="bg-white/90">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>

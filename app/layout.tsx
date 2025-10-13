@@ -1,29 +1,21 @@
 import type React from "react"
 import type { Metadata } from "next"
-// import { GeistSans } from "geist/font/sans"
-// import { GeistMono } from "geist/font/mono"
-import { Roboto } from "next/font/google"
+import { Inter } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { Suspense } from "react"
+import { QueryProvider } from "@/components/query-provider"
+import { Toaster } from "@/components/ui/toaster"
 import "./globals.css"
 import { ro } from "date-fns/locale"
 
 export const metadata: Metadata = {
-  title: "F-ALT - FPTU Admissions AI Labeling & Training Platform",
+  title: "FPTU Lable-AI",
   description:
     "Internal platform for managing data, labeling, AI training, and tracking admissions progress at FPT University",
-  generator: "v0.app",
 }
 
+const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600", "700"], display: "swap", variable: "--font-inter" })
 
-
-const roboto = Roboto({
-  subsets: ["latin"],
-  weight: ["100", "300", "400", "500", "700", "900"],
-  variable: "--font-roboto",
-  display: "swap",
-  style: ["normal", "italic"],
-})
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -31,9 +23,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${roboto.variable} font-roboto`}>
-        <Suspense fallback={null}>{children}</Suspense>
-        <Analytics />
+      <body className={`font-sans ${inter.variable}`}>
+        <QueryProvider>
+          <Suspense fallback={null}>{children}</Suspense>
+          <Analytics />
+          <Toaster />
+        </QueryProvider>
       </body>
     </html>
   )

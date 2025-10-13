@@ -30,6 +30,11 @@ export interface DataFile {
   uploaded_at: string
 }
 
+export interface FilePreviewResponse {
+  headers: string[]
+  rows: string[][]
+}
+
 // Get all datasets
 export async function getDatasets() {
   return apiRequest<Dataset[]>("/datasets", { auth: true })
@@ -96,4 +101,48 @@ export async function uploadFileToVersion(versionId: number, file: File, fileTyp
 // Get version files
 export async function getVersionFiles(versionId: number) {
   return apiRequest<DataFile[]>(`/datasets/versions/${versionId}/files`, { auth: true })
+}
+
+// Get preview of a file's content (parsed rows/headers)
+export async function getFilePreview(fileId: number) {
+  const raw = await apiRequest<any>(`/datasets/files/${fileId}/preview`, { auth: true })
+  // If backend already returns headers/rows, pass through
+  if (raw && Array.isArray(raw.headers) && Array.isArray(raw.rows)) {
+    return { headers: raw.headers as string[], rows: raw.rows as string[][] } as FilePreviewResponse
+  }
+
+  // If backend returns preview_lines: string[] (first is header)
+  if (raw && Array.isArray(raw.preview_lines) && raw.preview_lines.length > 0) {
+    const parseCsvLine = (line: string): string[] => {
+      const result: string[] = []
+      let current = ""
+      let inQuotes = false
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i]
+        if (ch === '"') {
+          if (inQuotes && line[i + 1] === '"') {
+            current += '"'
+            i++
+          } else {
+            inQuotes = !inQuotes
+          }
+        } else if (ch === ',' && !inQuotes) {
+          result.push(current)
+          current = ""
+        } else {
+          current += ch
+        }
+      }
+      result.push(current)
+      return result
+    }
+
+    const [headerLine, ...rowLines] = raw.preview_lines as string[]
+    const headers = parseCsvLine(headerLine).map((h) => h.trim() || "column")
+    const rows = rowLines.map((l) => parseCsvLine(l))
+    return { headers, rows } as FilePreviewResponse
+  }
+
+  // Fallback empty
+  return { headers: [], rows: [] } as FilePreviewResponse
 }

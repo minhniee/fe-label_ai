@@ -132,39 +132,20 @@ export default function TasksPage() {
   })
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="space-y-6">
       {/* Main Content */}
-      <div className={`flex-1 transition-all duration-300 ${isChatOpen ? "mr-80" : ""}`}>
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Assignment</h1>
+        </div>
         <div className="p-6">
           {/* Header */}
           <div className="mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Nhiệm vụ của tôi</h1>
-                <p className="text-gray-600">Quản lý và theo dõi các nhiệm vụ được giao</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsChatOpen(!isChatOpen)}
-                  className="flex items-center gap-2"
-                >
-                  <MessageCircle className="h-4 w-4" />
-                  Chat nhóm
-                </Button>
-                <Button variant="outline" size="sm">
-                  <Bell className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
             {/* Search and Filter */}
             <div className="flex items-center gap-4 mb-4">
               <div className="relative flex-1 max-w-md">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                 <Input
-                  placeholder="Tìm kiếm nhiệm vụ..."
+                  placeholder="Search for quest..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -186,7 +167,7 @@ export default function TasksPage() {
 
           {/* Statistics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <Card>
+            <Card className="bg-white/90">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -200,7 +181,7 @@ export default function TasksPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="bg-white/90">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -214,7 +195,7 @@ export default function TasksPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="bg-white/90">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -228,7 +209,7 @@ export default function TasksPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="bg-white/90">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -310,7 +291,6 @@ export default function TasksPage() {
             ))}
           </div>
         </div>
-      </div>
 
       {/* Chat Panel */}
       {isChatOpen && <ChatPanel onClose={() => setIsChatOpen(false)} />}

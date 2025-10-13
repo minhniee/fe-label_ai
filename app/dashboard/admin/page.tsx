@@ -13,19 +13,18 @@ export default function AdminPage() {
     <div className="space-y-6">
       {/* Page Header */}
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Quản trị hệ thống</h1>
-        <p className="text-muted-foreground mt-2">Quản lý người dùng, nhãn dữ liệu và theo dõi thống kê tổng thể</p>
+        <h1 className="text-3xl font-bold text-foreground">System Administration</h1>
       </div>
 
       {/* Admin Tabs */}
       <Tabs defaultValue="batches" className="space-y-6">
         <TabsList className="grid w-full grid-cols-6 lg:w-[900px]">
-          <TabsTrigger value="batches">Quản lý Batch</TabsTrigger>
+          <TabsTrigger value="batches">Batch Management</TabsTrigger>
           <TabsTrigger value="agreement">Inter-Annotator</TabsTrigger>
-          <TabsTrigger value="export">Xuất dữ liệu</TabsTrigger>
-          <TabsTrigger value="users">Quản lý User</TabsTrigger>
-          <TabsTrigger value="labels">Quản lý Labels</TabsTrigger>
-          <TabsTrigger value="statistics">Thống kê</TabsTrigger>
+          <TabsTrigger value="export">Export data</TabsTrigger>
+          <TabsTrigger value="users">User Management</TabsTrigger>
+          <TabsTrigger value="labels">Labels Management</TabsTrigger>
+          <TabsTrigger value="statistics">Statistics</TabsTrigger>
         </TabsList>
 
         <TabsContent value="batches" className="space-y-6">

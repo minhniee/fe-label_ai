@@ -10,7 +10,6 @@ export default function ModelsPage() {
       {/* Page Header */}
       <div>
         <h1 className="text-3xl font-bold text-foreground">AI Training & Model Dashboard</h1>
-        <p className="text-muted-foreground mt-2">Huấn luyện mô hình AI và theo dõi hiệu suất các phiên bản</p>
       </div>
 
       {/* Tabs for Training and Comparison */}

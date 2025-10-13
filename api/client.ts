@@ -36,6 +36,20 @@ export async function apiRequest<T = any>(path: string, options: RequestOptions 
 
   if (!res.ok) {
     const text = await res.text()
+    // Try to parse FastAPI error JSON
+    let parsed: any
+    try {
+      parsed = JSON.parse(text)
+    } catch {}
+
+    // Handle auth errors with a unified toast (client-side only)
+    if (typeof window !== "undefined") {
+      const { toast } = await import("@/hooks/use-toast")
+      if (res.status === 401 || parsed?.detail === "Invalid authentication credentials") {
+        toast({ title: "Invalid authentication credentials", variant: "destructive" })
+      }
+    }
+
     throw new Error(text || `Request failed: ${res.status}`)
   }
 

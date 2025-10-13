@@ -144,7 +144,7 @@ export default function RegisterPage() {
         </div>
 
         {/* Registration Card */}
-        <Card className="shadow-lg border-0 bg-card/80 backdrop-blur-sm">
+        <Card className="shadow-lg border-0 bg-white/90 backdrop-blur-sm">
           <CardHeader className="space-y-1">
             <div className="flex items-center gap-2">
               <Link href="/" className="text-muted-foreground hover:text-foreground">

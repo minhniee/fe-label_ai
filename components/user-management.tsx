@@ -54,7 +54,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import {
   Users,
   Plus,
@@ -153,17 +153,6 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
           role: mapRoleIdToUiRole(u.role_id),
         }));
         setUsers(uiUsers);
-        toast({
-          title: "Success",
-          description: `Loaded ${uiUsers.length} users`,
-        });
-      } catch (e: any) {
-        setError(e?.message || "Failed to load users");
-        toast({
-          title: "Error",
-          description: e?.message || "Failed to load users",
-          variant: "destructive",
-        });
       } finally {
         setLoading(false);
       }
@@ -192,17 +181,10 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
       ]);
       setNewUser({ username: "", email: "", role_id: 4, password: "" });
       setIsAddUserOpen(false);
-      toast({
-        title: "Success",
-        description: `Created user ${created.username}`,
-      });
+      toast({ title: "Created user successfully!" });
     } catch (e: any) {
       setError(e?.message || "Failed to create user");
-      toast({
-        title: "Error",
-        description: e?.message || "Failed to create user",
-        variant: "destructive",
-      });
+      toast({ title: "Failed to create user", variant: "destructive" });
     }
   };
 
@@ -224,11 +206,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
       editingUserId === currentUserId &&
       editForm.role_id < editOriginalRoleId
     ) {
-      toast({
-        title: "Invalid",
-        description: "You cannot downgrade your own role.",
-        variant: "destructive",
-      });
+      toast({ title: "You cannot downgrade your own role.", variant: "destructive" });
       return;
     }
 
@@ -252,17 +230,10 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
       );
       setIsEditOpen(false);
       setEditingUserId(null);
-      toast({
-        title: "Success",
-        description: `Updated user ${updated.username}`,
-      });
+      toast({ title: "Updated user successfully!" });
     } catch (e: any) {
       setError(e?.message || "Failed to update user");
-      toast({
-        title: "Error",
-        description: e?.message || "Failed to update user",
-        variant: "destructive",
-      });
+      toast({ title: "Failed to update user", variant: "destructive" });
     }
   };
 
@@ -278,17 +249,10 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
     try {
       await apiDeleteUser(deleteTarget.id);
       setUsers((prev) => prev.filter((u) => u.id !== deleteTarget.id));
-      toast({
-        title: "Deleted",
-        description: `Deleted user ${deleteTarget.name}`,
-      });
+      toast({ title: "Deleted user successfully!" });
     } catch (e: any) {
       setError(e?.message || "Failed to delete user");
-      toast({
-        title: "Error",
-        description: e?.message || "Failed to delete user",
-        variant: "destructive",
-      });
+      toast({ title: "Failed to delete user", variant: "destructive" });
     } finally {
       setDeleteTarget(null);
     }
@@ -325,7 +289,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
     <div className="space-y-6">
       {/* User Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
               Total Users
@@ -340,7 +304,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">SuperAdmin</CardTitle>
             <Shield className="h-4 w-4 text-muted-foreground" />
@@ -351,7 +315,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Admin</CardTitle>
             <Shield className="h-4 w-4 text-muted-foreground" />
@@ -362,7 +326,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Manager</CardTitle>
             <Briefcase className="h-4 w-4 text-muted-foreground" />
@@ -373,7 +337,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Labeler</CardTitle>
             <Mail className="h-4 w-4 text-muted-foreground" />
@@ -505,7 +469,6 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
           </div>
         </CardHeader>
         <CardContent>
-          {error && <div className="text-sm text-red-600 mb-3">{error}</div>}
           {loading && (
             <div className="text-sm text-muted-foreground mb-3">
               Loading...

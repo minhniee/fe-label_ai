@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -45,6 +45,22 @@ import {
   Settings,
   BarChart3,
 } from "lucide-react"
+import { 
+  getBatches, 
+  createBatch, 
+  getBatch, 
+  updateBatch, 
+  deleteBatch,
+  getBatchProgress,
+  type BatchResponse,
+  type CreateBatchRequest,
+  type UpdateBatchRequest,
+  type BatchStatus,
+  type BatchProgressResponse
+} from "@/api/batch"
+import { getUsers, type User as ApiUser } from "@/api/users"
+import { getDatasets, getDatasetVersions, type Dataset as ApiDataset, type DatasetVersion } from "@/api/datasets"
+import { useToast } from "@/hooks/use-toast"
 
 interface Batch {
   id: string
@@ -69,100 +85,57 @@ interface Batch {
   }[]
 }
 
-interface User {
-  id: string
-  name: string
-  email: string
-  role: string
+// Helper function to convert API response to local Batch format
+const convertApiBatchToLocal = (apiBatch: BatchResponse): Batch => {
+  return {
+    id: apiBatch.batch_id.toString(),
+    name: apiBatch.name,
+    description: apiBatch.description || "",
+    totalQuestions: apiBatch.total_files,
+    assignedTo: [], // Will be populated from assignment details if available
+    annotators: 1, // Default, can be updated based on actual assignments
+    status: apiBatch.status.toLowerCase() as Batch["status"],
+    createdDate: apiBatch.created_at.split('T')[0],
+    dueDate: apiBatch.updated_at.split('T')[0], // Using updated_at as due date fallback
+    progress: apiBatch.progress_percentage,
+    priority: "medium", // Default priority
+    datasetId: apiBatch.dataset_id.toString(),
+    datasetName: `Dataset ${apiBatch.dataset_id}`,
+    questionRange: { start: 1, end: apiBatch.total_files },
+  }
 }
 
-interface Dataset {
-  id: string
-  name: string
-  totalQuestions: number
-  uploadDate: string
-  status: "ready" | "processing" | "error"
-}
+// Convert API User to local User format
+const convertApiUserToLocal = (apiUser: ApiUser) => ({
+  id: apiUser.user_id.toString(),
+  name: apiUser.username,
+  email: apiUser.email,
+  role: apiUser.role_name || `role_${apiUser.role_id}`,
+})
+
+// Convert API Dataset to local Dataset format
+const convertApiDatasetToLocal = (apiDataset: ApiDataset) => ({
+  id: apiDataset.dataset_id.toString(),
+  name: apiDataset.name,
+  totalQuestions: 0, // Will be updated when we get file count
+  uploadDate: apiDataset.created_at.split('T')[0],
+  status: "ready" as const,
+})
 
 export function BatchManagement() {
-  const [batches, setBatches] = useState<Batch[]>([
-    {
-      id: "1",
-      name: "Batch 001 - Hồ sơ tuyển sinh 2024",
-      description: "Gán nhãn cho 1000 hồ sơ tuyển sinh đầu tiên",
-      totalQuestions: 1000,
-      assignedTo: ["Nguyễn Thị Lan", "Trần Văn Minh"],
-      annotators: 2,
-      status: "in_progress",
-      createdDate: "2024-01-10",
-      dueDate: "2024-01-20",
-      progress: 65,
-      priority: "high",
-      datasetId: "ds1",
-      datasetName: "Hồ sơ tuyển sinh 2024 - Đợt 1",
-      questionRange: { start: 1, end: 1000 },
-      assignmentDetails: [
-        { userId: "1", userName: "Nguyễn Thị Lan", questionCount: 500, questionRange: { start: 1, end: 500 } },
-        { userId: "2", userName: "Trần Văn Minh", questionCount: 500, questionRange: { start: 501, end: 1000 } },
-      ],
-    },
-    {
-      id: "2",
-      name: "Batch 002 - Hồ sơ kỹ thuật",
-      description: "Gán nhãn cho hồ sơ ngành kỹ thuật",
-      totalQuestions: 800,
-      assignedTo: ["Lê Thị Hoa"],
-      annotators: 1,
-      status: "pending",
-      createdDate: "2024-01-12",
-      dueDate: "2024-01-25",
-      progress: 0,
-      priority: "medium",
-    },
-    {
-      id: "3",
-      name: "Batch 003 - Hồ sơ kinh tế",
-      description: "Gán nhãn cho hồ sơ ngành kinh tế",
-      totalQuestions: 1200,
-      assignedTo: ["Nguyễn Thị Lan", "Phạm Văn Đức"],
-      annotators: 2,
-      status: "completed",
-      createdDate: "2024-01-05",
-      dueDate: "2024-01-15",
-      progress: 100,
-      priority: "low",
-    },
-  ])
-
-  const [users] = useState<User[]>([
-    { id: "1", name: "Nguyễn Thị Lan", email: "lan.nguyen@fpt.edu.vn", role: "senior_labeler" },
-    { id: "2", name: "Trần Văn Minh", email: "minh.tran@fpt.edu.vn", role: "labeler" },
-    { id: "3", name: "Lê Thị Hoa", email: "hoa.le@fpt.edu.vn", role: "labeler" },
-    { id: "4", name: "Phạm Văn Đức", email: "duc.pham@fpt.edu.vn", role: "labeler" },
-  ])
-
-  const [datasets] = useState<Dataset[]>([
-    {
-      id: "ds1",
-      name: "Hồ sơ tuyển sinh 2024 - Đợt 1",
-      totalQuestions: 5000,
-      uploadDate: "2024-01-05",
-      status: "ready",
-    },
-    {
-      id: "ds2",
-      name: "Hồ sơ tuyển sinh 2024 - Đợt 2",
-      totalQuestions: 3200,
-      uploadDate: "2024-01-08",
-      status: "ready",
-    },
-    { id: "ds3", name: "Hồ sơ chuyển ngành", totalQuestions: 1500, uploadDate: "2024-01-10", status: "processing" },
-  ])
+  const { toast } = useToast()
+  const [batches, setBatches] = useState<Batch[]>([])
+  const [users, setUsers] = useState<ReturnType<typeof convertApiUserToLocal>[]>([])
+  const [datasets, setDatasets] = useState<ReturnType<typeof convertApiDatasetToLocal>[]>([])
+  const [versions, setVersions] = useState<DatasetVersion[]>([])
+  const [loading, setLoading] = useState(true)
 
   const [isCreateBatchOpen, setIsCreateBatchOpen] = useState(false)
   const [isEditBatchOpen, setIsEditBatchOpen] = useState(false)
   const [isBatchAssignmentOpen, setIsBatchAssignmentOpen] = useState(false)
+  const [isProgressOpen, setIsProgressOpen] = useState(false)
   const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null)
+  const [batchProgress, setBatchProgress] = useState<BatchProgressResponse | null>(null)
   const [newBatch, setNewBatch] = useState({
     name: "",
     description: "",
@@ -172,12 +145,88 @@ export function BatchManagement() {
     dueDate: "",
     priority: "medium" as Batch["priority"],
     datasetId: "",
+    versionId: 0,
     questionRangeStart: 1,
     questionRangeEnd: 0,
     selectedUsers: [] as string[],
     distributionMode: "equal" as "equal" | "custom",
     customAssignments: [] as { userId: string; questionCount: number }[],
   })
+
+  // Load data on component mount
+  useEffect(() => {
+    loadAllData()
+  }, [])
+
+  const loadAllData = async () => {
+    try {
+      setLoading(true)
+      await Promise.all([
+        loadBatches(),
+        loadUsers(),
+        loadDatasets(),
+      ])
+    } catch (error: any) {
+      toast({
+        title: error.message || "Failed to load data",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadBatches = async () => {
+    try {
+      const response = await getBatches()
+      const convertedBatches = response.batches.map(convertApiBatchToLocal)
+      setBatches(convertedBatches)
+    } catch (error: any) {
+      toast({
+        title: error.message || "Failed to load batches",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const loadUsers = async () => {
+    try {
+      const response = await getUsers()
+      const convertedUsers = response.map(convertApiUserToLocal)
+      setUsers(convertedUsers)
+    } catch (error: any) {
+      toast({
+        title: error.message || "Failed to load users",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const loadDatasets = async () => {
+    try {
+      const response = await getDatasets()
+      const convertedDatasets = response.map(convertApiDatasetToLocal)
+      setDatasets(convertedDatasets)
+    } catch (error: any) {
+      toast({
+        title: error.message || "Failed to load datasets",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const loadBatchProgress = async (batchId: number) => {
+    try {
+      const progress = await getBatchProgress(batchId)
+      return progress
+    } catch (error: any) {
+      toast({
+        title: error.message || "Failed to load batch progress",
+        variant: "destructive",
+      })
+      return null
+    }
+  }
 
   const calculateEqualDistribution = () => {
     if (newBatch.selectedUsers.length === 0 || newBatch.totalQuestions === 0) return []
@@ -191,16 +240,27 @@ export function BatchManagement() {
     }))
   }
 
-  const handleDatasetSelection = (datasetId: string) => {
+  const handleDatasetSelection = async (datasetId: string) => {
     const dataset = datasets.find((d) => d.id === datasetId)
     if (dataset) {
-      setNewBatch({
-        ...newBatch,
-        datasetId,
-        totalQuestions: dataset.totalQuestions,
-        questionRangeEnd: dataset.totalQuestions,
-        name: `Batch - ${dataset.name}`,
-      })
+      try {
+        // Load versions for the selected dataset
+        const datasetVersions = await getDatasetVersions(parseInt(datasetId))
+        setVersions(datasetVersions)
+        
+        setNewBatch({
+          ...newBatch,
+          datasetId,
+          totalQuestions: dataset.totalQuestions,
+          questionRangeEnd: dataset.totalQuestions,
+          name: `Batch - ${dataset.name}`,
+        })
+      } catch (error: any) {
+        toast({
+          title: error.message || "Failed to load dataset versions",
+          variant: "destructive",
+        })
+      }
     }
   }
 
@@ -220,72 +280,97 @@ export function BatchManagement() {
     })
   }
 
-  const handleCreateBatch = () => {
-    if (!newBatch.name || !newBatch.totalQuestions || !newBatch.dueDate || !newBatch.datasetId) return
-
-    const assignments =
-      newBatch.distributionMode === "equal" ? calculateEqualDistribution() : newBatch.customAssignments
-
-    let currentStart = newBatch.questionRangeStart
-    const assignmentDetails = assignments.map((assignment) => {
-      const user = users.find((u) => u.id === assignment.userId)
-      const detail = {
-        userId: assignment.userId,
-        userName: user?.name || "",
-        questionCount: assignment.questionCount,
-        questionRange: { start: currentStart, end: currentStart + assignment.questionCount - 1 },
-      }
-      currentStart += assignment.questionCount
-      return detail
-    })
-
-    const batch: Batch = {
-      id: Date.now().toString(),
-      name: newBatch.name,
-      description: newBatch.description,
-      totalQuestions: newBatch.totalQuestions,
-      assignedTo: assignmentDetails.map((a) => a.userName),
-      annotators: newBatch.annotators,
-      status: "pending",
-      createdDate: new Date().toISOString().split("T")[0],
-      dueDate: newBatch.dueDate,
-      progress: 0,
-      priority: newBatch.priority,
-      datasetId: newBatch.datasetId,
-      datasetName: datasets.find((d) => d.id === newBatch.datasetId)?.name,
-      questionRange: { start: newBatch.questionRangeStart, end: newBatch.questionRangeEnd },
-      assignmentDetails,
+  const handleCreateBatch = async () => {
+    if (!newBatch.name || !newBatch.datasetId || !newBatch.versionId) {
+      toast({
+        title: "Please fill in all required fields",
+        variant: "destructive",
+      })
+      return
     }
 
-    setBatches([...batches, batch])
-    setNewBatch({
-      name: "",
-      description: "",
-      totalQuestions: 0,
-      assignedTo: [],
-      annotators: 1,
-      dueDate: "",
-      priority: "medium",
-      datasetId: "",
-      questionRangeStart: 1,
-      questionRangeEnd: 0,
-      selectedUsers: [],
-      distributionMode: "equal",
-      customAssignments: [],
-    })
-    setIsCreateBatchOpen(false)
+    try {
+      const createPayload: CreateBatchRequest = {
+        name: newBatch.name,
+        description: newBatch.description,
+        dataset_id: parseInt(newBatch.datasetId),
+        version_id: newBatch.versionId,
+      }
+
+      const response = await createBatch(createPayload)
+      const newBatchLocal = convertApiBatchToLocal(response)
+      
+      setBatches([...batches, newBatchLocal])
+      setNewBatch({
+        name: "",
+        description: "",
+        totalQuestions: 0,
+        assignedTo: [],
+        annotators: 1,
+        dueDate: "",
+        priority: "medium",
+        datasetId: "",
+        versionId: 0,
+        questionRangeStart: 1,
+        questionRangeEnd: 0,
+        selectedUsers: [],
+        distributionMode: "equal",
+        customAssignments: [],
+      })
+      setIsCreateBatchOpen(false)
+      
+      toast({
+        title: "Batch created successfully",
+      })
+    } catch (error: any) {
+      toast({
+        title: error.message || "Failed to create batch",
+        variant: "destructive",
+      })
+    }
   }
 
-  const handleEditBatch = () => {
+  const handleEditBatch = async () => {
     if (!selectedBatch || !newBatch.name) return
 
-    setBatches(batches.map((batch) => (batch.id === selectedBatch.id ? { ...batch, ...newBatch } : batch)))
-    setIsEditBatchOpen(false)
-    setSelectedBatch(null)
+    try {
+      const updatePayload: UpdateBatchRequest = {
+        name: newBatch.name,
+        description: newBatch.description,
+      }
+
+      const response = await updateBatch(parseInt(selectedBatch.id), updatePayload)
+      const updatedBatch = convertApiBatchToLocal(response)
+      
+      setBatches(batches.map((batch) => (batch.id === selectedBatch.id ? updatedBatch : batch)))
+      setIsEditBatchOpen(false)
+      setSelectedBatch(null)
+      
+      toast({
+        title: "Batch updated successfully",
+      })
+    } catch (error: any) {
+      toast({
+        title: error.message || "Failed to update batch",
+        variant: "destructive",
+      })
+    }
   }
 
-  const handleDeleteBatch = (batchId: string) => {
-    setBatches(batches.filter((batch) => batch.id !== batchId))
+  const handleDeleteBatch = async (batchId: string) => {
+    try {
+      await deleteBatch(parseInt(batchId))
+      setBatches(batches.filter((batch) => batch.id !== batchId))
+      
+      toast({
+        title: "Batch deleted successfully",
+      })
+    } catch (error: any) {
+      toast({
+        title: error.message || "Failed to delete batch",
+        variant: "destructive",
+      })
+    }
   }
 
   const openEditDialog = (batch: Batch) => {
@@ -298,6 +383,13 @@ export function BatchManagement() {
       annotators: batch.annotators,
       dueDate: batch.dueDate,
       priority: batch.priority,
+      datasetId: batch.datasetId || "",
+      versionId: 0,
+      questionRangeStart: batch.questionRange?.start || 1,
+      questionRangeEnd: batch.questionRange?.end || 0,
+      selectedUsers: [],
+      distributionMode: "equal",
+      customAssignments: [],
     })
     setIsEditBatchOpen(true)
   }
@@ -308,28 +400,28 @@ export function BatchManagement() {
         return (
           <Badge variant="secondary" className="bg-gray-100 text-gray-800">
             <Clock className="w-3 h-3 mr-1" />
-            Chờ xử lý
+            Pending
           </Badge>
         )
       case "in_progress":
         return (
           <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
             <UserCheck className="w-3 h-3 mr-1" />
-            Đang thực hiện
+            In Progress
           </Badge>
         )
       case "completed":
         return (
           <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
             <CheckCircle className="w-3 h-3 mr-1" />
-            Hoàn thành
+            Completed
           </Badge>
         )
       case "review":
         return (
           <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">
             <AlertCircle className="w-3 h-3 mr-1" />
-            Đang review
+            Under Review
           </Badge>
         )
     }
@@ -338,11 +430,11 @@ export function BatchManagement() {
   const getPriorityBadge = (priority: Batch["priority"]) => {
     switch (priority) {
       case "high":
-        return <Badge variant="destructive">Cao</Badge>
+        return <Badge variant="destructive">High</Badge>
       case "medium":
-        return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Trung bình</Badge>
+        return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Medium</Badge>
       case "low":
-        return <Badge variant="secondary">Thấp</Badge>
+        return <Badge variant="secondary">Low</Badge>
     }
   }
 
@@ -368,92 +460,102 @@ export function BatchManagement() {
     setIsBatchAssignmentOpen(true)
   }
 
+  const handleViewProgress = async (batchId: string) => {
+    const batch = batches.find(b => b.id === batchId)
+    if (!batch) return
+
+    setSelectedBatch(batch)
+    const progress = await loadBatchProgress(parseInt(batchId))
+    setBatchProgress(progress)
+    setIsProgressOpen(true)
+  }
+
   return (
     <div className="space-y-6">
       {/* Batch Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tổng Batch</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Batches</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{batches.length}</div>
             <p className="text-xs text-muted-foreground">
-              {batches.filter((b) => b.status === "in_progress").length} đang thực hiện
+              {batches.filter((b) => b.status === "in_progress").length} in progress
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tổng câu hỏi</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Questions</CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {batches.reduce((sum, batch) => sum + batch.totalQuestions, 0).toLocaleString()}
             </div>
-            <p className="text-xs text-muted-foreground">Trong tất cả batch</p>
+            <p className="text-xs text-muted-foreground">Across all batches</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Hoàn thành</CardTitle>
+            <CardTitle className="text-sm font-medium">Completed</CardTitle>
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{batches.filter((b) => b.status === "completed").length}</div>
-            <p className="text-xs text-muted-foreground">Batch đã hoàn thành</p>
+            <p className="text-xs text-muted-foreground">Batches completed</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/90">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tiến độ trung bình</CardTitle>
+            <CardTitle className="text-sm font-medium">Average Progress</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {Math.round(batches.reduce((sum, batch) => sum + batch.progress, 0) / batches.length)}%
             </div>
-            <p className="text-xs text-muted-foreground">Của tất cả batch</p>
+            <p className="text-xs text-muted-foreground">Of all batches</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Batch Management */}
-      <Card>
+      <Card className="bg-white/90">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Quản lý Batch gán nhãn</CardTitle>
-              <CardDescription>Tạo và quản lý các batch để chia nhỏ công việc gán nhãn</CardDescription>
+              <CardTitle>Batch Management</CardTitle>
+              <CardDescription>Create and manage batches to organize labeling work</CardDescription>
             </div>
             <div className="flex gap-2">
               <Button variant="outline">
                 <Shuffle className="h-4 w-4 mr-2" />
-                Tự động chia batch
+                Auto Split Batch
               </Button>
               <Dialog open={isCreateBatchOpen} onOpenChange={setIsCreateBatchOpen}>
                 <DialogTrigger asChild>
                   <Button>
                     <Plus className="h-4 w-4 mr-2" />
-                    Tạo Batch mới
+                    Create New Batch
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
-                    <DialogTitle>Tạo Batch gán nhãn mới</DialogTitle>
-                    <DialogDescription>Chọn dữ liệu và chia nhỏ thành batch để gán cho các labeler</DialogDescription>
+                    <DialogTitle>Create New Labeling Batch</DialogTitle>
+                    <DialogDescription>Select data and organize into batches for labelers</DialogDescription>
                   </DialogHeader>
 
                   <div className="space-y-6">
                     <div className="space-y-4">
                       <h3 className="text-lg font-semibold flex items-center gap-2">
                         <Database className="h-5 w-5" />
-                        1. Chọn bộ dữ liệu
+                        1. Select Dataset
                       </h3>
                       <div className="grid grid-cols-1 gap-3">
                         {datasets.map((dataset) => (
@@ -470,16 +572,16 @@ export function BatchManagement() {
                               <div>
                                 <h4 className="font-medium">{dataset.name}</h4>
                                 <p className="text-sm text-muted-foreground">
-                                  {dataset.totalQuestions.toLocaleString()} câu hỏi • Tải lên: {dataset.uploadDate}
+                                  Uploaded: {dataset.uploadDate}
                                 </p>
                               </div>
                               <div className="flex items-center gap-2">
                                 <Badge variant={dataset.status === "ready" ? "default" : "secondary"}>
                                   {dataset.status === "ready"
-                                    ? "Sẵn sàng"
+                                    ? "Ready"
                                     : dataset.status === "processing"
-                                      ? "Đang xử lý"
-                                      : "Lỗi"}
+                                      ? "Processing"
+                                      : "Error"}
                                 </Badge>
                                 {newBatch.datasetId === dataset.id && <CheckCircle className="h-5 w-5 text-primary" />}
                               </div>
@@ -494,37 +596,43 @@ export function BatchManagement() {
                         <div className="space-y-4">
                           <h3 className="text-lg font-semibold flex items-center gap-2">
                             <Settings className="h-5 w-5" />
-                            2. Cấu hình batch
+                            2. Configure Batch
                           </h3>
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                              <Label htmlFor="batch-name">Tên Batch</Label>
+                              <Label htmlFor="batch-name">Batch Name</Label>
                               <Input
                                 id="batch-name"
-                                placeholder="Ví dụ: Batch 001 - Hồ sơ tuyển sinh"
+                                placeholder="e.g., Batch 001 - Admission Records"
                                 value={newBatch.name}
                                 onChange={(e) => setNewBatch({ ...newBatch, name: e.target.value })}
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label htmlFor="total-questions">Số câu hỏi trong batch</Label>
-                              <Input
-                                id="total-questions"
-                                type="number"
-                                max={datasets.find((d) => d.id === newBatch.datasetId)?.totalQuestions}
-                                value={newBatch.totalQuestions || ""}
-                                onChange={(e) => {
-                                  const value = Number.parseInt(e.target.value) || 0
+                              <Label htmlFor="version-select">Dataset Version</Label>
+                              <Select
+                                value={newBatch.versionId.toString()}
+                                onValueChange={(value) => {
                                   setNewBatch({
                                     ...newBatch,
-                                    totalQuestions: value,
-                                    questionRangeEnd: newBatch.questionRangeStart + value - 1,
+                                    versionId: Number.parseInt(value),
                                   })
                                 }}
-                              />
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select a version" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {versions.map((version) => (
+                                    <SelectItem key={version.version_id} value={version.version_id.toString()}>
+                                      Version {version.version_number} - {version.changelog || "No changelog"}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             </div>
                             <div className="space-y-2">
-                              <Label htmlFor="range-start">Câu hỏi bắt đầu</Label>
+                              <Label htmlFor="range-start">Start Question</Label>
                               <Input
                                 id="range-start"
                                 type="number"
@@ -541,7 +649,7 @@ export function BatchManagement() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label htmlFor="range-end">Câu hỏi kết thúc</Label>
+                              <Label htmlFor="range-end">End Question</Label>
                               <Input
                                 id="range-end"
                                 type="number"
@@ -557,16 +665,16 @@ export function BatchManagement() {
                               />
                             </div>
                             <div className="col-span-2 space-y-2">
-                              <Label htmlFor="description">Mô tả</Label>
+                              <Label htmlFor="description">Description</Label>
                               <Textarea
                                 id="description"
-                                placeholder="Mô tả chi tiết về batch này..."
+                                placeholder="Detailed description of this batch..."
                                 value={newBatch.description}
                                 onChange={(e) => setNewBatch({ ...newBatch, description: e.target.value })}
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label htmlFor="due-date">Hạn hoàn thành</Label>
+                              <Label htmlFor="due-date">Due Date</Label>
                               <Input
                                 id="due-date"
                                 type="date"
@@ -575,7 +683,7 @@ export function BatchManagement() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label htmlFor="annotators">Số người gán nhãn</Label>
+                              <Label htmlFor="annotators">Number of Annotators</Label>
                               <Select
                                 value={newBatch.annotators.toString()}
                                 onValueChange={(value) =>
@@ -586,9 +694,9 @@ export function BatchManagement() {
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="1">1 người (Single annotation)</SelectItem>
-                                  <SelectItem value="2">2 người (Double annotation)</SelectItem>
-                                  <SelectItem value="3">3 người (Triple annotation)</SelectItem>
+                                  <SelectItem value="1">1 person (Single annotation)</SelectItem>
+                                  <SelectItem value="2">2 people (Double annotation)</SelectItem>
+                                  <SelectItem value="3">3 people (Triple annotation)</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
@@ -598,12 +706,12 @@ export function BatchManagement() {
                         <div className="space-y-4">
                           <h3 className="text-lg font-semibold flex items-center gap-2">
                             <Users className="h-5 w-5" />
-                            3. Gán cho Labeler
+                            3. Assign to Labelers
                           </h3>
 
                           <div className="space-y-4">
                             <div className="flex items-center gap-4">
-                              <Label>Chế độ phân chia:</Label>
+                              <Label>Distribution Mode:</Label>
                               <div className="flex items-center gap-4">
                                 <label className="flex items-center gap-2">
                                   <input
@@ -613,7 +721,7 @@ export function BatchManagement() {
                                     checked={newBatch.distributionMode === "equal"}
                                     onChange={(e) => setNewBatch({ ...newBatch, distributionMode: "equal" })}
                                   />
-                                  Chia đều (mặc định)
+                                  Equal Distribution (default)
                                 </label>
                                 <label className="flex items-center gap-2">
                                   <input
@@ -623,14 +731,14 @@ export function BatchManagement() {
                                     checked={newBatch.distributionMode === "custom"}
                                     onChange={(e) => setNewBatch({ ...newBatch, distributionMode: "custom" })}
                                   />
-                                  Tuỳ chỉnh
+                                  Custom
                                 </label>
                               </div>
                             </div>
 
                             <div className="grid grid-cols-1 gap-3">
                               {users
-                                .filter((u) => u.role !== "admin")
+                                .filter((u) => u.role !== "admin" && u.role !== "superadmin")
                                 .map((user) => {
                                   const isSelected = newBatch.selectedUsers.includes(user.id)
                                   const assignment =
@@ -664,7 +772,7 @@ export function BatchManagement() {
                                             {newBatch.distributionMode === "custom" ? (
                                               <Input
                                                 type="number"
-                                                placeholder="Số câu hỏi"
+                                                placeholder="Number of questions"
                                                 className="w-32"
                                                 value={assignment?.questionCount || ""}
                                                 onChange={(e) => {
@@ -679,7 +787,7 @@ export function BatchManagement() {
                                                 }}
                                               />
                                             ) : (
-                                              <Badge variant="outline">{assignment?.questionCount || 0} câu hỏi</Badge>
+                                              <Badge variant="outline">{assignment?.questionCount || 0} questions</Badge>
                                             )}
                                           </div>
                                         )}
@@ -693,7 +801,7 @@ export function BatchManagement() {
                               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                                 <h4 className="font-medium text-blue-900 mb-2 flex items-center gap-2">
                                   <BarChart3 className="h-4 w-4" />
-                                  Tóm tắt phân chia
+                                  Distribution Summary
                                 </h4>
                                 <div className="space-y-2">
                                   {(newBatch.distributionMode === "equal"
@@ -704,18 +812,18 @@ export function BatchManagement() {
                                     return (
                                       <div key={assignment.userId} className="flex justify-between text-sm">
                                         <span>{user?.name}</span>
-                                        <span className="font-medium">{assignment.questionCount} câu hỏi</span>
+                                        <span className="font-medium">{assignment.questionCount} questions</span>
                                       </div>
                                     )
                                   })}
                                   <div className="border-t border-blue-200 pt-2 flex justify-between font-medium text-blue-900">
-                                    <span>Tổng cộng:</span>
+                                    <span>Total:</span>
                                     <span>
                                       {(newBatch.distributionMode === "equal"
                                         ? calculateEqualDistribution()
                                         : newBatch.customAssignments
                                       ).reduce((sum, a) => sum + a.questionCount, 0)}{" "}
-                                      câu hỏi
+                                      questions
                                     </span>
                                   </div>
                                 </div>
@@ -729,13 +837,13 @@ export function BatchManagement() {
 
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setIsCreateBatchOpen(false)}>
-                      Hủy
+                      Cancel
                     </Button>
                     <Button
                       onClick={handleCreateBatch}
-                      disabled={!newBatch.datasetId || newBatch.selectedUsers.length === 0}
+                      disabled={!newBatch.datasetId || !newBatch.versionId || !newBatch.name}
                     >
-                      Tạo Batch
+                      Create Batch
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -744,20 +852,35 @@ export function BatchManagement() {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Batch</TableHead>
-                <TableHead>Dữ liệu gốc</TableHead>
-                <TableHead>Gán cho</TableHead>
-                <TableHead>Trạng thái</TableHead>
-                <TableHead>Tiến độ</TableHead>
-                <TableHead>Hạn hoàn thành</TableHead>
-                <TableHead></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {batches.map((batch) => (
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                <p className="text-muted-foreground">Loading batches...</p>
+              </div>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Batch</TableHead>
+                  <TableHead>Source Data</TableHead>
+                  <TableHead>Assigned To</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Progress</TableHead>
+                  <TableHead>Due Date</TableHead>
+                  <TableHead></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {batches.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      No batches found. Create your first batch to get started.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  batches.map((batch) => (
                 <TableRow key={batch.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">
@@ -768,7 +891,7 @@ export function BatchManagement() {
                         <div className="font-medium">{batch.name}</div>
                         <div className="text-sm text-muted-foreground flex items-center gap-1">
                           <FileText className="h-3 w-3" />
-                          {batch.totalQuestions.toLocaleString()} câu hỏi
+                          {batch.totalQuestions.toLocaleString()} questions
                           {batch.questionRange && (
                             <span className="text-xs bg-gray-100 px-2 py-1 rounded">
                               #{batch.questionRange.start}-{batch.questionRange.end}
@@ -794,7 +917,7 @@ export function BatchManagement() {
                           {name}
                         </Badge>
                       ))}
-                      <div className="text-xs text-muted-foreground">{batch.annotators} người gán nhãn</div>
+                      <div className="text-xs text-muted-foreground">{batch.annotators} annotators</div>
                     </div>
                   </TableCell>
                   <TableCell>{getStatusBadge(batch.status)}</TableCell>
@@ -823,45 +946,51 @@ export function BatchManagement() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Thao tác</DropdownMenuLabel>
+                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuItem onClick={() => openEditDialog(batch)}>
                           <Edit className="mr-2 h-4 w-4" />
-                          Chỉnh sửa
+                          Edit
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => openBatchAssignmentDialog(batch)}>
                           <Users className="mr-2 h-4 w-4" />
-                          Chi tiết phân công
+                          Assignment Details
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleViewProgress(batch.id)}>
+                          <BarChart3 className="mr-2 h-4 w-4" />
+                          View Progress
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem className="text-red-600" onClick={() => handleDeleteBatch(batch.id)}>
                           <Trash2 className="mr-2 h-4 w-4" />
-                          Xóa batch
+                          Delete Batch
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
       <Dialog open={isBatchAssignmentOpen} onOpenChange={setIsBatchAssignmentOpen}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Chi tiết phân công - {selectedBatch?.name}</DialogTitle>
-            <DialogDescription>Xem chi tiết cách phân chia câu hỏi cho từng labeler</DialogDescription>
+            <DialogTitle>Assignment Details - {selectedBatch?.name}</DialogTitle>
+            <DialogDescription>View detailed assignment breakdown for each labeler</DialogDescription>
           </DialogHeader>
           {selectedBatch && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
                 <div>
-                  <Label className="text-sm font-medium">Tổng câu hỏi:</Label>
+                  <Label className="text-sm font-medium">Total Questions:</Label>
                   <p className="text-lg font-bold">{selectedBatch.totalQuestions.toLocaleString()}</p>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">Phạm vi:</Label>
+                  <Label className="text-sm font-medium">Range:</Label>
                   <p className="text-lg font-bold">
                     #{selectedBatch.questionRange?.start} - #{selectedBatch.questionRange?.end}
                   </p>
@@ -870,7 +999,7 @@ export function BatchManagement() {
 
               {selectedBatch.assignmentDetails && (
                 <div className="space-y-3">
-                  <h4 className="font-medium">Phân công chi tiết:</h4>
+                  <h4 className="font-medium">Detailed Assignments:</h4>
                   {selectedBatch.assignmentDetails.map((assignment, index) => (
                     <div key={index} className="border rounded-lg p-4">
                       <div className="flex items-center justify-between">
@@ -880,7 +1009,7 @@ export function BatchManagement() {
                           </div>
                           <div>
                             <h5 className="font-medium">{assignment.userName}</h5>
-                            <p className="text-sm text-muted-foreground">{assignment.questionCount} câu hỏi được gán</p>
+                            <p className="text-sm text-muted-foreground">{assignment.questionCount} questions assigned</p>
                           </div>
                         </div>
                         <Badge variant="outline" className="text-sm">
@@ -895,7 +1024,7 @@ export function BatchManagement() {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsBatchAssignmentOpen(false)}>
-              Đóng
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -905,12 +1034,12 @@ export function BatchManagement() {
       <Dialog open={isEditBatchOpen} onOpenChange={setIsEditBatchOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Chỉnh sửa Batch</DialogTitle>
-            <DialogDescription>Cập nhật thông tin batch gán nhãn</DialogDescription>
+            <DialogTitle>Edit Batch</DialogTitle>
+            <DialogDescription>Update batch labeling information</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="edit-batch-name">Tên Batch</Label>
+              <Label htmlFor="edit-batch-name">Batch Name</Label>
               <Input
                 id="edit-batch-name"
                 value={newBatch.name}
@@ -918,7 +1047,7 @@ export function BatchManagement() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-total-questions">Số câu hỏi</Label>
+              <Label htmlFor="edit-total-questions">Number of Questions</Label>
               <Input
                 id="edit-total-questions"
                 type="number"
@@ -927,7 +1056,7 @@ export function BatchManagement() {
               />
             </div>
             <div className="col-span-2 space-y-2">
-              <Label htmlFor="edit-description">Mô tả</Label>
+              <Label htmlFor="edit-description">Description</Label>
               <Textarea
                 id="edit-description"
                 value={newBatch.description}
@@ -935,7 +1064,7 @@ export function BatchManagement() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-due-date">Hạn hoàn thành</Label>
+              <Label htmlFor="edit-due-date">Due Date</Label>
               <Input
                 id="edit-due-date"
                 type="date"
@@ -944,7 +1073,7 @@ export function BatchManagement() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-priority">Độ ưu tiên</Label>
+              <Label htmlFor="edit-priority">Priority</Label>
               <Select
                 value={newBatch.priority}
                 onValueChange={(value: Batch["priority"]) => setNewBatch({ ...newBatch, priority: value })}
@@ -953,18 +1082,106 @@ export function BatchManagement() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="low">Thấp</SelectItem>
-                  <SelectItem value="medium">Trung bình</SelectItem>
-                  <SelectItem value="high">Cao</SelectItem>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditBatchOpen(false)}>
-              Hủy
+              Cancel
             </Button>
-            <Button onClick={handleEditBatch}>Cập nhật</Button>
+            <Button onClick={handleEditBatch}>Update</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Batch Progress Dialog */}
+      <Dialog open={isProgressOpen} onOpenChange={setIsProgressOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Batch Progress - {selectedBatch?.name}</DialogTitle>
+            <DialogDescription>View detailed progress information for this batch</DialogDescription>
+          </DialogHeader>
+          {batchProgress && (
+            <div className="space-y-6">
+              {/* Progress Overview */}
+              <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+                <div>
+                  <Label className="text-sm font-medium">Progress:</Label>
+                  <p className="text-lg font-bold">{batchProgress.progress_percentage}%</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Status:</Label>
+                  <p className="text-lg font-bold capitalize">{batchProgress.status}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Completed Files:</Label>
+                  <p className="text-lg font-bold">{batchProgress.completed_files} / {batchProgress.total_files}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Assigned Users:</Label>
+                  <p className="text-lg font-bold">{batchProgress.assigned_users.length}</p>
+                </div>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Overall Progress</Label>
+                <div className="w-full bg-gray-200 rounded-full h-3">
+                  <div
+                    className="bg-primary h-3 rounded-full transition-all duration-300"
+                    style={{ width: `${batchProgress.progress_percentage}%` }}
+                  />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {batchProgress.completed_files} of {batchProgress.total_files} files completed
+                </p>
+              </div>
+
+              {/* Assigned Users */}
+              {batchProgress.assigned_users.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="font-medium">Assigned Users:</h4>
+                  <div className="grid grid-cols-1 gap-2">
+                    {batchProgress.assigned_users.map((user, index) => (
+                      <div key={index} className="flex items-center gap-3 p-3 border rounded-lg">
+                        <div className="bg-primary/10 p-2 rounded-full">
+                          <UserCheck className="h-4 w-4 text-primary" />
+                        </div>
+                        <div>
+                          <h5 className="font-medium">{user}</h5>
+                          <p className="text-sm text-muted-foreground">Assigned to this batch</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Timestamps */}
+              <div className="grid grid-cols-2 gap-4 p-4 bg-blue-50 rounded-lg">
+                <div>
+                  <Label className="text-sm font-medium text-blue-900">Created:</Label>
+                  <p className="text-sm text-blue-800">
+                    {new Date(batchProgress.created_at).toLocaleDateString()} at {new Date(batchProgress.created_at).toLocaleTimeString()}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium text-blue-900">Last Updated:</Label>
+                  <p className="text-sm text-blue-800">
+                    {new Date(batchProgress.updated_at).toLocaleDateString()} at {new Date(batchProgress.updated_at).toLocaleTimeString()}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsProgressOpen(false)}>
+              Close
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

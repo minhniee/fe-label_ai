@@ -1,6 +1,6 @@
 "use client";
 
-import type React from "react";
+import React from "react";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -19,6 +19,14 @@ import {
 import { cn } from "@/lib/utils";
 import { Menu } from "lucide-react";
 import { getMe, logout, type MeResponse } from "@/api/auth";
+import {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbSeparator,
+  BreadcrumbPage,
+} from "@/components/ui/breadcrumb";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -75,6 +83,20 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     loadMe();
   }, []);
 
+  // Filter navigation items only for Manager(3) and Labeler(4)
+  const visibleNavigation = (() => {
+    if (!me) return navigation;
+    if (me.role_id === 3 || me.role_id === 4) {
+      let items = navigation.filter((i) => i.name !== "Model Dashboard" && i.name !== "Admin");
+      if (me.role_id === 4) {
+        items = items.filter((i) => i.name !== "Data Management");
+      }
+      return items;
+    }
+    // SuperAdmin(1) and Admin(2) see everything
+    return navigation;
+  })();
+
   const handleLogout = async () => {
     await logout();
     window.location.href = "/";
@@ -86,7 +108,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <HeaderBar
           me={me}
           onLogout={handleLogout}
-          navigation={navigation}
+          navigation={visibleNavigation}
           pathname={pathname}
           onCloseMobile={() => setSidebarOpen(false)}
         />
@@ -99,7 +121,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         >
           <div className="flex h-full flex-col">
             <nav className="flex-1 space-y-1 px-3 py-4">
-              {navigation.map((item) => {
+              {visibleNavigation.map((item) => {
                 const isActive = pathname === item.href;
                 return (
                   <Link
@@ -124,7 +146,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       </Sheet>
 
       <div className={cn("hidden lg:fixed lg:top-16 lg:bottom-0 lg:z-40 lg:flex lg:flex-col transition-all", sidebarCollapsed ? "lg:w-16" : "lg:w-64") }>
-        <div className={cn("flex grow flex-col gap-y-5 overflow-y-auto bg-sidebar border-r border-sidebar-border", sidebarCollapsed ? "px-2" : "px-6") }>
+        <div className={cn("flex grow flex-col gap-y-5 overflow-y-auto bg-white/40 border-r border-sidebar-border", sidebarCollapsed ? "px-2" : "px-6") }>
           <div className="flex items-center justify-center py-3">
             <button
               onClick={() => setSidebarCollapsed((v) => !v)}
@@ -134,12 +156,62 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               <Menu className="h-5 w-5" />
             </button>
           </div>
-          <SidebarNav items={navigation} collapsed={sidebarCollapsed} />
+          <SidebarNav items={visibleNavigation} collapsed={sidebarCollapsed} />
         </div>
       </div>
 
       <div className={cn("pt-16 transition-all", sidebarCollapsed ? "lg:pl-16" : "lg:pl-64") }>
-        <main className="py-8 px-4 sm:px-6 lg:px-8">{children}</main>
+        <main className="py-8 px-4 sm:px-6 lg:px-8">
+          {/* Breadcrumb */}
+          <div className="mb-4">
+            <Breadcrumb>
+              <BreadcrumbList>
+                {(() => {
+                  const segments = pathname.split('/').filter(Boolean);
+                  const inDashboard = segments[0] === 'dashboard';
+                  // If only /dashboard → show Dashboard.
+                  // If deeper, start from the functional tab (tasks/data/labeling/models/admin/...)
+                  const parts = inDashboard ? (segments.length === 1 ? ['dashboard'] : segments.slice(1)) : segments;
+
+                  const titleMap: Record<string, string> = {
+                    dashboard: 'Dashboard',
+                    tasks: 'Tasks',
+                    data: 'Data Management',
+                    labeling: 'Labeling',
+                    models: 'Model Dashboard',
+                    admin: 'Admin',
+                  };
+
+                  const toTitle = (slug: string) => titleMap[slug] ?? slug.replace(/[-_]/g, '_');
+
+                  const hrefFrom = (idx: number) => {
+                    const base = inDashboard ? '/dashboard' : '';
+                    return `${base}/${parts.slice(0, idx + 1).join('/')}`;
+                  };
+
+                  return parts.map((seg, idx) => {
+                    const isLast = idx === parts.length - 1;
+                    const label = toTitle(seg);
+                    return (
+                      <React.Fragment key={idx}>
+                        <BreadcrumbItem>
+                          {isLast ? (
+                            <BreadcrumbPage>{label}</BreadcrumbPage>
+                          ) : (
+                            <BreadcrumbLink href={hrefFrom(idx)}>{label}</BreadcrumbLink>
+                          )}
+                        </BreadcrumbItem>
+                        {!isLast && <BreadcrumbSeparator />}
+                      </React.Fragment>
+                    );
+                  });
+                })()}
+              </BreadcrumbList>
+            </Breadcrumb>
+          </div>
+
+          {children}
+        </main>
       </div>
     </div>
   );
