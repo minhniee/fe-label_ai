@@ -162,17 +162,17 @@ export function DataUpload() {
       setSelectedFile(file)
       setError("")
     } else {
-      setError("Only CSV and Excel files (.xlsx, .xls) are supported")
+      toast({ title: "Failed to upload files!" })
     }
   }
 
   const handleUpload = async () => {
     if (!selectedFile) {
-      setError("Please select a file")
+      toast({title: "Please select a file"})
       return
     }
     if (!selectedDatasetId) {
-      setError("Please select a dataset")
+      toast({title: "Please select a dataset"})
       return
     }
 
@@ -211,7 +211,7 @@ export function DataUpload() {
     } catch (err: any) {
       const errorMsg = err?.message || "Upload failed"
       setError(errorMsg)
-      toast({ title: "Upload failed", variant: "destructive" })
+      toast({ title: "Failed to upload failed!" })
     } finally {
       setIsUploading(false)
     }

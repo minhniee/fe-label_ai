@@ -21,7 +21,6 @@ import {
 } from "@/components/ui/select";
 import {
   Database,
-  Search,
   FileSpreadsheet,
   RefreshCw,
   Sparkles,
@@ -46,7 +45,6 @@ type GridRow = { id: string } & Record<string, any>;
 export function DataLabelingInterface() {
   const { toast } = useToast()
   const [selectedDataset, setSelectedDataset] = useState<string>("");
-  const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [columnDefs, setColumnDefs] = useState<ColDef<GridRow>[]>([]);
@@ -381,18 +379,6 @@ export function DataLabelingInterface() {
       </Card>
 
       {selectedDataset && (
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-      )}
-
-      {selectedDataset && (
         <Card className="bg-white/90">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -491,7 +477,17 @@ export function DataLabelingInterface() {
                         ref={gridRef}
                         rowData={rowData}
                         columnDefs={columnDefs}
-                        defaultColDef={{ editable: true, resizable: true }}
+                        defaultColDef={{
+                          editable: true,
+                          resizable: true,
+                          filter: true,
+                          floatingFilter: true,
+                          enablePivot: true,
+                          enableRowGroup: true,
+                          enableValue: true,
+                        }}
+                        pivotMode={true}
+                        sideBar={["filters", "columns"]}
                         animateRows
                         pagination
                         getRowId={(params: { data: GridRow }) => params.data.id}
