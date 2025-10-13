@@ -38,6 +38,18 @@ export interface BatchListResponse {
   page_size: number
 }
 
+export interface BatchProgressResponse {
+  batch_id: number
+  batch_name: string
+  status: string
+  progress_percentage: number
+  total_files: number
+  completed_files: number
+  assigned_users: string[]
+  created_at: string
+  updated_at: string
+}
+
 // GET /batches/
 export async function getBatches() {
   return apiRequest<BatchListResponse>("/batches/", { auth: true })
@@ -61,6 +73,11 @@ export async function updateBatch(batchId: number, payload: UpdateBatchRequest) 
 // DELETE /batches/{batch_id}
 export async function deleteBatch(batchId: number) {
   return apiRequest<{ message: string }>(`/batches/${batchId}`, { method: "DELETE", auth: true })
+}
+
+// GET /batches/{batch_id}/progress
+export async function getBatchProgress(batchId: number) {
+  return apiRequest<BatchProgressResponse>(`/batches/${batchId}/progress`, { auth: true })
 }
 
 

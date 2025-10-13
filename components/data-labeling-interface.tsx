@@ -68,6 +68,10 @@ export function DataLabelingInterface() {
   const [quickFilter, setQuickFilter] = useState("");
   const [showColumnMenu, setShowColumnMenu] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({});
+  // Track which columns were originally hidden from Excel detection
+  const [excelHiddenFields, setExcelHiddenFields] = useState<Set<string>>(new Set());
+  // Track which columns are currently hidden due to user action
+  const [userHiddenFields, setUserHiddenFields] = useState<Set<string>>(new Set());
 
   // Real dataset state
   const [datasets, setDatasets] = useState<Dataset[]>([]);
@@ -256,6 +260,10 @@ export function DataLabelingInterface() {
         visibilityState[field] = !col.hide; // true if not hidden
       });
       setVisibleColumns(visibilityState);
+      // Save which fields were hidden by Excel
+      setExcelHiddenFields(new Set(Array.from(hiddenColumns)));
+      // Reset user hidden fields when loading a new file
+      setUserHiddenFields(new Set());
     } finally {
       setIsLoading(false);
     }
@@ -389,28 +397,79 @@ export function DataLabelingInterface() {
 
   const handleColumnVisibility = (field: string, visible: boolean) => {
     if (gridRef.current?.api) {
-      gridRef.current.api.setColumnVisible(field, visible);
+      gridRef.current.api.setColumnsVisible([field], visible);
     }
+    // Keep local visibility state in sync so it persists when menu is toggled
+    setVisibleColumns((prev) => ({
+      ...prev,
+      [field]: visible,
+    }));
+    // Also update colDef.hide so future renders reflect the current visibility
+    setColumnDefs((prev) =>
+      prev.map((col) =>
+        col.field === field ? { ...col, hide: !visible } : col
+      )
+    );
+    // Track user-driven hidden state
+    setUserHiddenFields((prev) => {
+      const next = new Set(prev);
+      if (visible) next.delete(field); else next.add(field);
+      return next;
+    });
   };
 
   const handleShowAllColumns = () => {
     if (gridRef.current?.api) {
-      columnDefs.forEach(col => {
-        if (col.field) {
-          gridRef.current?.api.setColumnVisible(col.field, true);
-        }
-      });
+      const fields = columnDefs
+        .map(col => col.field)
+        .filter((f): f is string => typeof f === 'string');
+      if (fields.length > 0) {
+        gridRef.current.api.setColumnsVisible(fields, true);
+      }
     }
+    // Update local state for all columns
+    setVisibleColumns((prev) => {
+      const next = { ...prev } as Record<string, boolean>;
+      columnDefs.forEach((col) => {
+        if (typeof col.field === 'string') next[col.field] = true;
+      });
+      return next;
+    });
+    // Update colDefs to not hidden
+    setColumnDefs((prev) => prev.map((col) => ({ ...col, hide: false })));
+    // Clear user hidden marks since all are now visible
+    setUserHiddenFields(new Set());
   };
 
   const handleHideAllColumns = () => {
     if (gridRef.current?.api) {
-      columnDefs.forEach(col => {
-        if (col.field && col.field !== 'id') {
-          gridRef.current?.api.setColumnVisible(col.field, false);
-        }
-      });
+      const fields = columnDefs
+        .map(col => col.field)
+        .filter((f): f is string => typeof f === 'string' && f !== 'id');
+      if (fields.length > 0) {
+        gridRef.current.api.setColumnsVisible(fields, false);
+      }
     }
+    // Update local state for all non-id columns
+    setVisibleColumns((prev) => {
+      const next = { ...prev } as Record<string, boolean>;
+      columnDefs.forEach((col) => {
+        if (typeof col.field === 'string' && col.field !== 'id') next[col.field] = false;
+      });
+      return next;
+    });
+    // Update colDefs to hidden for non-id columns
+    setColumnDefs((prev) => prev.map((col) => (
+      typeof col.field === 'string' && col.field !== 'id' ? { ...col, hide: true } : col
+    )));
+    // Mark all non-id as user hidden now
+    setUserHiddenFields((prev) => {
+      const next = new Set<string>();
+      columnDefs.forEach((col) => {
+        if (typeof col.field === 'string' && col.field !== 'id') next.add(col.field);
+      });
+      return next;
+    });
   };
 
   return (
@@ -645,6 +704,7 @@ export function DataLabelingInterface() {
                       {columnDefs.map((col) => {
                         const field = String(col.field);
                         const isVisible = visibleColumns[field] ?? !col.hide;
+                        const showExcelHiddenBadge = excelHiddenFields.has(field) && !isVisible && !userHiddenFields.has(field);
                         return (
                           <div key={field} className="flex items-center space-x-2">
                             <input
@@ -656,7 +716,9 @@ export function DataLabelingInterface() {
                             />
                             <label htmlFor={field} className={`text-sm ${!isVisible ? 'text-gray-400' : ''}`}>
                               {col.headerName || field}
-                              {col.hide && <span className="ml-1 text-xs text-red-500">(Hidden in Excel)</span>}
+                              {showExcelHiddenBadge && (
+                                <span className="ml-1 text-xs text-red-500">(Hidden in Excel)</span>
+                              )}
                             </label>
                           </div>
                         );
@@ -720,7 +782,7 @@ export function DataLabelingInterface() {
                 )}
                 <div className="border rounded-lg overflow-hidden">
                   {hasGridData ? (
-                    <div className="ag-theme-material" style={{ height: 420, width: '100%' }}>
+                    <div className="ag-theme-material" style={{ height: 700, width: '100%' }}>
                       <AgGridReact<GridRow>
                         ref={gridRef}
                         rowData={rowData}
