@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -18,6 +19,14 @@ interface HeaderBarProps {
 }
 
 export function HeaderBar({ me, onLogout, navigation, pathname, onCloseMobile }: HeaderBarProps) {
+  const [avatar, setAvatar] = useState<string | null>(null);
+
+  // 🧠 Load image từ localStorage
+  useEffect(() => {
+    const storedImage = localStorage.getItem("image");
+    if (storedImage) setAvatar(storedImage);
+  }, []);
+
   return (
     <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between border-b border-border bg-background px-4 shadow-sm sm:px-6 lg:px-8">
       <div className="flex items-center gap-3">
@@ -57,24 +66,35 @@ export function HeaderBar({ me, onLogout, navigation, pathname, onCloseMobile }:
         </Sheet>
         <FPTLogo size="sm" showText={true} />
       </div>
+
       <div className="flex items-center gap-x-4 lg:gap-x-6">
         <Button variant="ghost" size="sm">
           <Bell className="h-5 w-5" />
           <span className="sr-only">View notifications</span>
         </Button>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="h-8 rounded-full px-2 pr-2.5">
               <div className="flex items-center gap-2">
-                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-muted">
-                  <User className="h-4 w-4 text-foreground" />
+                {/* 🧩 Avatar thay cho icon User */}
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-muted overflow-hidden">
+                  {avatar ? (
+                    <img src={avatar} alt="User Avatar" className="h-6 w-6 object-cover rounded-full" />
+                  ) : (
+                    <User className="h-4 w-4 text-foreground" />
+                  )}
                 </div>
-                <span className="text-sm font-medium max-w-[120px] truncate">{me?.username ?? "User"}</span>
+
+                <span className="text-sm font-medium max-w-[120px] truncate">
+                  {me?.username ?? "User"}
+                </span>
                 <ChevronDown className="h-4 w-4 opacity-70" />
               </div>
               <span className="sr-only">Open user menu</span>
             </Button>
           </DropdownMenuTrigger>
+
           <DropdownMenuContent className="w-56 z-50" align="end" sideOffset={8}>
             <DropdownMenuItem asChild>
               <Link href="/dashboard/profile" className="flex items-center">
@@ -93,5 +113,3 @@ export function HeaderBar({ me, onLogout, navigation, pathname, onCloseMobile }:
     </div>
   );
 }
-
-

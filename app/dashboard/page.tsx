@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Database, Tag, Users, FileText, TrendingUp, Clock, CheckCircle, AlertCircle } from "lucide-react"
+import { useEffect, useState } from "react"
 
 export default function DashboardPage() {
   // Mock data for statistics
@@ -17,13 +18,15 @@ export default function DashboardPage() {
     totalQuestions: 5000,
     labeledQuestions: 3400,
   }
-
+  
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <div>
         <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
+        
       </div>
+      
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
