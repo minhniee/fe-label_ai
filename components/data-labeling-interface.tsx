@@ -20,15 +20,30 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Database,
   FileSpreadsheet,
   RefreshCw,
   Sparkles,
+  Download,
+  Search,
+  X,
+  Columns,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { AgGridReact } from "ag-grid-react";
 import type { ColDef } from "ag-grid-community";
 import "ag-grid-community/styles/ag-grid.css";
-import "ag-grid-community/styles/ag-theme-quartz.css";
+import "ag-grid-community/styles/ag-theme-material.css";
+import * as XLSX from 'xlsx';
 import {
   getDatasets,
   getDatasetVersions,
@@ -50,6 +65,9 @@ export function DataLabelingInterface() {
   const [columnDefs, setColumnDefs] = useState<ColDef<GridRow>[]>([]);
   const [rowData, setRowData] = useState<GridRow[]>([]);
   const gridRef = useRef<AgGridReact<GridRow>>(null);
+  const [quickFilter, setQuickFilter] = useState("");
+  const [showColumnMenu, setShowColumnMenu] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({});
 
   // Real dataset state
   const [datasets, setDatasets] = useState<Dataset[]>([]);
@@ -180,11 +198,39 @@ export function DataLabelingInterface() {
         seen.add(key);
         uniqueHeaders.push(key);
       });
+      // Check for hidden columns in Excel data
+      const hiddenColumns = new Set<string>();
+      
+      // Look for patterns that indicate hidden columns in Excel
+      // Common patterns: empty headers, hidden column markers, etc.
+      uniqueHeaders.forEach((header, index) => {
+        // Check if header is empty or contains hidden markers
+        if (!header || header.trim() === '' || header.includes('_HIDDEN_') || header.includes('__HIDDEN__')) {
+          hiddenColumns.add(header);
+        }
+        
+        // Check if all values in this column are empty (might be hidden)
+        const columnIndex = index;
+        const allEmpty = rows.every(row => {
+          if (Array.isArray(row)) {
+            return !row[columnIndex] || row[columnIndex].toString().trim() === '';
+          } else if (row && typeof row === 'object') {
+            return !row[header] || row[header].toString().trim() === '';
+          }
+          return true;
+        });
+        
+        if (allEmpty && rows.length > 0) {
+          hiddenColumns.add(header);
+        }
+      });
+
       const columns: ColDef<GridRow>[] = uniqueHeaders.map((field) => ({
         field,
         headerName: field,
         editable: true,
         resizable: true,
+        hide: hiddenColumns.has(field), // Hide if detected as hidden column
       }));
       const data: GridRow[] = (rows as any[]).map((r, idx) => {
         const obj: GridRow = { id: String(idx) };
@@ -202,6 +248,14 @@ export function DataLabelingInterface() {
       });
       setColumnDefs(columns);
       setRowData(data);
+      
+      // Update column visibility state based on hidden columns
+      const visibilityState: Record<string, boolean> = {};
+      columns.forEach(col => {
+        const field = String(col.field);
+        visibilityState[field] = !col.hide; // true if not hidden
+      });
+      setVisibleColumns(visibilityState);
     } finally {
       setIsLoading(false);
     }
@@ -275,6 +329,89 @@ export function DataLabelingInterface() {
   const recordsPerPage = 50;
   const totalRecords = rowData.length;
   const totalPages = Math.ceil(totalRecords / recordsPerPage);
+
+  const handleExportData = (format: 'csv' | 'excel' | 'json') => {
+    if (!gridRef.current?.api) return;
+    
+    const fileName = `data-export-${new Date().toISOString().split('T')[0]}`;
+    
+    if (format === 'csv') {
+      gridRef.current.api.exportDataAsCsv({
+        fileName: `${fileName}.csv`
+      });
+    } else if (format === 'excel') {
+      // Export as Excel using xlsx library
+      const allData: GridRow[] = [];
+      gridRef.current.api.forEachNode((node) => {
+        if (node.data) {
+          allData.push(node.data);
+        }
+      });
+      
+      // Create workbook and worksheet
+      const ws = XLSX.utils.json_to_sheet(allData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Data');
+      
+      // Generate Excel file
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([excelBuffer], { 
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+      });
+      
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${fileName}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } else if (format === 'json') {
+      const allData: GridRow[] = [];
+      gridRef.current.api.forEachNode((node) => {
+        if (node.data) {
+          allData.push(node.data);
+        }
+      });
+      const jsonString = JSON.stringify(allData, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${fileName}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const handleColumnVisibility = (field: string, visible: boolean) => {
+    if (gridRef.current?.api) {
+      gridRef.current.api.setColumnVisible(field, visible);
+    }
+  };
+
+  const handleShowAllColumns = () => {
+    if (gridRef.current?.api) {
+      columnDefs.forEach(col => {
+        if (col.field) {
+          gridRef.current?.api.setColumnVisible(col.field, true);
+        }
+      });
+    }
+  };
+
+  const handleHideAllColumns = () => {
+    if (gridRef.current?.api) {
+      columnDefs.forEach(col => {
+        if (col.field && col.field !== 'id') {
+          gridRef.current?.api.setColumnVisible(col.field, false);
+        }
+      });
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -398,7 +535,7 @@ export function DataLabelingInterface() {
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Button
                     variant="outline"
                     size="sm"
@@ -415,7 +552,118 @@ export function DataLabelingInterface() {
                   >
                     Add Column
                   </Button>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <div className="flex items-center gap-2">
+                      <Search className="h-4 w-4" />
+                      <Input
+                        placeholder="Quick filter..."
+                        value={quickFilter}
+                        onChange={(e) => {
+                          setQuickFilter(e.target.value);
+                          if (gridRef.current?.api) {
+                            gridRef.current.api.setQuickFilter(e.target.value);
+                          }
+                        }}
+                        className="w-48"
+                      />
+                      {quickFilter && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setQuickFilter("");
+                            if (gridRef.current?.api) {
+                              gridRef.current.api.setQuickFilter("");
+                            }
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowColumnMenu(!showColumnMenu)}
+                    >
+                      <Columns className="h-4 w-4 mr-2" />
+                      Columns
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <Download className="h-4 w-4 mr-2" />
+                          Export
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        <DropdownMenuLabel>Export Data</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuCheckboxItem
+                          onClick={() => handleExportData('csv')}
+                        >
+                          Export as CSV
+                        </DropdownMenuCheckboxItem>
+                        <DropdownMenuCheckboxItem
+                          onClick={() => handleExportData('excel')}
+                        >
+                          Export as Excel
+                        </DropdownMenuCheckboxItem>
+                        <DropdownMenuCheckboxItem
+                          onClick={() => handleExportData('json')}
+                        >
+                          Export as JSON
+                        </DropdownMenuCheckboxItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
+                {showColumnMenu && hasGridData && (
+                  <div className="bg-gray-50 p-4 rounded-lg border">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-medium">Column Visibility</h3>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleShowAllColumns}
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          Show All
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleHideAllColumns}
+                        >
+                          <EyeOff className="h-4 w-4 mr-2" />
+                          Hide All
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                      {columnDefs.map((col) => {
+                        const field = String(col.field);
+                        const isVisible = visibleColumns[field] ?? !col.hide;
+                        return (
+                          <div key={field} className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id={field}
+                              checked={isVisible}
+                              onChange={(e) => handleColumnVisibility(field, e.target.checked)}
+                              className="rounded border-gray-300"
+                            />
+                            <label htmlFor={field} className={`text-sm ${!isVisible ? 'text-gray-400' : ''}`}>
+                              {col.headerName || field}
+                              {col.hide && <span className="ml-1 text-xs text-red-500">(Hidden in Excel)</span>}
+                            </label>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 {hasGridData && (
                   <div className="flex items-end gap-2">
                     <div className="flex-1">
@@ -472,7 +720,7 @@ export function DataLabelingInterface() {
                 )}
                 <div className="border rounded-lg overflow-hidden">
                   {hasGridData ? (
-                    <div className="ag-theme-quartz" style={{ height: 420 }}>
+                    <div className="ag-theme-material" style={{ height: 420, width: '100%' }}>
                       <AgGridReact<GridRow>
                         ref={gridRef}
                         rowData={rowData}
@@ -480,16 +728,13 @@ export function DataLabelingInterface() {
                         defaultColDef={{
                           editable: true,
                           resizable: true,
+                          sortable: true,
                           filter: true,
-                          floatingFilter: true,
-                          enablePivot: true,
-                          enableRowGroup: true,
-                          enableValue: true,
                         }}
-                        pivotMode={true}
-                        sideBar={["filters", "columns"]}
                         animateRows
                         pagination
+                        paginationPageSize={recordsPerPage}
+                        rowSelection="multiple"
                         getRowId={(params: { data: GridRow }) => params.data.id}
                         onCellValueChanged={(e: {
                           data: GridRow;
