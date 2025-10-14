@@ -8,7 +8,7 @@ import { Bell, ChevronDown, LogOut, Mail, Menu, User } from "lucide-react";
 import { FPTLogo } from "./fpt-logo";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import type { MeResponse } from "@/api/auth";
+import type { MeResponse } from "@/app/api/auth";
 
 interface HeaderBarProps {
   me: MeResponse | null;

@@ -51,7 +51,7 @@ export function useUsers() {
   return useCachedQuery(
     QUERY_KEYS.USERS,
     async () => {
-      const { getUsers } = await import('@/api/users')
+      const { getUsers } = await import('@/app/api/users')
       return getUsers()
     },
     {
@@ -65,7 +65,7 @@ export function useUser(userId: number) {
   return useCachedQuery(
     QUERY_KEYS.USER(userId),
     async () => {
-      const { getUsers } = await import('@/api/users')
+      const { getUsers } = await import('@/app/api/users')
       const users = await getUsers()
       return users.find(user => user.user_id === userId)
     },
@@ -81,7 +81,7 @@ export function useDatasets() {
   return useCachedQuery(
     QUERY_KEYS.DATASETS,
     async () => {
-      const { getDatasets } = await import('@/api/datasets')
+      const { getDatasets } = await import('@/app/api/datasets')
       return getDatasets()
     },
     {
@@ -95,7 +95,7 @@ export function useDataset(datasetId: number) {
   return useCachedQuery(
     QUERY_KEYS.DATASET(datasetId),
     async () => {
-      const { getDatasets } = await import('@/api/datasets')
+      const { getDatasets } = await import('@/app/api/datasets')
       const datasets = await getDatasets()
       return datasets.find(dataset => dataset.dataset_id === datasetId)
     },
@@ -110,7 +110,7 @@ export function useDatasetVersions(datasetId: number) {
   return useCachedQuery(
     QUERY_KEYS.DATASET_VERSIONS(datasetId),
     async () => {
-      const { getDatasetVersions } = await import('@/api/datasets')
+      const { getDatasetVersions } = await import('@/app/api/datasets')
       return getDatasetVersions(datasetId)
     },
     {
@@ -124,7 +124,7 @@ export function useVersionFiles(versionId: number) {
   return useCachedQuery(
     QUERY_KEYS.VERSION_FILES(versionId),
     async () => {
-      const { getVersionFiles } = await import('@/api/datasets')
+      const { getVersionFiles } = await import('@/app/api/datasets')
       return getVersionFiles(versionId)
     },
     {
@@ -138,7 +138,7 @@ export function useFilePreview(fileId: number) {
   return useCachedQuery(
     QUERY_KEYS.FILE_PREVIEW(fileId),
     async () => {
-      const { getFilePreview } = await import('@/api/datasets')
+      const { getFilePreview } = await import('@/app/api/datasets')
       return getFilePreview(fileId)
     },
     {
@@ -154,7 +154,7 @@ export function useCreateUser() {
   
   return useMutation({
     mutationFn: async (payload: { username: string; email: string; password: string; role_id: number }) => {
-      const { createUser } = await import('@/api/users')
+      const { createUser } = await import('@/app/api/users')
       return createUser(payload)
     },
     onSuccess: () => {
@@ -171,7 +171,7 @@ export function useUpdateUser() {
   
   return useMutation({
     mutationFn: async ({ userId, payload }: { userId: number; payload: any }) => {
-      const { updateUser } = await import('@/api/users')
+      const { updateUser } = await import('@/app/api/users')
       return updateUser(userId, payload)
     },
     onSuccess: (_, { userId }) => {
@@ -189,7 +189,7 @@ export function useDeleteUser() {
   
   return useMutation({
     mutationFn: async (userId: number) => {
-      const { deleteUser } = await import('@/api/users')
+      const { deleteUser } = await import('@/app/api/users')
       return deleteUser(userId)
     },
     onSuccess: () => {
@@ -205,7 +205,7 @@ export function useCreateDataset() {
   
   return useMutation({
     mutationFn: async ({ name, description }: { name: string; description?: string }) => {
-      const { createDataset } = await import('@/api/datasets')
+      const { createDataset } = await import('@/app/api/datasets')
       return createDataset(name, description)
     },
     onSuccess: () => {
@@ -222,7 +222,7 @@ export function useDeleteDataset() {
   
   return useMutation({
     mutationFn: async (datasetId: number) => {
-      const { deleteDataset } = await import('@/api/datasets')
+      const { deleteDataset } = await import('@/app/api/datasets')
       return deleteDataset(datasetId)
     },
     onSuccess: (_, datasetId) => {
@@ -240,7 +240,7 @@ export function useCreateDatasetVersion() {
   
   return useMutation({
     mutationFn: async ({ datasetId, changelog }: { datasetId: number; changelog?: string }) => {
-      const { createDatasetVersion } = await import('@/api/datasets')
+      const { createDatasetVersion } = await import('@/app/api/datasets')
       return createDatasetVersion(datasetId, changelog)
     },
     onSuccess: () => {
@@ -255,7 +255,7 @@ export function useUploadFile() {
   
   return useMutation({
     mutationFn: async ({ versionId, file, fileType }: { versionId: number; file: File; fileType?: string }) => {
-      const { uploadFileToVersion } = await import('@/api/datasets')
+      const { uploadFileToVersion } = await import('@/app/api/datasets')
       return uploadFileToVersion(versionId, file, fileType)
     },
     onSuccess: () => {
@@ -288,7 +288,7 @@ export function usePrefetchData() {
       queryClient.prefetchQuery({
         queryKey: QUERY_KEYS.USERS,
         queryFn: async () => {
-          const { getUsers } = await import('@/api/users')
+          const { getUsers } = await import('@/app/api/users')
           return getUsers()
         },
         staleTime: 5 * 60 * 1000,
@@ -296,7 +296,7 @@ export function usePrefetchData() {
       queryClient.prefetchQuery({
         queryKey: QUERY_KEYS.DATASETS,
         queryFn: async () => {
-          const { getDatasets } = await import('@/api/datasets')
+          const { getDatasets } = await import('@/app/api/datasets')
           return getDatasets()
         },
         staleTime: 5 * 60 * 1000,

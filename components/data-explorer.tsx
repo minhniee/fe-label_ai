@@ -15,7 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Search, ChevronLeft, ChevronRight, Trash2, Database, RefreshCw } from "lucide-react"
-import { getDatasets, deleteDataset, type Dataset } from "@/api/datasets"
+import { getDatasets, deleteDataset, type Dataset } from "@/app/api/datasets"
 import { useToast } from "@/hooks/use-toast"
 
 interface DatasetRecord extends Dataset {

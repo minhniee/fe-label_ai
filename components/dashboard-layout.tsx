@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Menu } from "lucide-react";
-import { getMe, logout, type MeResponse } from "@/api/auth";
+import { getMe, logout, type MeResponse } from "@/app/api/auth";
 import {
   Breadcrumb,
   BreadcrumbList,
