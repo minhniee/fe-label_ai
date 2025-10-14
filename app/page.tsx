@@ -18,8 +18,10 @@ import Link from "next/link";
 import Image from "next/image";
 import { loginUser, persistAuth } from "@/api/auth";
 import { FPTLogo } from "@/components/fpt-logo";
+import { useToast } from "@/hooks/use-toast";
 
 export default function LoginPage() {
+  const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -41,7 +43,10 @@ export default function LoginPage() {
         window.location.href = "/dashboard";
       }
     } catch (err: any) {
-      setLoginError(err?.message || "Login failed");
+      toast({
+        title: "Failed to login",
+        variant: "destructive",
+      });
     }
   };
 

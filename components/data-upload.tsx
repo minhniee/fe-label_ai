@@ -122,6 +122,9 @@ export function DataUpload() {
       // Close dialog
       setIsCreateDatasetOpen(false)
       
+      // Show success toast
+      toast({ title: "Dataset created successfully!" })
+      
     } catch (err: any) {
       const errorMsg = err?.message || "Failed to create dataset"
       setDatasetError(errorMsg)

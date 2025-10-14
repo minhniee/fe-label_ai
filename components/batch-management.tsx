@@ -168,7 +168,7 @@ export function BatchManagement() {
       ])
     } catch (error: any) {
       toast({
-        title: error.message || "Failed to load data",
+        title: "Failed to load data",
         variant: "destructive",
       })
     } finally {
@@ -183,7 +183,7 @@ export function BatchManagement() {
       setBatches(convertedBatches)
     } catch (error: any) {
       toast({
-        title: error.message || "Failed to load batches",
+        title: "Failed to load batches",
         variant: "destructive",
       })
     }
@@ -196,7 +196,7 @@ export function BatchManagement() {
       setUsers(convertedUsers)
     } catch (error: any) {
       toast({
-        title: error.message || "Failed to load users",
+        title: "Failed to load users",
         variant: "destructive",
       })
     }
@@ -209,7 +209,7 @@ export function BatchManagement() {
       setDatasets(convertedDatasets)
     } catch (error: any) {
       toast({
-        title: error.message || "Failed to load datasets",
+        title: "Failed to load datasets",
         variant: "destructive",
       })
     }
@@ -221,7 +221,7 @@ export function BatchManagement() {
       return progress
     } catch (error: any) {
       toast({
-        title: error.message || "Failed to load batch progress",
+        title: "Failed to load batch progress",
         variant: "destructive",
       })
       return null
@@ -257,7 +257,7 @@ export function BatchManagement() {
         })
       } catch (error: any) {
         toast({
-          title: error.message || "Failed to load dataset versions",
+          title: "Failed to load dataset versions",
           variant: "destructive",
         })
       }
@@ -324,7 +324,7 @@ export function BatchManagement() {
       })
     } catch (error: any) {
       toast({
-        title: error.message || "Failed to create batch",
+        title: "Failed to create batch",
         variant: "destructive",
       })
     }
@@ -351,7 +351,7 @@ export function BatchManagement() {
       })
     } catch (error: any) {
       toast({
-        title: error.message || "Failed to update batch",
+        title: "Failed to update batch",
         variant: "destructive",
       })
     }
@@ -367,7 +367,7 @@ export function BatchManagement() {
       })
     } catch (error: any) {
       toast({
-        title: error.message || "Failed to delete batch",
+        title: "Failed to delete batch",
         variant: "destructive",
       })
     }
