@@ -1,4 +1,5 @@
 import { apiRequest } from "./client"
+import axios from 'axios'
 
 export interface Dataset {
   dataset_id: number
@@ -84,18 +85,18 @@ export async function uploadFileToVersion(versionId: number, file: File, fileTyp
     if (token) headers["Authorization"] = `Bearer ${token}`
   } catch {}
 
-  const res = await fetch(`${API_BASE}/datasets/versions/${versionId}/files`, {
-    method: "POST",
-    headers,
-    body: form,
-  })
-
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(text || `Upload failed: ${res.status}`)
+  try {
+    const response = await axios.post(`${API_BASE}/datasets/versions/${versionId}/files`, form, {
+      headers: {
+        ...headers,
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+    return response.data as DataFile
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || `Upload failed: ${error.response?.status}`
+    throw new Error(errorMessage)
   }
-
-  return await res.json() as DataFile
 }
 
 // Get version files
