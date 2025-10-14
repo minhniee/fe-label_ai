@@ -18,7 +18,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { loginUser, persistAuth } from "@/api/auth";
 import { FPTLogo } from "@/components/fpt-logo";
+<<<<<<< HEAD
 import { useToast } from "@/hooks/use-toast";
+=======
+import GoogleLoginButton from "@/components/google-login-button";
+>>>>>>> 05ef782445f1fc04bfc565929700116c6a2c2658
 
 export default function LoginPage() {
   const { toast } = useToast();
@@ -138,7 +142,7 @@ export default function LoginPage() {
                   Login
                 </Button>
               </form>
-
+                <GoogleLoginButton/>
               <div className="mt-4 text-center">
                 <Link
                   href="/forgot-password"

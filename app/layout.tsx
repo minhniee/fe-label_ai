@@ -6,6 +6,7 @@ import { Suspense } from "react"
 import { QueryProvider } from "@/components/query-provider"
 import { Toaster } from "@/components/ui/toaster"
 import "./globals.css"
+import { ro } from "date-fns/locale"
 
 export const metadata: Metadata = {
   title: "FPTU Lable-AI",

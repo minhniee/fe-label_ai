@@ -306,17 +306,22 @@ export function DataUpload() {
               </Dialog>
             </div>
             <Select value={selectedDatasetId} onValueChange={setSelectedDatasetId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select dataset to upload file" />
-              </SelectTrigger>
-              <SelectContent>
-                {datasets.map((dataset) => (
-                  <SelectItem key={dataset.dataset_id} value={dataset.dataset_id.toString()}>
-                    {dataset.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+  <SelectTrigger className="bg-gray-200 hover:bg-gray-300">
+    <SelectValue placeholder="Select dataset to upload file" />
+  </SelectTrigger>
+  <SelectContent className="bg-white dark:bg-gray-800">
+    {datasets.map((dataset) => (
+      <SelectItem
+        key={dataset.dataset_id}
+        value={dataset.dataset_id.toString()}
+        className="bg-white hover:bg-gray-100 focus:bg-gray-200"
+      >
+        {dataset.name}
+      </SelectItem>
+    ))}
+  </SelectContent>
+</Select>
+
           </div>
 
           {/* Version Selection */}
