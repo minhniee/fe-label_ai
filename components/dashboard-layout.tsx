@@ -15,6 +15,7 @@ import {
   Brain,
   Settings,
   CheckSquare,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Menu } from "lucide-react";
@@ -57,6 +58,11 @@ const navigation = [
     name: "Model Dashboard",
     href: "/dashboard/models",
     icon: Brain,
+  },
+  {
+    name: "AI Suggest",
+    href: "/dashboard/aisuggest",
+    icon: Sparkles,
   },
   {
     name: "Admin",
