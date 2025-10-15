@@ -367,12 +367,12 @@ export const cacheWarming = {
   warmFrequentData: async () => {
     try {
       // Prefetch users
-      const { getUsers } = await import('@/api/users')
+      const { getUsers } = await import('@/app/api/users')
       const users = await getUsers()
       apiCache.set(CACHE_KEYS.USERS, users, 5 * 60 * 1000)
 
       // Prefetch datasets
-      const { getDatasets } = await import('@/api/datasets')
+      const { getDatasets } = await import('@/app/api/datasets')
       const datasets = await getDatasets()
       apiCache.set(CACHE_KEYS.DATASETS, datasets, 10 * 60 * 1000)
     } catch (error) {

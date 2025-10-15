@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Eye, EyeOff, ArrowLeft, CheckCircle } from "lucide-react"
 import Link from "next/link"
-import { registerUser, loginUser, persistAuth } from "@/api/auth"
+import { registerUser, loginUser, persistAuth } from "@/app/api/auth"
 import { FPTLogo } from "@/components/fpt-logo"
 
 export default function RegisterPage() {

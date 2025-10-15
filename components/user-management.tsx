@@ -71,7 +71,7 @@ import {
   updateUser as apiUpdateUser,
   deleteUser as apiDeleteUser,
   type User,
-} from "@/api/users";
+} from "@/app/api/users";
 
 // ===== Roles from DB =====
 // 1: SuperAdmin, 2: Admin, 3: Manager, 4: Labeler

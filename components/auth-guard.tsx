@@ -3,7 +3,7 @@
 import type React from "react"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { getMe } from "@/api/auth"
+import { getMe } from "@/app/api/auth"
 
 interface BackendUser {
   user_id: number

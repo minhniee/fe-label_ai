@@ -1,5 +1,5 @@
 {
-  "name": "my-v0-project",
+  "name": "label-ai",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,6 +9,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@ai-sdk/google": "^2.0.23",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "1.2.2",
     "@radix-ui/react-alert-dialog": "1.1.4",
@@ -42,6 +43,7 @@
     "@vercel/analytics": "latest",
     "ag-grid-community": "^31.2.1",
     "ag-grid-react": "^31.2.1",
+    "ai": "^5.0.71",
     "autoprefixer": "^10.4.20",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -51,8 +53,10 @@
     "geist": "latest",
     "input-otp": "1.4.1",
     "lucide-react": "^0.454.0",
+    "mammoth": "^1.11.0",
     "next": "^14.2.33",
     "next-themes": "^0.4.6",
+    "pdf-parse": "^2.3.11",
     "react": "^18.2.0",
     "react-day-picker": "9.8.0",
     "react-dom": "^18.2.0",
@@ -64,7 +68,7 @@
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.9",
     "xlsx": "^0.18.5",
-    "zod": "3.25.67"
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.9",

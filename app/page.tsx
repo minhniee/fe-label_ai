@@ -16,7 +16,7 @@ import {
 import { Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { loginUser, persistAuth } from "@/api/auth";
+import { loginUser, persistAuth } from "@/app/api/auth";
 import { FPTLogo } from "@/components/fpt-logo";
 import GoogleLoginButton from "@/components/google-login-button";
 

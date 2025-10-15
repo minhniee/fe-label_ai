@@ -52,7 +52,7 @@ import {
   type Dataset,
   type DatasetVersion,
   type DataFile,
-} from "@/api/datasets";
+} from "@/app/api/datasets";
 import { useToast } from "@/hooks/use-toast";
 
 type GridRow = { id: string } & Record<string, any>;
