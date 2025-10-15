@@ -192,7 +192,7 @@ export function InterAnnotatorAgreement() {
     <div className="space-y-6">
       {/* Agreement Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-white/90">
+        <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total disagreements</CardTitle>
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
@@ -203,7 +203,7 @@ export function InterAnnotatorAgreement() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white/90">
+        <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Resolved</CardTitle>
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
@@ -214,7 +214,7 @@ export function InterAnnotatorAgreement() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white/90">
+        <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Agreement rate</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
@@ -227,7 +227,7 @@ export function InterAnnotatorAgreement() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white/90">
+        <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Kappa Score</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
@@ -248,7 +248,7 @@ export function InterAnnotatorAgreement() {
         </TabsList>
 
         <TabsContent value="disagreements" className="space-y-6">
-          <Card className="bg-white/90">
+          <Card className=" ">
             <CardHeader>
               <CardTitle>Disagreement list in labeling</CardTitle>
               <CardDescription>
@@ -329,7 +329,7 @@ export function InterAnnotatorAgreement() {
         </TabsContent>
 
         <TabsContent value="statistics" className="space-y-6">
-          <Card className="bg-white/90">
+          <Card className=" ">
             <CardHeader>
               <CardTitle>Agreement statistics by batch</CardTitle>
               <CardDescription>Analyze agreement level between annotators per batch</CardDescription>
@@ -406,7 +406,7 @@ export function InterAnnotatorAgreement() {
           {selectedDisagreement && (
             <div className="space-y-6">
               {/* Question Details */}
-              <Card className="bg-white/90">
+              <Card className=" ">
                 <CardHeader>
                   <CardTitle className="text-lg">Question details</CardTitle>
                 </CardHeader>
@@ -426,7 +426,7 @@ export function InterAnnotatorAgreement() {
 
               {/* Annotations Comparison */}
               <div className="grid grid-cols-2 gap-4">
-                <Card className="bg-white/90">
+                <Card className=" ">
                   <CardHeader>
                     <CardTitle className="text-base flex items-center gap-2">
                       <Users className="h-4 w-4" />
@@ -449,7 +449,7 @@ export function InterAnnotatorAgreement() {
                   </CardContent>
                 </Card>
 
-                <Card className="bg-white/90">
+                <Card className=" ">
                   <CardHeader>
                     <CardTitle className="text-base flex items-center gap-2">
                       <Users className="h-4 w-4" />
@@ -474,7 +474,7 @@ export function InterAnnotatorAgreement() {
               </div>
 
               {/* Final Decision */}
-              <Card className="bg-white/90">
+              <Card className=" ">
                 <CardHeader>
                   <CardTitle className="text-base">Quyết định cuối cùng</CardTitle>
                 </CardHeader>

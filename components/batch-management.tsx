@@ -474,7 +474,7 @@ export function BatchManagement() {
     <div className="space-y-6">
       {/* Batch Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-white/90">
+        <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Batches</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
@@ -487,7 +487,7 @@ export function BatchManagement() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white/90">
+        <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Questions</CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
@@ -500,7 +500,7 @@ export function BatchManagement() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white/90">
+        <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Completed</CardTitle>
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
@@ -511,7 +511,7 @@ export function BatchManagement() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white/90">
+        <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Average Progress</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
@@ -526,7 +526,7 @@ export function BatchManagement() {
       </div>
 
       {/* Batch Management */}
-      <Card className="bg-white/90">
+      <Card className=" ">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>

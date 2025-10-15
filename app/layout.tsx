@@ -5,8 +5,8 @@ import { Analytics } from "@vercel/analytics/next"
 import { Suspense } from "react"
 import { QueryProvider } from "@/components/query-provider"
 import { Toaster } from "@/components/ui/toaster"
+import { ThemeProvider } from "@/components/theme-provider"
 import "./globals.css"
-import { ro } from "date-fns/locale"
 
 export const metadata: Metadata = {
   title: "FPTU Lable-AI",
@@ -22,13 +22,15 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
-      <body className={`font-sans ${inter.variable}`}>
-        <QueryProvider>
-          <Suspense fallback={null}>{children}</Suspense>
-          <Analytics />
-          <Toaster />
-        </QueryProvider>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`min-h-screen bg-background text-foreground antialiased ${inter.variable}`}>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          <QueryProvider>
+            <Suspense fallback={null}>{children}</Suspense>
+            <Analytics />
+            <Toaster />
+          </QueryProvider>
+        </ThemeProvider>
       </body>
     </html>
   )

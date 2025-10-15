@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import RowData from "@/app/page"
+type RowData = Record<string, any>
 import { useToast } from "@/hooks/use-toast"
 
 interface ModelSelectorProps {

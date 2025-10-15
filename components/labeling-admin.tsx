@@ -152,7 +152,7 @@ export function LabelingAdmin() {
     <div className="space-y-6">
       {/* Statistics Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-white/90">
+        <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total labelers</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
@@ -165,7 +165,7 @@ export function LabelingAdmin() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white/90">
+        <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total batches</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
@@ -178,7 +178,7 @@ export function LabelingAdmin() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white/90">
+        <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">In progress</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
@@ -189,7 +189,7 @@ export function LabelingAdmin() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white/90">
+        <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Avg. accuracy</CardTitle>
             <CheckCircle className="h-4 w-4 text-muted-foreground" />

@@ -146,7 +146,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       </Sheet>
 
       <div className={cn("hidden lg:fixed lg:top-16 lg:bottom-0 lg:z-40 lg:flex lg:flex-col transition-all", sidebarCollapsed ? "lg:w-16" : "lg:w-64") }>
-        <div className={cn("flex grow flex-col gap-y-5 overflow-y-auto bg-white/40 border-r border-sidebar-border", sidebarCollapsed ? "px-2" : "px-6") }>
+        <div className={cn("flex grow flex-col gap-y-5 overflow-y-auto border-r border-sidebar-border", sidebarCollapsed ? "px-2" : "px-6") }>
           <div className="flex items-center justify-center py-3">
             <button
               onClick={() => setSidebarCollapsed((v) => !v)}

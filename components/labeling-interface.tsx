@@ -136,7 +136,7 @@ export function LabelingInterface() {
       {/* Question Details - Left Column */}
       <div className="lg:col-span-2 space-y-6">
         {/* Progress Bar */}
-        <Card className="bg-white/90">
+        <Card className=" ">
           <CardContent className="pt-6">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -158,7 +158,7 @@ export function LabelingInterface() {
         </Card>
 
         {/* Student Information */}
-        <Card className="bg-white/90">
+        <Card className=" ">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <User className="h-5 w-5" />
@@ -197,7 +197,7 @@ export function LabelingInterface() {
         </Card>
 
         {/* Essay */}
-        <Card className="bg-white/90">
+        <Card className=" ">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
@@ -212,7 +212,7 @@ export function LabelingInterface() {
         </Card>
 
         {/* Extracurricular Activities */}
-        <Card className="bg-white/90">
+        <Card className=" ">
           <CardHeader>
             <CardTitle>Extracurricular activities</CardTitle>
           </CardHeader>
@@ -231,7 +231,7 @@ export function LabelingInterface() {
       {/* Labeling Panel - Right Column */}
       <div className="space-y-6">
         {/* Label Selection */}
-        <Card className="bg-white/90">
+        <Card className=" ">
           <CardHeader>
             <CardTitle>Labeling</CardTitle>
             <CardDescription>Select appropriate labels for this candidate</CardDescription>
@@ -259,7 +259,7 @@ export function LabelingInterface() {
         </Card>
 
         {/* Notes */}
-        <Card className="bg-white/90">
+        <Card className=" ">
           <CardHeader>
             <CardTitle>Notes</CardTitle>
             <CardDescription>Add notes for labeling decision (optional)</CardDescription>
@@ -276,7 +276,7 @@ export function LabelingInterface() {
         </Card>
 
         {/* Hotkeys Guide */}
-        <Card className="bg-white/90">
+        <Card className=" ">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Keyboard className="h-4 w-4" />
