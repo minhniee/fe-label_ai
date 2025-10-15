@@ -6,9 +6,9 @@
 
 :root {
   /* Updated to FPT brand colors and professional theme */
-  --background: oklch(1 0 0); /* White */
+  --background: hsl(0 0% 98%); /* Light background */
   --foreground: oklch(0 0 0); /* Pure black text in light mode */
-  --card: oklch(0.97 0 0); /* Light Gray #f1f5f9 */
+  --card: hsl(0 0% 96.1%); /* Light card */
   --card-foreground: var(--foreground);
   --popover: oklch(1 0 0);
   --popover-foreground: var(--foreground);
