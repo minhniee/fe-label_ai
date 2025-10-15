@@ -92,7 +92,7 @@ export function DataExplorer() {
 
 
       {/* Data Table */}
-        <Card className="bg-white/90">
+        <Card className=" ">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>

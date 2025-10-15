@@ -167,7 +167,7 @@ export default function TasksPage() {
 
           {/* Statistics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <Card className="bg-white/90">
+            <Card className="">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -181,7 +181,7 @@ export default function TasksPage() {
               </CardContent>
             </Card>
 
-            <Card className="bg-white/90">
+            <Card className="">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -195,7 +195,7 @@ export default function TasksPage() {
               </CardContent>
             </Card>
 
-            <Card className="bg-white/90">
+            <Card className="">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -209,7 +209,7 @@ export default function TasksPage() {
               </CardContent>
             </Card>
 
-            <Card className="bg-white/90">
+            <Card className="">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>

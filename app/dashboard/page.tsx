@@ -30,7 +30,7 @@ export default function DashboardPage() {
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="bg-white/90">
+        <Card className="">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Tổng bộ dữ liệu</CardTitle>
             <Database className="h-4 w-4 text-muted-foreground" />
@@ -41,7 +41,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white/90">
+        <Card className="">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Tiến độ gán nhãn</CardTitle>
             <Tag className="h-4 w-4 text-muted-foreground" />
@@ -55,7 +55,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white/90">
+        <Card className="">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Người gán nhãn</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
@@ -66,7 +66,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white/90">
+        <Card className="">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Batch hoàn thành</CardTitle>
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
@@ -81,7 +81,7 @@ export default function DashboardPage() {
       {/* Recent Activity and Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Activity */}
-        <Card className="bg-white/90">
+        <Card className="">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5" />
@@ -145,7 +145,7 @@ export default function DashboardPage() {
         </Card>
 
         {/* Progress Overview */}
-        <Card className="bg-white/90">
+        <Card className="">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5" />
