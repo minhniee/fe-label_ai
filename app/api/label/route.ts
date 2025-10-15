@@ -53,7 +53,7 @@ Return format:
 
       let labels: string[]
       try {
-        const jsonMatch = text.match(/\[.*\]/s)
+        const jsonMatch = text.match(/\[[\s\S]*\]/)
         if (jsonMatch) {
           labels = JSON.parse(jsonMatch[0]).map((v: string) => v.toLowerCase().trim())
         } else {

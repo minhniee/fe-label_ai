@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import type { RowData } from "@/app/page";
+import type { RowData } from "@/app/AISuggest/page";
 import { useToast } from "@/hooks/use-toast";
 
 interface DataGridProps {
