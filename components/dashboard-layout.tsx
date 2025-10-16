@@ -93,7 +93,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const visibleNavigation = (() => {
     if (!me) return navigation;
     if (me.role_id === 3 || me.role_id === 4) {
-      let items = navigation.filter((i) => i.name !== "Model Dashboard" && i.name !== "Admin");
+      let items = navigation.filter(
+        (i) => i.name !== "Model Dashboard" && i.name !== "Admin"
+      );
       if (me.role_id === 4) {
         items = items.filter((i) => i.name !== "Data Management");
       }
@@ -151,8 +153,18 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </SheetContent>
       </Sheet>
 
-      <div className={cn("hidden lg:fixed lg:top-16 lg:bottom-0 lg:z-40 lg:flex lg:flex-col transition-all", sidebarCollapsed ? "lg:w-16" : "lg:w-64") }>
-        <div className={cn("flex grow flex-col gap-y-5 overflow-y-auto border-r border-sidebar-border", sidebarCollapsed ? "px-2" : "px-6") }>
+      <div
+        className={cn(
+          "hidden lg:fixed lg:top-16 lg:bottom-0 lg:z-40 lg:flex lg:flex-col transition-all",
+          sidebarCollapsed ? "lg:w-16" : "lg:w-64"
+        )}
+      >
+        <div
+          className={cn(
+            "flex grow flex-col gap-y-5 overflow-y-auto border-r border-sidebar-border",
+            sidebarCollapsed ? "px-2" : "px-6"
+          )}
+        >
           <div className="flex items-center justify-center py-3">
             <button
               onClick={() => setSidebarCollapsed((v) => !v)}
@@ -166,33 +178,44 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </div>
       </div>
 
-      <div className={cn("pt-16 transition-all", sidebarCollapsed ? "lg:pl-16" : "lg:pl-64") }>
+      <div
+        className={cn(
+          "pt-16 transition-all",
+          sidebarCollapsed ? "lg:pl-16" : "lg:pl-64"
+        )}
+      >
         <main className="py-8 px-4 sm:px-6 lg:px-8">
           {/* Breadcrumb */}
           <div className="mb-4">
             <Breadcrumb>
               <BreadcrumbList>
                 {(() => {
-                  const segments = pathname.split('/').filter(Boolean);
-                  const inDashboard = segments[0] === 'dashboard';
+                  const segments = pathname.split("/").filter(Boolean);
+                  const inDashboard = segments[0] === "dashboard";
                   // If only /dashboard → show Dashboard.
                   // If deeper, start from the functional tab (tasks/data/labeling/models/admin/...)
-                  const parts = inDashboard ? (segments.length === 1 ? ['dashboard'] : segments.slice(1)) : segments;
+                  const parts = inDashboard
+                    ? segments.length === 1
+                      ? ["dashboard"]
+                      : segments.slice(1)
+                    : segments;
 
                   const titleMap: Record<string, string> = {
-                    dashboard: 'Dashboard',
-                    tasks: 'Tasks',
-                    data: 'Data Management',
-                    labeling: 'Labeling',
-                    models: 'Model Dashboard',
-                    admin: 'Admin',
+                    dashboard: "Dashboard",
+                    tasks: "Tasks",
+                    data: "Data Management",
+                    labeling: "Labeling",
+                    models: "Model Dashboard",
+                    aisuggest: "AI Suggest", 
+                    admin: "Admin",
                   };
 
-                  const toTitle = (slug: string) => titleMap[slug] ?? slug.replace(/[-_]/g, '_');
+                  const toTitle = (slug: string) =>
+                    titleMap[slug] ?? slug.replace(/[-_]/g, "_");
 
                   const hrefFrom = (idx: number) => {
-                    const base = inDashboard ? '/dashboard' : '';
-                    return `${base}/${parts.slice(0, idx + 1).join('/')}`;
+                    const base = inDashboard ? "/dashboard" : "";
+                    return `${base}/${parts.slice(0, idx + 1).join("/")}`;
                   };
 
                   return parts.map((seg, idx) => {
@@ -204,7 +227,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                           {isLast ? (
                             <BreadcrumbPage>{label}</BreadcrumbPage>
                           ) : (
-                            <BreadcrumbLink href={hrefFrom(idx)}>{label}</BreadcrumbLink>
+                            <BreadcrumbLink href={hrefFrom(idx)}>
+                              {label}
+                            </BreadcrumbLink>
                           )}
                         </BreadcrumbItem>
                         {!isLast && <BreadcrumbSeparator />}
