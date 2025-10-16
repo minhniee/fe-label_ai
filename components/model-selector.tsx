@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import RowData from "@/app/page"
+import type { RowData } from "@/app/page"
 import { useToast } from "@/hooks/use-toast"
 
 interface ModelSelectorProps {
@@ -97,6 +97,15 @@ export function ModelSelector({
       return
     }
 
+    if (!apiKey) {
+      toast({
+        title: "API key required",
+        description: "Please enter your Gemini API key to use AI labeling.",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsLabeling(true)
 
     try {
@@ -130,8 +139,12 @@ export function ModelSelector({
       console.error("Error labeling data:", error)
       toast({
         title: "Labeling failed",
-        description: error instanceof Error ? error.message : "An error occurred while labeling the data.",
+        description:
+          error instanceof Error
+            ? error.message
+            : "An error occurred while labeling the data. Please check your API key and try again.",
         variant: "destructive",
+        duration: 10000, // Show error for longer
       })
     } finally {
       setIsLabeling(false)

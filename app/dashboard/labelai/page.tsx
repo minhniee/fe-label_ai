@@ -11,10 +11,13 @@ import { DatasetSelector } from "@/components/dataset-selector"
 import { DataGenerator } from "@/components/data-generator"
 import { Loader2, ArrowLeft } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
 
 export type RowData = {
   _id: string
   _ai_suggestion?: string
+  _ai_reasoning?: string
   _confirmed?: boolean
   [key: string]: any
 }
@@ -29,13 +32,14 @@ export default function Home() {
   const [referenceContext, setReferenceContext] = useState<string>("")
   const [loading, setLoading] = useState(false)
   const [view, setView] = useState<"select" | "generate">("select")
+  const [manualMode, setManualMode] = useState(false)
   const { toast } = useToast()
   const rowsPerPage = 50
 
-  const handleDatasetSelect = async (datasetId: string) => {
+  const handleVersionSelect = async (datasetId: string, versionId: string) => {
     try {
       setLoading(true)
-      const response = await fetch(`/api/datasets/${datasetId}`)
+      const response = await fetch(`/api/datasets/${datasetId}/versions/${versionId}`)
       const result = await response.json()
 
       if (result.success) {
@@ -70,12 +74,13 @@ export default function Home() {
         const transformedData: RowData[] = datasetData.map((row: any, index: number) => ({
           _id: `row-${index}`,
           _ai_suggestion: "",
+          _ai_reasoning: "",
           _confirmed: false,
           ...row,
         }))
 
         setData(transformedData)
-        setDatasetName(`Dataset ${datasetId}`)
+        setDatasetName(`${datasetId} - v${versionId}`)
         setCurrentPage(0)
 
         toast({
@@ -115,6 +120,9 @@ export default function Home() {
       generatedColumns.find((col) => col.toLowerCase().includes("result")) ||
       generatedColumns.find((col) => col.toLowerCase().includes("label")) ||
       generatedColumns.find((col) => col.toLowerCase().includes("category")) ||
+      generatedColumns.find((col) => col.toLowerCase().includes("sentiment")) ||
+      generatedColumns.find((col) => col.toLowerCase().includes("priority")) ||
+      generatedColumns.find((col) => col.toLowerCase().includes("output")) ||
       generatedColumns[1] ||
       ""
 
@@ -124,6 +132,7 @@ export default function Home() {
     const transformedData: RowData[] = generatedData.map((row: any, index: number) => ({
       _id: `row-${index}`,
       _ai_suggestion: "",
+      _ai_reasoning: "",
       _confirmed: false,
       ...row,
     }))
@@ -131,7 +140,7 @@ export default function Home() {
     setData(transformedData)
     setDatasetName(name)
     setCurrentPage(0)
-    setView("select") // Return to main view
+    setView("select")
   }
 
   const handleReset = () => {
@@ -142,6 +151,45 @@ export default function Home() {
     setContextColumn("")
     setResultColumn("")
     setView("select")
+  }
+
+  const handleFileUpload = (uploadedData: any[], uploadedColumns: string[], fileName: string) => {
+    setColumns(uploadedColumns)
+
+    const detectedContextCol =
+      uploadedColumns.find((col) => col.toLowerCase().includes("context")) ||
+      uploadedColumns.find((col) => col.toLowerCase().includes("text")) ||
+      uploadedColumns.find((col) => col.toLowerCase().includes("description")) ||
+      uploadedColumns.find((col) => col.toLowerCase().includes("body")) ||
+      uploadedColumns.find((col) => col.toLowerCase().includes("feedback")) ||
+      uploadedColumns.find((col) => col.toLowerCase().includes("input")) ||
+      uploadedColumns[0] ||
+      ""
+
+    const detectedResultCol =
+      uploadedColumns.find((col) => col.toLowerCase().includes("result")) ||
+      uploadedColumns.find((col) => col.toLowerCase().includes("label")) ||
+      uploadedColumns.find((col) => col.toLowerCase().includes("category")) ||
+      uploadedColumns.find((col) => col.toLowerCase().includes("sentiment")) ||
+      uploadedColumns.find((col) => col.toLowerCase().includes("priority")) ||
+      uploadedColumns.find((col) => col.toLowerCase().includes("output")) ||
+      uploadedColumns[1] ||
+      ""
+
+    setContextColumn(detectedContextCol)
+    setResultColumn(detectedResultCol)
+
+    const transformedData: RowData[] = uploadedData.map((row: any, index: number) => ({
+      _id: `row-${index}`,
+      _ai_suggestion: "",
+      _ai_reasoning: "",
+      _confirmed: false,
+      ...row,
+    }))
+
+    setData(transformedData)
+    setDatasetName(fileName.replace(".csv", ""))
+    setCurrentPage(0)
   }
 
   const paginatedData = data.slice(currentPage * rowsPerPage, (currentPage + 1) * rowsPerPage)
@@ -168,7 +216,11 @@ export default function Home() {
           </Card>
         ) : data.length === 0 ? (
           view === "select" ? (
-            <DatasetSelector onDatasetSelect={handleDatasetSelect} onGenerateClick={() => setView("generate")} />
+            <DatasetSelector
+              onVersionSelect={handleVersionSelect}
+              onGenerateClick={() => setView("generate")}
+              onFileUpload={handleFileUpload}
+            />
           ) : (
             <div className="space-y-4">
               <Button variant="ghost" size="sm" onClick={() => setView("select")}>
@@ -202,6 +254,12 @@ export default function Home() {
                   <p className="font-mono text-sm font-medium">{columns.length}</p>
                 </div>
               </div>
+              <div className="flex items-center gap-2">
+                <Switch id="manual-mode" checked={manualMode} onCheckedChange={setManualMode} />
+                <Label htmlFor="manual-mode" className="cursor-pointer">
+                  Manual Labeling Mode
+                </Label>
+              </div>
             </div>
 
             <ColumnSelector
@@ -212,28 +270,41 @@ export default function Home() {
               onResultColumnChange={setResultColumn}
             />
 
-            <ReferenceUploader
-              onReferenceUpdate={(content) => {
-                setReferenceContext(content)
-              }}
-            />
+            {!manualMode && (
+              <>
+                <ReferenceUploader
+                  onReferenceUpdate={(content) => {
+                    setReferenceContext(content)
+                  }}
+                />
 
-            <ModelSelector
-              data={paginatedData}
-              contextColumn={contextColumn}
-              resultColumn={resultColumn}
-              referenceContext={referenceContext}
-              onDataUpdate={(updatedRows) => {
-                const newData = [...data]
-                updatedRows.forEach((updatedRow) => {
-                  const index = newData.findIndex((row) => row._id === updatedRow._id)
-                  if (index !== -1) {
-                    newData[index] = updatedRow
-                  }
-                })
-                setData(newData)
-              }}
-            />
+                <ModelSelector
+                  data={paginatedData}
+                  contextColumn={contextColumn}
+                  resultColumn={resultColumn}
+                  referenceContext={referenceContext}
+                  onDataUpdate={(updatedRows) => {
+                    const newData = [...data]
+                    updatedRows.forEach((updatedRow) => {
+                      const index = newData.findIndex((row) => row._id === updatedRow._id)
+                      if (index !== -1) {
+                        newData[index] = updatedRow
+                      }
+                    })
+                    setData(newData)
+                  }}
+                />
+              </>
+            )}
+
+            {manualMode && (
+              <Card className="p-4 bg-blue-500/10 border-blue-500/20">
+                <p className="text-sm text-blue-600 dark:text-blue-400">
+                  <span className="font-medium">Manual Labeling Mode:</span> AI labeling is disabled. You can edit the
+                  Final Result column directly to label your data manually.
+                </p>
+              </Card>
+            )}
 
             <DataGrid
               data={paginatedData}
@@ -254,6 +325,8 @@ export default function Home() {
               totalPages={totalPages}
               onPageChange={setCurrentPage}
               allData={data}
+              datasetName={datasetName}
+              manualMode={manualMode}
             />
           </div>
         )}
