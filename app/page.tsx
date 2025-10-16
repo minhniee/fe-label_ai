@@ -70,7 +70,7 @@ export default function LoginPage() {
           </div>
 
           {/* Login Card */}
-          <Card className="shadow-lg border border-gray-200 bg-white/90 backdrop-blur-sm mt-32">
+          <Card className="shadow-lg border border-gray-200  backdrop-blur-sm mt-32">
             <CardHeader className="space-y-1">
               <CardTitle className="text-2xl text-center text-card-foreground">
                 Login
