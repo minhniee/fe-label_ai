@@ -16,6 +16,7 @@ import {
   Settings,
   CheckSquare,
   Sparkles,
+    GitCompare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Menu } from "lucide-react";
@@ -64,6 +65,11 @@ const navigation = [
     href: "/dashboard/aisuggest",
     icon: Sparkles,
   },
+    {
+      name: "Comparison Tool",
+      href: "/dashboard/comparison-tool",
+      icon: GitCompare,
+    },
   {
     name: "Admin",
     href: "/dashboard/admin",
@@ -207,6 +213,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     labeling: "Labeling",
                     models: "Model Dashboard",
                     aisuggest: "AI Suggest", 
+                    "comparison-tool": "Comparison Tool",
                     admin: "Admin",
                   };
 
