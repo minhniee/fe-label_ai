@@ -185,7 +185,7 @@ export function LabelManagement() {
     <div className="space-y-6">
       {/* Label Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-white/90">
+        <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total label sets</CardTitle>
             <Tags className="h-4 w-4 text-muted-foreground" />
@@ -198,7 +198,7 @@ export function LabelManagement() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white/90">
+        <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total labels</CardTitle>
             <Tags className="h-4 w-4 text-muted-foreground" />
@@ -209,7 +209,7 @@ export function LabelManagement() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white/90">
+        <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Used</CardTitle>
             <Keyboard className="h-4 w-4 text-muted-foreground" />
@@ -222,7 +222,7 @@ export function LabelManagement() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white/90">
+        <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Active label set</CardTitle>
             <Tags className="h-4 w-4 text-muted-foreground" />
@@ -297,7 +297,7 @@ export function LabelManagement() {
 
                     <div className="space-y-3">
                       {newLabelSet.labels.map((label, index) => (
-                        <Card key={index} className="p-4 bg-white/90">
+                        <Card key={index} className="p-4  ">
                           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <div className="space-y-2">
                               <Label>Label name *</Label>
@@ -389,7 +389,7 @@ export function LabelManagement() {
         <CardContent>
           <div className="space-y-4">
             {labelSets.map((labelSet) => (
-              <Card key={labelSet.id} className={`bg-white/90 ${labelSet.isActive ? "border-primary" : ""}`}>
+              <Card key={labelSet.id} className={`  ${labelSet.isActive ? "border-primary" : ""}`}>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
@@ -496,7 +496,7 @@ export function LabelManagement() {
                 </div>
                 <div className="grid gap-3">
                   {editingLabels.map((label, index) => (
-                    <Card key={label.id} className="p-4 bg-white/90">
+                    <Card key={label.id} className="p-4  ">
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div className="space-y-2">
                           <Label>Tên nhãn</Label>
@@ -606,7 +606,7 @@ export function LabelManagement() {
 
               <div className="space-y-3">
                 {newLabelsToAdd.map((label, index) => (
-                  <Card key={index} className="p-4 border-dashed bg-white/90">
+                  <Card key={index} className="p-4 border-dashed  ">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <div className="space-y-2">
                         <Label>Tên nhãn *</Label>

@@ -9,6 +9,7 @@ import { FPTLogo } from "./fpt-logo";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import type { MeResponse } from "@/app/api/auth";
+import { ModeToggle } from "@/components/ui/mode-toggle";
 
 interface HeaderBarProps {
   me: MeResponse | null;
@@ -67,11 +68,13 @@ export function HeaderBar({ me, onLogout, navigation, pathname, onCloseMobile }:
         <FPTLogo size="sm" showText={true} />
       </div>
 
-      <div className="flex items-center gap-x-4 lg:gap-x-6">
+      <div className="flex items-center gap-x-2 lg:gap-x-3">
         <Button variant="ghost" size="sm">
           <Bell className="h-5 w-5" />
           <span className="sr-only">View notifications</span>
         </Button>
+
+        <ModeToggle />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

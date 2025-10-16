@@ -38,7 +38,7 @@ export default function GoogleLoginButton() {
         className="w-5 h-5"
       />
       <span className="text-gray-700 font-medium">
-        {loading ? 'Đang chuyển hướng…' : 'Login with Google'}
+        {loading ? 'Redirecting…' : 'Login with Google'}
       </span>
     </button>
   );

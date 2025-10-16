@@ -18,9 +18,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { loginUser, persistAuth } from "@/app/api/auth";
 import { FPTLogo } from "@/components/fpt-logo";
+import { useToast } from "@/hooks/use-toast";
 import GoogleLoginButton from "@/components/google-login-button";
 
 export default function LoginPage() {
+  const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -42,7 +44,10 @@ export default function LoginPage() {
         window.location.href = "/dashboard";
       }
     } catch (err: any) {
-      setLoginError(err?.message || "Login failed");
+      toast({
+        title: "Failed to login",
+        variant: "destructive",
+      });
     }
   };
 
@@ -65,7 +70,7 @@ export default function LoginPage() {
           </div>
 
           {/* Login Card */}
-          <Card className="shadow-lg border border-gray-200 bg-white/90 backdrop-blur-sm mt-32">
+          <Card className="shadow-lg border border-gray-200  backdrop-blur-sm mt-32">
             <CardHeader className="space-y-1">
               <CardTitle className="text-2xl text-center text-card-foreground">
                 Login

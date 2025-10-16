@@ -6,18 +6,18 @@
 
 :root {
   /* Updated to FPT brand colors and professional theme */
-  --background: oklch(1 0 0); /* White */
-  --foreground: oklch(0.35 0 0); /* Dark Gray #4b5563 */
-  --card: oklch(0.97 0 0); /* Light Gray #f1f5f9 */
-  --card-foreground: oklch(0.35 0 0);
+  --background: hsl(0 0% 98%); /* Light background */
+  --foreground: oklch(0 0 0); /* Pure black text in light mode */
+  --card: hsl(0 0% 96.1%); /* Light card */
+  --card-foreground: var(--foreground);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.35 0 0);
+  --popover-foreground: var(--foreground);
   --primary: oklch(0.55 0.15 240); /* FPT Blue #0072c6 */
   --primary-foreground: oklch(1 0 0);
   --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.35 0 0);
+  --secondary-foreground: var(--foreground);
   --muted: oklch(0.98 0 0);
-  --muted-foreground: oklch(0.35 0 0);
+  --muted-foreground: var(--foreground);
   --accent: oklch(0.65 0.2 25); /* Coral #ff5722 */
   --accent-foreground: oklch(1 0 0);
   --destructive: oklch(0.6 0.2 25);
@@ -42,18 +42,18 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
+  --background: oklch(25.197% 0.00003 271.152);
+  --foreground: oklch(1 0 0); /* Pure white text in dark mode */
   --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
+  --card-foreground: var(--foreground);
   --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.985 0 0);
+  --popover-foreground: var(--foreground);
   --primary: oklch(0.65 0.15 240);
   --primary-foreground: oklch(0.145 0 0);
   --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
+  --secondary-foreground: var(--foreground);
   --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
+  --muted-foreground: var(--foreground);
   --accent: oklch(0.7 0.2 25);
   --accent-foreground: oklch(0.145 0 0);
   --destructive: oklch(0.396 0.141 25.723);
