@@ -25,8 +25,8 @@ export function middleware(request: NextRequest) {
     response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=300')
   }
   
-  // Dashboard pages - cache for 1 hour
-  else if (pathname.startsWith('/dashboard/')) {
+  // Dashboard index - cache for 1 hour
+  else if (pathname.startsWith('/dashboard')) {
     response.headers.set('Cache-Control', 'public, max-age=3600, s-maxage=3600')
   }
   

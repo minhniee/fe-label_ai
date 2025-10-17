@@ -100,7 +100,7 @@ export function HeaderBar({ me, onLogout, navigation, pathname, onCloseMobile }:
 
           <DropdownMenuContent className="w-56 z-50" align="end" sideOffset={8}>
             <DropdownMenuItem asChild>
-              <Link href="/dashboard/profile" className="flex items-center">
+              <Link href="/profile" className="flex items-center">
                 <Mail className="mr-2 h-4 w-4" />
                 <span className="truncate">{me?.email ?? "View Profile"}</span>
               </Link>

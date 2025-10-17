@@ -42,42 +42,42 @@ const navigation = [
   },
   {
     name: "Tasks",
-    href: "/dashboard/tasks",
+    href: "/tasks",
     icon: CheckSquare,
   },
   {
     name: "Data Management",
-    href: "/dashboard/data",
+    href: "/data",
     icon: Database,
   },
   {
     name: "Labeling",
-    href: "/dashboard/labeling",
+    href: "/labeling",
     icon: Tag,
   },
   {
     name: "Labeling with AI",
-    href: "/dashboard/labelai",
+    href: "/labelai",
     icon: Tag,
   },
   {
     name: "Model Dashboard",
-    href: "/dashboard/models",
+    href: "/models",
     icon: Brain,
   },
   {
     name: "AI Suggest",
-    href: "/dashboard/aisuggest",
+    href: "/aisuggest",
     icon: Sparkles,
   },
   {
     name: "Admin",
-    href: "/dashboard/admin",
+    href: "/admin",
     icon: Settings,
   },
   {
     name: "Comparison Tool",
-    href: "/dashboard/comparison-tool",
+    href: "/comparison-tool",
     icon: GitCompare,
   },
 ];
@@ -203,13 +203,8 @@ const visibleNavigation = (() => {
                 {(() => {
                   const segments = pathname.split("/").filter(Boolean);
                   const inDashboard = segments[0] === "dashboard";
-                  // If only /dashboard → show Dashboard.
-                  // If deeper, start from the functional tab (tasks/data/labeling/models/admin/...)
-                  const parts = inDashboard
-                    ? segments.length === 1
-                      ? ["dashboard"]
-                      : segments.slice(1)
-                    : segments;
+                  // New structure: functional routes are top-level. Keep Dashboard under /dashboard.
+                  const parts = inDashboard ? ["dashboard", ...segments.slice(1)] : segments;
 
                   const titleMap: Record<string, string> = {
                     dashboard: "Dashboard",

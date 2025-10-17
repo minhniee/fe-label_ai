@@ -97,9 +97,6 @@ export function DataExplorer() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>Datasets</CardTitle>
-              <CardDescription>
-                Showing {filteredData.length} datasets (page {currentPage} / {totalPages})
-              </CardDescription>
             </div>
           </div>
         </CardHeader>

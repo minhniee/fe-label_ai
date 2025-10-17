@@ -10,3 +10,5 @@ export default function AdminLayout({
   // SuperAdmin=1, Admin=2
   return <AuthGuard allowedRoleIds={[1, 2]}>{children}</AuthGuard>
 }
+
+

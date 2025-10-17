@@ -131,12 +131,6 @@ export default function Home() {
                   <p className="font-mono text-sm font-medium">{columns.length}</p>
                 </div>
               </div>
-              <label htmlFor="file-upload-new">
-                <Button variant="outline" asChild>
-                  <span className="cursor-pointer">Upload New File</span>
-                </Button>
-              </label>
-              <input id="file-upload-new" type="file" accept=".csv" onChange={handleFileUpload} className="hidden" />
             </div>
 
             <ColumnSelector
@@ -151,6 +145,7 @@ export default function Home() {
               data={paginatedData}
               contextColumn={contextColumn}
               resultColumn={resultColumn}
+              referenceContext={contextColumn}
               onDataUpdate={(updatedRows) => {
                 const newData = [...data]
                 updatedRows.forEach((updatedRow) => {
@@ -168,6 +163,7 @@ export default function Home() {
               columns={columns}
               contextColumn={contextColumn}
               resultColumn={resultColumn}
+              datasetName={fileName || "Dataset"}
               onDataUpdate={(updatedRows) => {
                 const newData = [...data]
                 updatedRows.forEach((updatedRow) => {
@@ -189,3 +185,5 @@ export default function Home() {
     </div>
   )
 }
+
+
