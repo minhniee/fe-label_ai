@@ -7,17 +7,24 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import type { RowData } from "@/app/AISuggest/page"
+import type { RowData } from "@/app/page"
 import { useToast } from "@/hooks/use-toast"
 
 interface ModelSelectorProps {
   data: RowData[]
   contextColumn: string
   resultColumn: string
+  referenceContext: string
   onDataUpdate: (data: RowData[]) => void
 }
 
-export function ModelSelector({ data, contextColumn, resultColumn, onDataUpdate }: ModelSelectorProps) {
+export function ModelSelector({
+  data,
+  contextColumn,
+  resultColumn,
+  referenceContext,
+  onDataUpdate,
+}: ModelSelectorProps) {
   const [model, setModel] = useState("gemini-flash-2.5")
   const [apiKey, setApiKey] = useState("")
   const [isLabeling, setIsLabeling] = useState(false)
@@ -90,6 +97,15 @@ export function ModelSelector({ data, contextColumn, resultColumn, onDataUpdate 
       return
     }
 
+    if (!apiKey) {
+      toast({
+        title: "API key required",
+        description: "Please enter your Gemini API key to use AI labeling.",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsLabeling(true)
 
     try {
@@ -104,6 +120,7 @@ export function ModelSelector({ data, contextColumn, resultColumn, onDataUpdate 
           apiKey,
           contextColumn,
           resultColumn,
+          referenceContext,
         }),
       })
 
@@ -122,8 +139,12 @@ export function ModelSelector({ data, contextColumn, resultColumn, onDataUpdate 
       console.error("Error labeling data:", error)
       toast({
         title: "Labeling failed",
-        description: error instanceof Error ? error.message : "An error occurred while labeling the data.",
+        description:
+          error instanceof Error
+            ? error.message
+            : "An error occurred while labeling the data. Please check your API key and try again.",
         variant: "destructive",
+        duration: 10000, // Show error for longer
       })
     } finally {
       setIsLabeling(false)
@@ -207,6 +228,11 @@ export function ModelSelector({ data, contextColumn, resultColumn, onDataUpdate 
           <span className="font-medium text-foreground">Note:</span> This will send the current page ({data.length}{" "}
           rows) to the AI model for labeling. The AI will analyze the <span className="font-mono">{contextColumn}</span>{" "}
           column and generate predictions.
+          {referenceContext && (
+            <span className="block mt-2 text-green-600">
+              ✓ Reference documents loaded ({referenceContext.length} characters)
+            </span>
+          )}
         </p>
       </div>
     </Card>

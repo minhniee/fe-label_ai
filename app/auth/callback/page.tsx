@@ -1,26 +1,39 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export default function AuthCallback() {
   const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const [loadingText, setLoadingText] = useState("Đang đăng nhập, vui lòng chờ...");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const token = params.get("token");
-    const image = params.get("image");
+    const code = params.get("code");
 
-    if (token) {
-      localStorage.setItem("access_token", token);
-    }
-    if (image) {
-      const decodedImage = decodeURIComponent(image);
-      localStorage.setItem("image", decodedImage);
+    if (!code) {
+      setError("Thiếu mã xác thực từ server.");
+      return;
     }
 
-    router.replace("/dashboard"); 
+    fetch(`${process.env.NEXT_PUBLIC_API_BASE}/auth/callback?code=${code}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.access_token) {
+          localStorage.setItem("token", data.access_token);
+          router.push("/dashboard");
+        } else {
+          setError("Xác thực thất bại.");
+        }
+      })
+      .catch(() => setError("Lỗi kết nối đến server."));
   }, [router]);
 
-  return <div>Redirecting...</div>;
+  // Không render text khác giữa server và client
+  return (
+    <div>
+      {error ? <p>{error}</p> : <p>{loadingText}</p>}
+    </div>
+  );
 }

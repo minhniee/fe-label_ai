@@ -56,6 +56,11 @@ const navigation = [
     icon: Tag,
   },
   {
+    name: "Labeling with AI",
+    href: "/dashboard/labelai",
+    icon: Tag,
+  },
+  {
     name: "Model Dashboard",
     href: "/dashboard/models",
     icon: Brain,
@@ -96,20 +101,20 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   }, []);
 
   // Filter navigation items only for Manager(3) and Labeler(4)
-  const visibleNavigation = (() => {
-    if (!me) return navigation;
-    if (me.role_id === 3 || me.role_id === 4) {
-      let items = navigation.filter(
-        (i) => i.name !== "Model Dashboard" && i.name !== "Admin"
-      );
-      if (me.role_id === 4) {
-        items = items.filter((i) => i.name !== "Data Management");
-      }
-      return items;
+const visibleNavigation = (() => {
+  if (!me) return navigation;
+  if (me.role_id === 3 || me.role_id === 4) {
+    let items = navigation.filter((i) => i.name !== "Model Dashboard" && i.name !== "Admin");
+    if (me.role_id === 4) {
+      items = items.filter((i) => i.name !== "Data Management");
     }
-    // SuperAdmin(1) and Admin(2) see everything
-    return navigation;
-  })();
+    console.log("[visibleNavigation for role_id=" + me.role_id + "]:", items.map(i => i.name));
+    return items;
+  }
+  console.log("[visibleNavigation for Admin/SuperAdmin]:", navigation.map(i => i.name));
+  return navigation;
+})();
+
 
   const handleLogout = async () => {
     await logout();

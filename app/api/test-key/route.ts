@@ -23,6 +23,15 @@ export async function POST(request: NextRequest) {
 
     const google = createGoogleGenerativeAI({ apiKey })
 
+    const { text } = await Promise.race([
+      generateText({
+        model: google(selectedModel),
+        prompt: "Say 'OK' if you can read this.",
+      }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Timeout after 10s")), 10_000)
+      ),
+    ])
 
     return NextResponse.json({ success: true, message: "API key is valid" })
   } catch (error) {

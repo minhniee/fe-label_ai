@@ -24,7 +24,7 @@ export function HeaderBar({ me, onLogout, navigation, pathname, onCloseMobile }:
 
   // 🧠 Load image từ localStorage
   useEffect(() => {
-    const storedImage = localStorage.getItem("image");
+    const storedImage = localStorage.getItem("picture");
     if (storedImage) setAvatar(storedImage);
   }, []);
 
