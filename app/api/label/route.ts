@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       const prompt = `
 You are a binary labeling model with explanation capabilities.
 ${referenceContext ? `\n=== REFERENCE CONTEXT ===\n${referenceContext}\n\nUse the above reference information to inform your labeling decisions.\n` : ""}
-Determine whether each of the following statements is true or false, and provide a brief explanation for your decision.
+Determine whether each of the following statements is true or false, and provide a brief explanation for your decision you can access internet to give truth reasource.
 
 Respond ONLY with a JSON array of objects with "label" (string: "true" or "false") and "reasoning" (string: brief explanation).
 No extra text, no Markdown formatting.
