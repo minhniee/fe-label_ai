@@ -15,12 +15,11 @@ export default function AuthCallback() {
       localStorage.setItem("access_token", token);
     }
     if (image) {
-      // ⚙️ decode lại ảnh
       const decodedImage = decodeURIComponent(image);
       localStorage.setItem("image", decodedImage);
     }
 
-    router.replace("/dashboard"); // hoặc trang chính sau login
+    router.replace("/dashboard"); 
   }, [router]);
 
   return <div>Redirecting...</div>;
