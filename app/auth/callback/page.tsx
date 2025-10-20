@@ -10,7 +10,7 @@ export default function AuthCallback() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const code = params.get("code");
+    const code = params.get("token");
 
     if (!code) {
       setError("Thiếu mã xác thực từ server.");

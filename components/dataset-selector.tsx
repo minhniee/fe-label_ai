@@ -5,80 +5,92 @@ import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Database, Calendar, Columns, Loader2, Sparkles, FileText, ArrowLeft, ChevronRight, Upload } from "lucide-react"
+import { Database, Calendar, Columns,User, Loader2, Sparkles, FileText, ArrowLeft, ChevronRight, Upload } from "lucide-react"
+import * as dataset from "@/app/api/datasets"  
 import { useToast } from "@/hooks/use-toast"
 import Papa from "papaparse"
 
-interface Dataset {
-  id: string
-  name: string
-  description: string
-  rowCount: number
-  columns: string[]
-  createdAt: string
-}
 
-interface DatasetVersion {
-  id: string
-  versionNumber: string
-  fileName: string
-  description: string
-  rowCount: number
-  columnCount: number
-  columns: string[]
-  uploadDate: string
-  status: string
-}
+
+// satic data
 
 interface DatasetSelectorProps {
-  onVersionSelect: (datasetId: string, versionId: string) => void
+  onVersionSelect: (datasetId:any , versionId: any) => void
   onGenerateClick: () => void
   onFileUpload?: (data: any[], columns: string[], fileName: string) => void
 }
 
 export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload }: DatasetSelectorProps) {
-  const [datasets, setDatasets] = useState<Dataset[]>([])
-  const [versions, setVersions] = useState<DatasetVersion[]>([])
+  const [datasets, setDatasets] = useState<dataset.Dataset[]>([])
+  const [versions, setVersions] = useState<dataset.DatasetVersion[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingVersions, setLoadingVersions] = useState(false)
-  const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null)
-  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null)
+  const [selectedDataset, setSelectedDataset] = useState<dataset.Dataset | null>(null)
+  const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null)
   const [isUploading, setIsUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
 
+//static data
+const datasetStatic = {columns: [
+    "id",
+    "name",
+    "email",
+    "created_at",
+    "status",
+    "last_login",
+  ]}
+const { columns } = datasetStatic;
+const visibleCols = columns.slice(0, 4);
+const hiddenCount = columns.length - visibleCols.length;
+
+  
   useEffect(() => {
     fetchDatasets()
   }, [])
 
-  const fetchDatasets = async () => {
-    try {
-      setLoading(true)
-      const response = await fetch("/api/datasets")
-      const result = await response.json()
+  // const fetchDatasets = async () => {
+  //   try {
+  //     setLoading(true)
+  //     const datasets = await dataset.getDatasets()
 
-      if (result.success) {
-        setDatasets(result.datasets)
-      } else {
-        console.error("Failed to fetch datasets:", result.error)
+  //     if (datasets) {
+  //       setDatasets(datasets)
+  //     } else {
+  //       console.error("Failed to fetch datasets")
+  //     }
+  //   } catch (error) {
+  //     console.error("Error fetching datasets:", error)
+  //   } finally {
+  //     setLoading(false)
+  //   }
+  // }
+    const fetchDatasets = async () => {
+      try {
+        setLoading(true);
+        const data = await dataset.getDatasets();
+        setDatasets(data);
+      } catch (err: any) {
+        const errorMsg = err?.message || "Failed to load datasets";
+        toast({
+          title: "Error",
+          description: errorMsg,
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error("Error fetching datasets:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
+    };
 
-  const fetchVersions = async (datasetId: string) => {
+  const fetchVersions = async (datasetId: number) => {
     try {
       setLoadingVersions(true)
-      const response = await fetch(`/api/datasets/${datasetId}/versions`)
-      const result = await response.json()
+      const datasetVersion = await dataset.getDatasetVersions(datasetId);
 
-      if (result.success) {
-        setVersions(result.versions)
+      if (datasetVersion) {
+        setVersions(datasetVersion)
       } else {
-        console.error("Failed to fetch versions:", result.error)
+        console.error("Failed to fetch versions:")
       }
     } catch (error) {
       console.error("Error fetching versions:", error)
@@ -87,19 +99,19 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
     }
   }
 
-  const handleDatasetSelect = (dataset: Dataset) => {
+  const handleDatasetSelect = (dataset: dataset.Dataset) => {
     setSelectedDataset(dataset)
     setSelectedVersionId(null)
-    fetchVersions(dataset.id)
+    fetchVersions(dataset.dataset_id)
   }
 
-  const handleVersionSelect = (versionId: string) => {
+  const handleVersionSelect = (versionId: number) => {
     setSelectedVersionId(versionId)
   }
 
   const handleStartLabeling = () => {
     if (selectedDataset && selectedVersionId) {
-      onVersionSelect(selectedDataset.id, selectedVersionId)
+      onVersionSelect(selectedDataset.dataset_id, selectedVersionId)
     }
   }
 
@@ -258,27 +270,27 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
               <div className="space-y-3">
                 {versions.map((version) => (
                   <Card
-                    key={version.id}
+                    key={version.dataset_id}
                     className={`p-4 cursor-pointer transition-all hover:border-primary/50 ${
-                      selectedVersionId === version.id ? "border-primary bg-primary/5" : ""
+                      selectedVersionId === version.version_id ? "border-primary bg-primary/5" : ""
                     }`}
-                    onClick={() => handleVersionSelect(version.id)}
+                    onClick={() => handleVersionSelect(version.version_number)}
                   >
                     <div className="space-y-3">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
                             <FileText className="h-4 w-4 text-primary" />
-                            <h4 className="font-semibold text-foreground">{version.fileName}</h4>
+                            <h4 className="font-semibold text-foreground">{version.changelog}</h4>
                             <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
-                              v{version.versionNumber}
+                              v{version.version_number}
                             </span>
                           </div>
-                          <p className="text-sm text-muted-foreground mt-1">{version.description}</p>
+                          <p className="text-sm text-muted-foreground mt-1">{formatDate(version.created_at)}</p>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                      {/* <div className="flex items-center gap-4 text-xs text-muted-foreground">
                         <div className="flex items-center gap-1">
                           <Database className="h-3 w-3" />
                           <span>{version.rowCount} rows</span>
@@ -291,9 +303,9 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
                           <Calendar className="h-3 w-3" />
                           <span>{formatDate(version.uploadDate)}</span>
                         </div>
-                      </div>
+                      </div> */}
 
-                      <div>
+                      {/* <div>
                         <p className="text-xs text-muted-foreground mb-1">Columns:</p>
                         <div className="flex flex-wrap gap-1">
                           {version.columns.map((col) => (
@@ -302,7 +314,7 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
                             </span>
                           ))}
                         </div>
-                      </div>
+                      </div> */}
                     </div>
                   </Card>
                 ))}
@@ -361,7 +373,7 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {datasets.map((dataset) => (
           <Card
-            key={dataset.id}
+            key={dataset.dataset_id}
             className="p-4 cursor-pointer transition-all hover:border-primary/50"
             onClick={() => handleDatasetSelect(dataset)}
           >
@@ -369,27 +381,31 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <h3 className="font-semibold text-foreground">{dataset.name}</h3>
-                  <p className="text-sm text-muted-foreground mt-1">{dataset.description}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{dataset.description ? dataset.description : "N/A" } </p>
                 </div>
                 <ChevronRight className="h-5 w-5 text-muted-foreground" />
               </div>
 
               <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                <div className="flex items-center gap-1">
+                {/* <div className="flex items-center gap-1">
                   <Database className="h-3 w-3" />
                   <span>{dataset.rowCount} rows</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <Columns className="h-3 w-3" />
-                  <span>{dataset.columns.length} columns</span>
+                  <span>{dataset.columns} </span>
+                </div> */}
+                <div className="flex items-center gap-1">
+                  <User className="h-3 w-3" />
+                  <span>Create by: {dataset.created_by_username}</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <Calendar className="h-3 w-3" />
-                  <span>{dataset.createdAt}</span>
+                  <span>Create at: {formatDate(dataset.created_at)}</span>
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-1">
+              {/* <div className="flex flex-wrap gap-1">
                 {dataset.columns.slice(0, 4).map((col) => (
                   <span key={col} className="text-xs bg-muted px-2 py-0.5 rounded font-mono">
                     {col}
@@ -398,7 +414,20 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
                 {dataset.columns.length > 4 && (
                   <span className="text-xs text-muted-foreground px-2 py-0.5">+{dataset.columns.length - 4} more</span>
                 )}
-              </div>
+              </div> */}
+              <div className="flex flex-wrap gap-1">
+     {datasetStatic.columns.slice(0, 4).map((col: string) => (
+  <span key={col} className="text-xs bg-muted px-2 py-0.5 rounded font-mono">
+    {col}
+  </span>
+))}
+      {hiddenCount > 0 && (
+        <span className="text-xs text-muted-foreground px-2 py-0.5">
+          +{hiddenCount} more
+        </span>
+      )}
+    </div>
+               
             </div>
           </Card>
         ))}

@@ -18,6 +18,7 @@ export interface Dataset {
   dataset_id: number
   name: string
   description?: string
+  created_by_username: string
   created_at: string
   updated_at: string
 }
