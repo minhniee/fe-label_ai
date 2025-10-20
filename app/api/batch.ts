@@ -1,4 +1,18 @@
-import { apiRequest } from "./client"
+import axios from 'axios'
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
+
+// Helper function to get auth headers
+const getAuthHeaders = () => {
+  const headers: Record<string, string> = {}
+  try {
+    const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`
+    }
+  } catch {}
+  return headers
+}
 
 export type BatchStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "BLOCKED"
 
@@ -52,32 +66,98 @@ export interface BatchProgressResponse {
 
 // GET /batches/
 export async function getBatches() {
-  return apiRequest<BatchListResponse>("/batches/", { auth: true })
+  try {
+    const response = await axios.get<BatchListResponse>(`${API_BASE}/batches/`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+    })
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to get batches'
+    throw new Error(errorMessage)
+  }
 }
 
 // POST /batches/
 export async function createBatch(payload: CreateBatchRequest) {
-  return apiRequest<BatchResponse>("/batches/", { method: "POST", body: payload, auth: true })
+  try {
+    const response = await axios.post<BatchResponse>(`${API_BASE}/batches/`, payload, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+    })
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to create batch'
+    throw new Error(errorMessage)
+  }
 }
 
 // GET /batches/{batch_id}
 export async function getBatch(batchId: number) {
-  return apiRequest<BatchResponse>(`/batches/${batchId}`, { auth: true })
+  try {
+    const response = await axios.get<BatchResponse>(`${API_BASE}/batches/${batchId}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+    })
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to get batch'
+    throw new Error(errorMessage)
+  }
 }
 
 // PUT /batches/{batch_id}
 export async function updateBatch(batchId: number, payload: UpdateBatchRequest) {
-  return apiRequest<BatchResponse>(`/batches/${batchId}`, { method: "PUT", body: payload, auth: true })
+  try {
+    const response = await axios.put<BatchResponse>(`${API_BASE}/batches/${batchId}`, payload, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+    })
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to update batch'
+    throw new Error(errorMessage)
+  }
 }
 
 // DELETE /batches/{batch_id}
 export async function deleteBatch(batchId: number) {
-  return apiRequest<{ message: string }>(`/batches/${batchId}`, { method: "DELETE", auth: true })
+  try {
+    const response = await axios.delete<{ message: string }>(`${API_BASE}/batches/${batchId}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+    })
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to delete batch'
+    throw new Error(errorMessage)
+  }
 }
 
 // GET /batches/{batch_id}/progress
 export async function getBatchProgress(batchId: number) {
-  return apiRequest<BatchProgressResponse>(`/batches/${batchId}/progress`, { auth: true })
+  try {
+    const response = await axios.get<BatchProgressResponse>(`${API_BASE}/batches/${batchId}/progress`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+    })
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to get batch progress'
+    throw new Error(errorMessage)
+  }
 }
 
 

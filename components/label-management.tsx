@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -27,6 +27,9 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tags, Plus, MoreHorizontal, Edit, Trash2, Keyboard, Save, X, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { createLabel, getLabel, updateLabel, deleteLabel, getAllLabels, type CreateLabelRequest, type UpdateLabelRequest } from "@/app/api/label"
+import { createDataset, getDatasets } from "@/app/api/datasets"
+import { useToast } from "@/hooks/use-toast"
 
 interface LabelSet {
   id: string
@@ -56,6 +59,8 @@ interface NewLabel {
 
 export function LabelManagement() {
   const [labelSets, setLabelSets] = useState<LabelSet[]>([])
+  const [loading, setLoading] = useState(true)
+  const { toast } = useToast()
 
   const [isAddLabelSetOpen, setIsAddLabelSetOpen] = useState(false)
   const [isEditLabelOpen, setIsEditLabelOpen] = useState(false)
@@ -70,15 +75,80 @@ export function LabelManagement() {
   })
 
   const colorOptions = [
-    { value: "bg-green-100 text-green-800", label: "Green", preview: "bg-green-100" },
-    { value: "bg-blue-100 text-blue-800", label: "Blue", preview: "bg-blue-100" },
-    { value: "bg-yellow-100 text-yellow-800", label: "Yellow", preview: "bg-yellow-100" },
-    { value: "bg-red-100 text-red-800", label: "Red", preview: "bg-red-100" },
-    { value: "bg-purple-100 text-purple-800", label: "Purple", preview: "bg-purple-100" },
-    { value: "bg-orange-100 text-orange-800", label: "Orange", preview: "bg-orange-100" },
-    { value: "bg-pink-100 text-pink-800", label: "Pink", preview: "bg-pink-100" },
-    { value: "bg-gray-100 text-gray-800", label: "Gray", preview: "bg-gray-100" },
+    { value: "bg-green-100 text-green-800", label: "Green", preview: "bg-green-100", hex: "#26F7D2" },
+    { value: "bg-blue-100 text-blue-800", label: "Blue", preview: "bg-blue-100", hex: "#3B82F6" },
+    { value: "bg-yellow-100 text-yellow-800", label: "Yellow", preview: "bg-yellow-100", hex: "#F59E0B" },
+    { value: "bg-red-100 text-red-800", label: "Red", preview: "bg-red-100", hex: "#EF4444" },
+    { value: "bg-purple-100 text-purple-800", label: "Purple", preview: "bg-purple-100", hex: "#8B5CF6" },
+    { value: "bg-orange-100 text-orange-800", label: "Orange", preview: "bg-orange-100", hex: "#F97316" },
+    { value: "bg-pink-100 text-pink-800", label: "Pink", preview: "bg-pink-100", hex: "#EC4899" },
+    { value: "bg-gray-100 text-gray-800", label: "Gray", preview: "bg-gray-100", hex: "#6B7280" },
   ]
+
+  const getHexColor = (tailwindClass: string): string => {
+    const colorOption = colorOptions.find(option => option.value === tailwindClass)
+    return colorOption?.hex || "#26F7D2"
+  }
+
+  // Load labels and datasets from API
+  const loadLabelSets = async () => {
+    try {
+      setLoading(true)
+      
+      // Load datasets and labels in parallel
+      const [datasets, labels] = await Promise.all([
+        getDatasets(),
+        getAllLabels()
+      ])
+
+      // Group labels by dataset_id
+      const labelsByDataset = labels.reduce((acc, label) => {
+        if (!acc[label.dataset_id]) {
+          acc[label.dataset_id] = []
+        }
+        acc[label.dataset_id].push(label)
+        return acc
+      }, {} as Record<number, typeof labels>)
+
+      // Create label sets from datasets
+      const labelSetsData: LabelSet[] = datasets.map(dataset => {
+        const datasetLabels = labelsByDataset[dataset.dataset_id] || []
+        
+        return {
+          id: dataset.dataset_id.toString(),
+          name: dataset.name,
+          description: dataset.description || "",
+          labels: datasetLabels.map(label => ({
+            id: label.label_id.toString(),
+            label: label.name,
+            description: label.description,
+            hotkey: label.hotkey,
+            color: label.color,
+          })),
+          createdDate: new Date(dataset.created_at).toISOString().split("T")[0],
+          isActive: false,
+          usageCount: 0,
+          hasExistingData: datasetLabels.length > 0,
+        }
+      })
+
+      setLabelSets(labelSetsData)
+    } catch (error) {
+      console.error("Error loading label sets:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load label sets. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Load data on component mount
+  useEffect(() => {
+    loadLabelSets()
+  }, [])
 
   const addNewLabelToForm = () => {
     const newLabel: NewLabel = {
@@ -104,26 +174,111 @@ export function LabelManagement() {
     setNewLabelSet({ ...newLabelSet, labels: updatedLabels })
   }
 
-  const handleAddLabelSet = () => {
+  const handleAddLabelSet = async () => {
     if (!newLabelSet.name || !newLabelSet.description || newLabelSet.labels.length === 0) return
 
-    const labelSet: LabelSet = {
-      id: Date.now().toString(),
-      name: newLabelSet.name,
-      description: newLabelSet.description,
-      labels: newLabelSet.labels.map((label, index) => ({
-        id: (Date.now() + index).toString(),
-        ...label,
-      })),
-      createdDate: new Date().toISOString().split("T")[0],
-      isActive: false,
-      usageCount: 0,
-      hasExistingData: false,
-    }
+    try {
+      // Create dataset first
+      const dataset = await createDataset(
+        newLabelSet.name,
+        newLabelSet.description
+      )
 
-    setLabelSets([...labelSets, labelSet])
-    setNewLabelSet({ name: "", description: "", labels: [] })
-    setIsAddLabelSetOpen(false)
+      // Create labels via API
+      const createdLabels = await Promise.all(
+        newLabelSet.labels.map(async (label, index) => {
+          const labelData: CreateLabelRequest = {
+            name: label.label,
+            description: label.description,
+            color: getHexColor(label.color),
+            guidelines: label.description, // Using description as guidelines
+            hotkey: label.hotkey,
+            priority: index + 1,
+            dataset_id: dataset.dataset_id, // Use the created dataset ID
+          }
+
+          const response = await createLabel(labelData)
+          return {
+            id: response.label_id.toString(),
+            label: response.name,
+            description: response.description,
+            hotkey: response.hotkey,
+            color: response.color,
+          }
+        })
+      )
+
+      const labelSet: LabelSet = {
+        id: Date.now().toString(),
+        name: newLabelSet.name,
+        description: newLabelSet.description,
+        labels: createdLabels,
+        createdDate: new Date().toISOString().split("T")[0],
+        isActive: false,
+        usageCount: 0,
+        hasExistingData: false,
+      }
+
+      // Reload data from API to get the latest state
+      await loadLabelSets()
+      
+      setNewLabelSet({ name: "", description: "", labels: [] })
+      setIsAddLabelSetOpen(false)
+
+      toast({
+        title: "Success",
+        description: `Created dataset "${dataset.name}" and label set with ${createdLabels.length} labels`,
+      })
+    } catch (error) {
+      console.error("Error creating dataset and labels:", error)
+      toast({
+        title: "Error",
+        description: "Failed to create dataset and labels. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleUpdateLabel = async (labelId: number, updatedData: UpdateLabelRequest) => {
+    try {
+      const response = await updateLabel(labelId, updatedData)
+      
+      // Reload data from API to get the latest state
+      await loadLabelSets()
+
+      toast({
+        title: "Success",
+        description: `Label "${response.name}" updated successfully`,
+      })
+    } catch (error) {
+      console.error("Error updating label:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update label. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleDeleteLabel = async (labelId: number) => {
+    try {
+      await deleteLabel(labelId)
+      
+      // Reload data from API to get the latest state
+      await loadLabelSets()
+
+      toast({
+        title: "Success",
+        description: "Label deleted successfully",
+      })
+    } catch (error) {
+      console.error("Error deleting label:", error)
+      toast({
+        title: "Error",
+        description: "Failed to delete label. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleEditLabels = (labelSet: LabelSet) => {
@@ -143,23 +298,61 @@ export function LabelManagement() {
     setNewLabelsToAdd([...newLabelsToAdd, newLabel])
   }
 
-  const saveChangesToLabelSet = () => {
+  const saveChangesToLabelSet = async () => {
     if (!selectedLabelSet) return
 
-    const updatedLabels = [
-      ...editingLabels,
-      ...newLabelsToAdd.map((label, index) => ({
-        id: (Date.now() + index).toString(),
-        ...label,
-      })),
-    ]
+    try {
+      // Update existing labels via API
+      const updatePromises = editingLabels.map(async (label) => {
+        const labelId = parseInt(label.id)
+        const updateData: UpdateLabelRequest = {
+          name: label.label,
+          description: label.description,
+          hotkey: label.hotkey,
+          color: getHexColor(label.color),
+          guidelines: label.description,
+        }
+        return await updateLabel(labelId, updateData)
+      })
 
-    setLabelSets(labelSets.map((set) => (set.id === selectedLabelSet.id ? { ...set, labels: updatedLabels } : set)))
+      await Promise.all(updatePromises)
 
-    setIsEditLabelOpen(false)
-    setSelectedLabelSet(null)
-    setEditingLabels([])
-    setNewLabelsToAdd([])
+      // Create new labels via API
+      const createPromises = newLabelsToAdd.map(async (label, index) => {
+        const labelData: CreateLabelRequest = {
+          name: label.label,
+          description: label.description,
+          color: getHexColor(label.color),
+          guidelines: label.description,
+          hotkey: label.hotkey,
+          priority: editingLabels.length + index + 1,
+          dataset_id: 0, // Should be passed from parent or context
+        }
+        return await createLabel(labelData)
+      })
+
+      const createdLabels = await Promise.all(createPromises)
+
+      // Reload data from API to get the latest state
+      await loadLabelSets()
+
+      setIsEditLabelOpen(false)
+      setSelectedLabelSet(null)
+      setEditingLabels([])
+      setNewLabelsToAdd([])
+
+      toast({
+        title: "Success",
+        description: `Updated ${editingLabels.length} labels and created ${createdLabels.length} new labels`,
+      })
+    } catch (error) {
+      console.error("Error saving label changes:", error)
+      toast({
+        title: "Error",
+        description: "Failed to save label changes. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleDeleteLabelSet = (labelSetId: string) => {
@@ -183,8 +376,17 @@ export function LabelManagement() {
 
   return (
     <div className="space-y-6">
-      {/* Label Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {loading ? (
+        <div className="flex items-center justify-center py-8">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading label sets...</p>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Label Statistics */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total label sets</CardTitle>
@@ -552,7 +754,9 @@ export function LabelManagement() {
                             type="button"
                             variant="outline"
                             size="sm"
-                            onClick={() => {
+                            onClick={async () => {
+                              const labelId = parseInt(label.id)
+                              await handleDeleteLabel(labelId)
                               setEditingLabels(editingLabels.filter((_, i) => i !== index))
                             }}
                             disabled={selectedLabelSet?.hasExistingData}
@@ -710,6 +914,8 @@ export function LabelManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </>
+      )}
     </div>
   )
 }

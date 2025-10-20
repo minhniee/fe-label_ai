@@ -1,4 +1,18 @@
-import { apiRequest } from "./client"
+import axios from 'axios'
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
+
+// Helper function to get auth headers
+const getAuthHeaders = () => {
+  const headers: Record<string, string> = {}
+  try {
+    const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`
+    }
+  } catch {}
+  return headers
+}
 
 export interface RegisterPayload {
   username: string
@@ -24,17 +38,34 @@ export interface MeResponse {
 }
 
 export async function registerUser(payload: RegisterPayload) {
-  return apiRequest("/auth/register", {
-    method: "POST",
-    body: payload,
-  })
+  try {
+    const response = await axios.post(`${API_BASE}/auth/register`, payload, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Registration failed'
+    throw new Error(errorMessage)
+  }
 }
 
 export async function loginUser(username_or_email: string, password: string) {
-  return apiRequest<TokenResponse>("/auth/login", {
-    method: "POST",
-    body: { username_or_email, password },
-  })
+  try {
+    const response = await axios.post<TokenResponse>(`${API_BASE}/auth/login`, 
+      { username_or_email, password }, 
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    )
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Login failed'
+    throw new Error(errorMessage)
+  }
 }
 
 export function persistAuth(token: TokenResponse) {
@@ -46,12 +77,30 @@ export function persistAuth(token: TokenResponse) {
 }
 
 export async function getMe() {
-  return apiRequest<MeResponse>("/auth/me", { method: "GET", auth: true })
+  try {
+    const response = await axios.get<MeResponse>(`${API_BASE}/auth/me`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+    })
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to get user info'
+    throw new Error(errorMessage)
+  }
 }
 
 export async function logout() {
   try {
-    await apiRequest("/auth/logout", { method: "POST", auth: true })
+    await axios.post(`${API_BASE}/auth/logout`, {}, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+    })
+  } catch (error) {
+    // Continue with cleanup even if logout request fails
   } finally {
     try {
       localStorage.removeItem("access_token")

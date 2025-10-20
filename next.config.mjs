@@ -30,12 +30,22 @@ const nextConfig = {
         ],
       },
       {
-        // Cache API routes
+        // Cache API routes (shorter cache for dynamic data)
         source: '/api/(.*)',
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=300, s-maxage=300',
+            value: 'public, max-age=60, s-maxage=60',
+          },
+        ],
+      },
+      {
+        // Cache navigation pages
+        source: '/(tasks|data|labeling|labelai|models|comparison-tool|admin|aisuggest|dashboard)(.*)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=3600, s-maxage=3600',
           },
         ],
       },

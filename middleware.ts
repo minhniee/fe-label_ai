@@ -20,13 +20,21 @@ export function middleware(request: NextRequest) {
     response.headers.set('Cache-Control', 'public, max-age=31536000, immutable')
   }
   
-  // API routes - cache for 5 minutes
+  // API routes - cache for 1 minute (shorter for dynamic data)
   else if (pathname.startsWith('/api/')) {
-    response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=300')
+    response.headers.set('Cache-Control', 'public, max-age=60, s-maxage=60')
   }
   
-  // Dashboard index - cache for 1 hour
-  else if (pathname.startsWith('/dashboard')) {
+  // Dashboard and navigation pages - cache for 1 hour
+  else if (pathname.startsWith('/dashboard') || 
+           pathname.startsWith('/tasks') ||
+           pathname.startsWith('/data') ||
+           pathname.startsWith('/labeling') ||
+           pathname.startsWith('/labelai') ||
+           pathname.startsWith('/models') ||
+           pathname.startsWith('/comparison-tool') ||
+           pathname.startsWith('/admin') ||
+           pathname.startsWith('/aisuggest')) {
     response.headers.set('Cache-Control', 'public, max-age=3600, s-maxage=3600')
   }
   

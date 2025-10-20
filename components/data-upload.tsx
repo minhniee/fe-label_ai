@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils"
 import { getDatasets, createDatasetVersion, getDatasetVersions, uploadFileToVersion, getVersionFiles, createDataset, type Dataset, type DatasetVersion, type DataFile } from "@/app/api/datasets"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
+import { FileUpload } from "@/components/file-upload"
 
 export function DataUpload() {
   const { toast } = useToast();

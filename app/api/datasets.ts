@@ -1,5 +1,18 @@
-import { apiRequest } from "./client"
 import axios from 'axios'
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
+
+// Helper function to get auth headers
+const getAuthHeaders = () => {
+  const headers: Record<string, string> = {}
+  try {
+    const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`
+    }
+  } catch {}
+  return headers
+}
 
 export interface Dataset {
   dataset_id: number
@@ -38,38 +51,87 @@ export interface FilePreviewResponse {
 
 // Get all datasets
 export async function getDatasets() {
-  return apiRequest<Dataset[]>("/datasets", { auth: true })
+  try {
+    const response = await axios.get<Dataset[]>(`${API_BASE}/datasets`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+    })
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to get datasets'
+    throw new Error(errorMessage)
+  }
 }
 
 // Create dataset
 export async function createDataset(name: string, description?: string) {
-  return apiRequest<Dataset>("/datasets", {
-    method: "POST",
-    body: { name, description: description || "" },
-    auth: true
-  })
+  try {
+    const response = await axios.post<Dataset>(`${API_BASE}/datasets`, 
+      { name, description: description || "" }, 
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+      }
+    )
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to create dataset'
+    throw new Error(errorMessage)
+  }
 }
 
 // Delete dataset
 export async function deleteDataset(datasetId: number) {
-  return apiRequest<void>(`/datasets/${datasetId}`, {
-    method: "DELETE",
-    auth: true
-  })
+  try {
+    await axios.delete(`${API_BASE}/datasets/${datasetId}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+    })
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to delete dataset'
+    throw new Error(errorMessage)
+  }
 }
 
 // Create dataset version
 export async function createDatasetVersion(datasetId: number, changelog?: string) {
-  return apiRequest<DatasetVersion>(`/datasets/${datasetId}/versions`, {
-    method: "POST",
-    body: { changelog: changelog || "Initial version" },
-    auth: true
-  })
+  try {
+    const response = await axios.post<DatasetVersion>(`${API_BASE}/datasets/${datasetId}/versions`, 
+      { changelog: changelog || "Initial version" }, 
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+      }
+    )
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to create dataset version'
+    throw new Error(errorMessage)
+  }
 }
 
 // Get dataset versions
 export async function getDatasetVersions(datasetId: number) {
-  return apiRequest<DatasetVersion[]>(`/datasets/${datasetId}/versions`, { auth: true })
+  try {
+    const response = await axios.get<DatasetVersion[]>(`${API_BASE}/datasets/${datasetId}/versions`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+    })
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to get dataset versions'
+    throw new Error(errorMessage)
+  }
 }
 
 // Upload file to version
@@ -101,49 +163,72 @@ export async function uploadFileToVersion(versionId: number, file: File, fileTyp
 
 // Get version files
 export async function getVersionFiles(versionId: number) {
-  return apiRequest<DataFile[]>(`/datasets/versions/${versionId}/files`, { auth: true })
+  try {
+    const response = await axios.get<DataFile[]>(`${API_BASE}/datasets/versions/${versionId}/files`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+    })
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to get version files'
+    throw new Error(errorMessage)
+  }
 }
 
 // Get preview of a file's content (parsed rows/headers)
 export async function getFilePreview(fileId: number) {
-  const raw = await apiRequest<any>(`/datasets/files/${fileId}/preview`, { auth: true })
-  // If backend already returns headers/rows, pass through
-  if (raw && Array.isArray(raw.headers) && Array.isArray(raw.rows)) {
-    return { headers: raw.headers as string[], rows: raw.rows as string[][] } as FilePreviewResponse
-  }
-
-  // If backend returns preview_lines: string[] (first is header)
-  if (raw && Array.isArray(raw.preview_lines) && raw.preview_lines.length > 0) {
-    const parseCsvLine = (line: string): string[] => {
-      const result: string[] = []
-      let current = ""
-      let inQuotes = false
-      for (let i = 0; i < line.length; i++) {
-        const ch = line[i]
-        if (ch === '"') {
-          if (inQuotes && line[i + 1] === '"') {
-            current += '"'
-            i++
-          } else {
-            inQuotes = !inQuotes
-          }
-        } else if (ch === ',' && !inQuotes) {
-          result.push(current)
-          current = ""
-        } else {
-          current += ch
-        }
-      }
-      result.push(current)
-      return result
+  try {
+    const response = await axios.get<any>(`${API_BASE}/datasets/files/${fileId}/preview`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+    })
+    const raw = response.data
+    
+    // If backend already returns headers/rows, pass through
+    if (raw && Array.isArray(raw.headers) && Array.isArray(raw.rows)) {
+      return { headers: raw.headers as string[], rows: raw.rows as string[][] } as FilePreviewResponse
     }
 
-    const [headerLine, ...rowLines] = raw.preview_lines as string[]
-    const headers = parseCsvLine(headerLine).map((h) => h.trim() || "column")
-    const rows = rowLines.map((l) => parseCsvLine(l))
-    return { headers, rows } as FilePreviewResponse
-  }
+    // If backend returns preview_lines: string[] (first is header)
+    if (raw && Array.isArray(raw.preview_lines) && raw.preview_lines.length > 0) {
+      const parseCsvLine = (line: string): string[] => {
+        const result: string[] = []
+        let current = ""
+        let inQuotes = false
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i]
+          if (ch === '"') {
+            if (inQuotes && line[i + 1] === '"') {
+              current += '"'
+              i++
+            } else {
+              inQuotes = !inQuotes
+            }
+          } else if (ch === ',' && !inQuotes) {
+            result.push(current)
+            current = ""
+          } else {
+            current += ch
+          }
+        }
+        result.push(current)
+        return result
+      }
 
-  // Fallback empty
-  return { headers: [], rows: [] } as FilePreviewResponse
+      const [headerLine, ...rowLines] = raw.preview_lines as string[]
+      const headers = parseCsvLine(headerLine).map((h) => h.trim() || "column")
+      const rows = rowLines.map((l) => parseCsvLine(l))
+      return { headers, rows } as FilePreviewResponse
+    }
+
+    // Fallback empty
+    return { headers: [], rows: [] } as FilePreviewResponse
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to get file preview'
+    throw new Error(errorMessage)
+  }
 }
