@@ -6,13 +6,11 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
-import { Calendar, Clock, User, MessageCircle, Search, Bell } from "lucide-react"
-import { ChatPanel } from "@/components/chat-panel"
+import { Calendar, Clock, User, Search, Bell } from "lucide-react"
 
 export default function TasksPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedPriority, setSelectedPriority] = useState("all")
-  const [isChatOpen, setIsChatOpen] = useState(false)
 
   // Mock data for user tasks
   const userTasks = [
@@ -291,9 +289,6 @@ export default function TasksPage() {
             ))}
           </div>
         </div>
-
-      {/* Chat Panel */}
-      {isChatOpen && <ChatPanel onClose={() => setIsChatOpen(false)} />}
     </div>
   )
 }

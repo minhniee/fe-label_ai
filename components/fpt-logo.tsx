@@ -41,7 +41,7 @@ export function FPTLogo({
         height={dimension}
         priority
       />
-      {showText && (
+      {/* {showText && (
         <div>
           <h1
             className={`${montserrat.className} ${textSizeClasses[size]} font-semibold tracking-tight text-[#e26d28] group-hover:text-[#e26a25] group-hover:brightness-110 transition duration-300`}
@@ -49,7 +49,7 @@ export function FPTLogo({
             Label-AI
           </h1>
         </div>
-      )}
+      )} */}
     </Link>
   );
 }
