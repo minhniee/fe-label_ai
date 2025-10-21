@@ -9,13 +9,6 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // Cache optimization
-  experimental: {
-    // Enable static optimization
-    optimizeCss: true,
-    // Enable SWC minification
-    swcMinify: true,
-  },
   // Headers for caching
   async headers() {
     return [
