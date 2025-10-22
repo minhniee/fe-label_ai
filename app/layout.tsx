@@ -4,8 +4,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { Suspense } from "react";
 import { QueryProvider } from "@/components/query-provider";
-import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "@/components/theme-provider";
+import { SonnerToaster } from "@/components/ui/sonner-toaster";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -43,7 +43,7 @@ export default function RootLayout({
           <QueryProvider>
             <Suspense fallback={null}>{children}</Suspense>
             <Analytics />
-            <Toaster />
+            <SonnerToaster />
           </QueryProvider>
         </ThemeProvider>
       </body>
