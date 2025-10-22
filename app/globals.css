@@ -134,6 +134,11 @@
 .dark .sidebar-item:hover {
   outline-color: var(--sidebar-ring);
 }
+
+/* Collapsible chevron hover effect */
+.collapsible-chevron:hover {
+  color: oklch(34.3 100% 91.8%);
+}
 @keyframes fadeIn {
   from {
     opacity: 0;

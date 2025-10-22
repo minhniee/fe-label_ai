@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import * as React from "react"
+import * as React from "react";
 import {
   LayoutDashboard,
   Database,
@@ -11,162 +11,173 @@ import {
   Sparkles,
   GitCompare,
   type LucideIcon,
-} from "lucide-react"
+} from "lucide-react";
 
-import { NavMain } from "@/components/nav-main"
-import { NavUser } from "@/components/nav-user"
-import { FPTLogo } from "@/components/fpt-logo"
+import { NavMain } from "@/components/nav-main";
+import { NavUser } from "@/components/nav-user";
+import { FPTLogo } from "@/components/fpt-logo";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
   SidebarRail,
-} from "@/components/ui/sidebar"
-import { usePathname } from "next/navigation"
+} from "@/components/ui/sidebar";
+import { usePathname } from "next/navigation";
 
 interface User {
-  name: string
-  email: string
-  avatar: string
+  name: string;
+  email: string;
+  avatar: string;
 }
 
 interface NavItem {
-  title: string
-  url: string
-  icon: LucideIcon
-  isActive: boolean
+  title: string;
+  url: string;
+  icon: LucideIcon;
+  isActive: boolean;
 }
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
-  onLogout?: () => void
+  onLogout?: () => void;
 }
 
 export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
-  const pathname = usePathname()
-  const [user, setUser] = React.useState<User>({ 
-    name: "User", 
-    email: "", 
-    avatar: "/avatars/default.jpg" 
-  })
-  const [me, setMe] = React.useState<any>(null)
+  const pathname = usePathname();
+  const [user, setUser] = React.useState<User>({
+    name: "User",
+    email: "",
+    avatar: "/avatars/default.jpg",
+  });
+  const [me, setMe] = React.useState<any>(null);
 
   // Load user profile data from localStorage
   React.useEffect(() => {
     try {
-      const raw = typeof window !== 'undefined' ? localStorage.getItem('user') : null
-      const picture = typeof window !== 'undefined' ? localStorage.getItem('picture') : null
-      
+      const raw =
+        typeof window !== "undefined" ? localStorage.getItem("user") : null;
+      const picture =
+        typeof window !== "undefined" ? localStorage.getItem("picture") : null;
+
       if (raw) {
-        const parsed: any = JSON.parse(raw)
+        const parsed: any = JSON.parse(raw);
         setUser({
-          name: parsed.username || parsed.name || 'User',
-          email: parsed.email || '',
-          avatar: picture || parsed.picture || '/avatars/default.jpg',
-        })
+          name: parsed.username || parsed.name || "User",
+          email: parsed.email || "",
+          avatar: picture || parsed.picture || "/avatars/default.jpg",
+        });
       } else if (picture) {
-        setUser((u) => ({ ...u, avatar: picture }))
+        setUser((u) => ({ ...u, avatar: picture }));
       }
     } catch (error) {
-      console.warn('Failed to load user data from localStorage:', error)
+      console.warn("Failed to load user data from localStorage:", error);
     }
-  }, [])
+  }, []);
 
   // Load user role for navigation filtering
   React.useEffect(() => {
     const loadUserRole = async () => {
       try {
-        const { getMe } = await import("@/app/api/auth")
-        const data = await getMe()
-        setMe(data)
+        const { getMe } = await import("@/app/api/auth");
+        const data = await getMe();
+        setMe(data);
       } catch (error) {
-        console.warn('Failed to load user role:', error)
+        console.warn("Failed to load user role:", error);
       }
-    }
-    loadUserRole()
-  }, [])
+    };
+    loadUserRole();
+  }, []);
 
   // Define all navigation items
-  const allNavItems: NavItem[] = React.useMemo(() => [
-    {
-      title: "Dashboard",
-      url: "/dashboard",
-      icon: LayoutDashboard,
-      isActive: pathname === "/dashboard",
-    },
-    {
-      title: "Tasks",
-      url: "/tasks",
-      icon: CheckSquare,
-      isActive: pathname === "/tasks",
-    },
-    {
-      title: "Data Management",
-      url: "/data",
-      icon: Database,
-      isActive: pathname === "/data",
-    },
-    {
-      title: "Labeling",
-      url: "/labeling",
-      icon: Tag,
-      isActive: pathname === "/labeling",
-    },
-    {
-      title: "Labeling with AI",
-      url: "/labelai",
-      icon: Tag,
-      isActive: pathname === "/labelai",
-    },
-    {
-      title: "Model Dashboard",
-      url: "/models",
-      icon: Brain,
-      isActive: pathname === "/models",
-    },
-    {
-      title: "AI Suggest",
-      url: "/aisuggest",
-      icon: Sparkles,
-      isActive: pathname === "/aisuggest",
-    },
-    {
-      title: "Admin",
-      url: "/admin",
-      icon: Settings,
-      isActive: pathname === "/admin",
-    },
-    {
-      title: "Comparison Tool",
-      url: "/comparison-tool",
-      icon: GitCompare,
-      isActive: pathname === "/comparison-tool",
-    },
-  ], [pathname])
+  const allNavItems: NavItem[] = React.useMemo(
+    () => [
+      {
+        title: "Dashboard",
+        url: "/dashboard",
+        icon: LayoutDashboard,
+        isActive: pathname === "/dashboard",
+      },
+      {
+        title: "Tasks",
+        url: "/tasks",
+        icon: CheckSquare,
+        isActive: pathname === "/tasks",
+      },
+      {
+        title: "Data Management",
+        url: "/data",
+        icon: Database,
+        isActive: pathname === "/data",
+      },
+      {
+        title: "Labeling",
+        url: "/labeling",
+        icon: Tag,
+        isActive: pathname === "/labeling",
+      },
+      {
+        title: "Labeling with AI",
+        url: "/labelai",
+        icon: Tag,
+        isActive: pathname === "/labelai",
+      },
+      {
+        title: "Model Dashboard",
+        url: "/models",
+        icon: Brain,
+        isActive: pathname === "/models",
+      },
+      {
+        title: "AI Suggest",
+        url: "/aisuggest",
+        icon: Sparkles,
+        isActive: pathname === "/aisuggest",
+      },
+      {
+        title: "Admin",
+        url: "/admin",
+        icon: Settings,
+        isActive: pathname === "/admin",
+      },
+      {
+        title: "Comparison Tool",
+        url: "/comparison-tool",
+        icon: GitCompare,
+        isActive: pathname === "/comparison-tool",
+      },
+    ],
+    [pathname]
+  );
 
   // Filter navigation items based on user role
   const navMainItems = React.useMemo(() => {
-    if (!me) return allNavItems
-    
+    if (!me) return allNavItems;
+
     // Manager (role_id=3) and Labeler (role_id=4) restrictions
     if (me.role_id === 3 || me.role_id === 4) {
-      let items = allNavItems.filter((item) => 
-        item.title !== "Model Dashboard" && item.title !== "Admin"
-      )
-      
+      let items = allNavItems.filter(
+        (item) => item.title !== "Model Dashboard" && item.title !== "Admin"
+      );
+
       // Labeler (role_id=4) additional restrictions
       if (me.role_id === 4) {
-        items = items.filter((item) => item.title !== "Data Management")
+        items = items.filter((item) => item.title !== "Data Management");
       }
-      
-      console.log(`[Navigation for role_id=${me.role_id}]:`, items.map(i => i.title))
-      return items
+
+      console.log(
+        `[Navigation for role_id=${me.role_id}]:`,
+        items.map((i) => i.title)
+      );
+      return items;
     }
-    
+
     // Admin/SuperAdmin - full access
-    console.log("[Navigation for Admin/SuperAdmin]:", allNavItems.map(i => i.title))
-    return allNavItems
-  }, [me, allNavItems])
+    console.log(
+      "[Navigation for Admin/SuperAdmin]:",
+      allNavItems.map((i) => i.title)
+    );
+    return allNavItems;
+  }, [me, allNavItems]);
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -183,5 +194,5 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
-  )
+  );
 }
