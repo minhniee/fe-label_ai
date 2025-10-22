@@ -54,7 +54,7 @@ export function NavMain({
                     {item.icon && <item.icon />}
                     <span>{item.title}</span>
                     {item.items && item.items.length > 0 && (
-                      <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                      <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 cursor-pointer collapsible-chevron" />
                     )}
                   </Link>
                 </SidebarMenuButton>
