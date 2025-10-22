@@ -3,16 +3,18 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { DataGrid } from "@/components/data-grid"
-import { ModelSelector } from "@/components/model-selector"
-import { ColumnSelector } from "@/components/column-selector"
-import { ReferenceUploader } from "@/components/reference-uploader"
-import { DatasetSelector } from "@/components/dataset-selector"
-import { DataGenerator } from "@/components/data-generator"
+import { DataGrid } from "@/components/label-ai/data-grid"
+import { ModelSelector } from "@/components/label-ai/model-selector"
+import { ColumnSelector } from "@/components/label-ai/column-selector"
+import { ReferenceUploader } from "@/components/label-ai/reference-uploader"
+import { DatasetSelector } from "@/components/label-ai/dataset-selector"
+import { DataGenerator } from "@/components/label-ai/data-generator"
 import { Loader2, ArrowLeft } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
+import { SearchFilter } from "@/components/label-ai/search-filter"
+import { ColumnVisibility } from "@/components/label-ai/column-visibility"
 
 export type RowData = {
   _id: string
@@ -20,24 +22,6 @@ export type RowData = {
   _ai_reasoning?: string
   _confirmed?: boolean
   [key: string]: any
-}
-
-type GridRow = {
-  id: string
-  [key: string]: any
-}
-
-type ColDef<T> = {
-  field: string
-  headerName: string
-  editable: boolean
-  resizable: boolean
-  hide?: boolean
-}
-
-type DataFile = {
-  file_id: string
-  content?: string
 }
 
 export default function Home() {
@@ -51,175 +35,72 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [view, setView] = useState<"select" | "generate">("select")
   const [manualMode, setManualMode] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [visibleColumns, setVisibleColumns] = useState<string[]>([])
   const { toast } = useToast()
   const rowsPerPage = 50
 
-  // Helper functions
-  const getFilePreview = async (fileId: string) => {
-    const response = await fetch(`/api/files/${fileId}/preview`)
-    if (!response.ok) throw new Error("Failed to fetch preview")
-    return response.json()
-  }
-
-  const parseCsv = (text: string): { headers: string[]; rows: string[][] } => {
-    const lines = text
-      .replace(/\r\n/g, "\n")
-      .replace(/\r/g, "\n")
-      .split("\n")
-      .filter(Boolean)
-
-    if (lines.length === 0) return { headers: [], rows: [] }
-
-    const parseLine = (line: string): string[] => {
-      const result: string[] = []
-      let current = ""
-      let inQuotes = false
-
-      for (let i = 0; i < line.length; i++) {
-        const ch = line[i]
-        if (ch === '"') {
-          if (inQuotes && line[i + 1] === '"') {
-            current += '"'
-            i++
-          } else {
-            inQuotes = !inQuotes
-          }
-        } else if (ch === "," && !inQuotes) {
-          result.push(current)
-          current = ""
-        } else {
-          current += ch
-        }
-      }
-      result.push(current)
-      return result
-    }
-
-    const headers = parseLine(lines[0]).map((h) => h.trim() || "column")
-    const rows = lines.slice(1).map(parseLine)
-    return { headers, rows }
-  }
-
-  const detectContextColumn = (cols: string[]): string => {
-    return (
-      cols.find((col) => col.toLowerCase().includes("context")) ||
-      cols.find((col) => col.toLowerCase().includes("text")) ||
-      cols.find((col) => col.toLowerCase().includes("description")) ||
-      cols.find((col) => col.toLowerCase().includes("body")) ||
-      cols.find((col) => col.toLowerCase().includes("feedback")) ||
-      cols.find((col) => col.toLowerCase().includes("input")) ||
-      cols[0] ||
-      ""
-    )
-  }
-
-  const detectResultColumn = (cols: string[]): string => {
-    return (
-      cols.find((col) => col.toLowerCase().includes("result")) ||
-      cols.find((col) => col.toLowerCase().includes("label")) ||
-      cols.find((col) => col.toLowerCase().includes("category")) ||
-      cols.find((col) => col.toLowerCase().includes("sentiment")) ||
-      cols.find((col) => col.toLowerCase().includes("priority")) ||
-      cols.find((col) => col.toLowerCase().includes("output")) ||
-      cols[1] ||
-      ""
-    )
-  }
-
-  // Handlers
-  const handleVersionSelect = async (file: DataFile) => {
-    setLoading(true)
+  const handleVersionSelect = async (datasetId: string, versionId: string) => {
     try {
-      let headers: string[] = []
-      let rows: any[] = []
+      setLoading(true)
+      const response = await fetch(`/api/datasets/${datasetId}/versions/${versionId}`)
+      const result = await response.json()
 
-      try {
-        const preview = await getFilePreview(file.file_id)
-        headers = preview.headers || []
-        rows = preview.rows || []
-      } catch {
-        if (file.content) {
-          const parsed = parseCsv(file.content)
-          headers = parsed.headers
-          rows = parsed.rows
-        }
-      }
+      if (result.success) {
+        const datasetData = result.data
 
-      if (headers.length === 0 || !Array.isArray(rows) || rows.length === 0) {
-        toast({
-          title: "Error",
-          description: "No valid data found in file",
-          variant: "destructive",
-        })
-        return
-      }
+        const datasetColumns = Object.keys(datasetData[0] || {})
+        setColumns(datasetColumns)
+        setVisibleColumns(datasetColumns)
 
-      // Normalize headers
-      const uniqueHeaders: string[] = []
-      const seen = new Set<string>()
-      headers.forEach((h, idx) => {
-        let key = h || `column_${idx + 1}`
-        while (seen.has(key)) key = `${key}_dup`
-        seen.add(key)
-        uniqueHeaders.push(key)
-      })
+        const detectedContextCol =
+          datasetColumns.find((col) => col.toLowerCase().includes("context")) ||
+          datasetColumns.find((col) => col.toLowerCase().includes("text")) ||
+          datasetColumns.find((col) => col.toLowerCase().includes("description")) ||
+          datasetColumns.find((col) => col.toLowerCase().includes("body")) ||
+          datasetColumns.find((col) => col.toLowerCase().includes("feedback")) ||
+          datasetColumns.find((col) => col.toLowerCase().includes("input")) ||
+          datasetColumns[0] ||
+          ""
 
-      // Detect hidden columns
-      const hiddenColumns = new Set<string>()
-      uniqueHeaders.forEach((header, index) => {
-        if (!header || header.trim() === "" || header.includes("_HIDDEN_")) {
-          hiddenColumns.add(header)
-        }
+        const detectedResultCol =
+          datasetColumns.find((col) => col.toLowerCase().includes("result")) ||
+          datasetColumns.find((col) => col.toLowerCase().includes("label")) ||
+          datasetColumns.find((col) => col.toLowerCase().includes("category")) ||
+          datasetColumns.find((col) => col.toLowerCase().includes("sentiment")) ||
+          datasetColumns.find((col) => col.toLowerCase().includes("priority")) ||
+          datasetColumns.find((col) => col.toLowerCase().includes("output")) ||
+          datasetColumns[1] ||
+          ""
 
-        const allEmpty = rows.every((row) => {
-          if (Array.isArray(row)) {
-            return !row[index] || String(row[index]).trim() === ""
-          } else if (row && typeof row === "object") {
-            return !row[header] || String(row[header]).trim() === ""
-          }
-          return true
-        })
+        setContextColumn(detectedContextCol)
+        setResultColumn(detectedResultCol)
 
-        if (allEmpty && rows.length > 0) {
-          hiddenColumns.add(header)
-        }
-      })
-
-      // Transform data
-      const transformedData: RowData[] = rows.map((r: any, idx: number) => {
-        const rowObj: RowData = {
-          _id: `row-${idx}`,
+        const transformedData: RowData[] = datasetData.map((row: any, index: number) => ({
+          _id: `row-${index}`,
           _ai_suggestion: "",
           _ai_reasoning: "",
           _confirmed: false,
-        }
+          ...row,
+        }))
 
-        if (Array.isArray(r)) {
-          uniqueHeaders.forEach((h, i) => {
-            rowObj[h] = r[i] ?? ""
-          })
-        } else if (r && typeof r === "object") {
-          uniqueHeaders.forEach((h) => {
-            rowObj[h] = r[h] ?? ""
-          })
-        }
+        setData(transformedData)
+        setDatasetName(`${datasetId} - v${result.version_number}`)
+        setCurrentPage(0)
 
-        return rowObj
-      })
-
-      setColumns(uniqueHeaders)
-      setData(transformedData)
-      setContextColumn(detectContextColumn(uniqueHeaders))
-      setResultColumn(detectResultColumn(uniqueHeaders))
-      setDatasetName(file.file_id.split("/").pop() || "Untitled")
-      setCurrentPage(0)
-
-      toast({
-        title: "Success",
-        description: `Loaded ${transformedData.length} rows with ${uniqueHeaders.length} columns`,
-      })
+        toast({
+          title: "Dataset loaded",
+          description: `Successfully loaded ${transformedData.length} rows`,
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to load dataset",
+          variant: "destructive",
+        })
+      }
     } catch (error) {
-      console.error("Error loading file:", error)
+      console.error("Error loading dataset:", error)
       toast({
         title: "Error",
         description: "Failed to load dataset",
@@ -230,14 +111,29 @@ export default function Home() {
     }
   }
 
-  const handleDataGenerated = (
-    generatedData: any[],
-    generatedColumns: string[],
-    name: string
-  ) => {
+  const handleDataGenerated = (generatedData: any[], generatedColumns: string[], name: string) => {
     setColumns(generatedColumns)
-    setContextColumn(detectContextColumn(generatedColumns))
-    setResultColumn(detectResultColumn(generatedColumns))
+    setVisibleColumns(generatedColumns)
+
+    const detectedContextCol =
+      generatedColumns.find((col) => col.toLowerCase().includes("context")) ||
+      generatedColumns.find((col) => col.toLowerCase().includes("text")) ||
+      generatedColumns.find((col) => col.toLowerCase().includes("description")) ||
+      generatedColumns[0] ||
+      ""
+
+    const detectedResultCol =
+      generatedColumns.find((col) => col.toLowerCase().includes("result")) ||
+      generatedColumns.find((col) => col.toLowerCase().includes("label")) ||
+      generatedColumns.find((col) => col.toLowerCase().includes("category")) ||
+      generatedColumns.find((col) => col.toLowerCase().includes("sentiment")) ||
+      generatedColumns.find((col) => col.toLowerCase().includes("priority")) ||
+      generatedColumns.find((col) => col.toLowerCase().includes("output")) ||
+      generatedColumns[1] ||
+      ""
+
+    setContextColumn(detectedContextCol)
+    setResultColumn(detectedResultCol)
 
     const transformedData: RowData[] = generatedData.map((row: any, index: number) => ({
       _id: `row-${index}`,
@@ -253,14 +149,42 @@ export default function Home() {
     setView("select")
   }
 
-  const handleFileUpload = (
-    uploadedData: any[],
-    uploadedColumns: string[],
-    fileName: string
-  ) => {
+  const handleReset = () => {
+    setData([])
+    setColumns([])
+    setDatasetName("")
+    setCurrentPage(0)
+    setContextColumn("")
+    setResultColumn("")
+    setView("select")
+  }
+
+  const handleFileUpload = (uploadedData: any[], uploadedColumns: string[], fileName: string) => {
     setColumns(uploadedColumns)
-    setContextColumn(detectContextColumn(uploadedColumns))
-    setResultColumn(detectResultColumn(uploadedColumns))
+    setVisibleColumns(uploadedColumns)
+
+    const detectedContextCol =
+      uploadedColumns.find((col) => col.toLowerCase().includes("context")) ||
+      uploadedColumns.find((col) => col.toLowerCase().includes("text")) ||
+      uploadedColumns.find((col) => col.toLowerCase().includes("description")) ||
+      uploadedColumns.find((col) => col.toLowerCase().includes("body")) ||
+      uploadedColumns.find((col) => col.toLowerCase().includes("feedback")) ||
+      uploadedColumns.find((col) => col.toLowerCase().includes("input")) ||
+      uploadedColumns[0] ||
+      ""
+
+    const detectedResultCol =
+      uploadedColumns.find((col) => col.toLowerCase().includes("result")) ||
+      uploadedColumns.find((col) => col.toLowerCase().includes("label")) ||
+      uploadedColumns.find((col) => col.toLowerCase().includes("category")) ||
+      uploadedColumns.find((col) => col.toLowerCase().includes("sentiment")) ||
+      uploadedColumns.find((col) => col.toLowerCase().includes("priority")) ||
+      uploadedColumns.find((col) => col.toLowerCase().includes("output")) ||
+      uploadedColumns[1] ||
+      ""
+
+    setContextColumn(detectedContextCol)
+    setResultColumn(detectedResultCol)
 
     const transformedData: RowData[] = uploadedData.map((row: any, index: number) => ({
       _id: `row-${index}`,
@@ -275,23 +199,14 @@ export default function Home() {
     setCurrentPage(0)
   }
 
-  const handleReset = () => {
-    setData([])
-    setColumns([])
-    setDatasetName("")
-    setCurrentPage(0)
-    setContextColumn("")
-    setResultColumn("")
-    setReferenceContext("")
-    setView("select")
-    setManualMode(false)
-  }
+  const filteredData = data.filter((row) => {
+    if (!searchQuery.trim()) return true
+    const query = searchQuery.toLowerCase()
+    return Object.values(row).some((value) => String(value).toLowerCase().includes(query))
+  })
 
-  const paginatedData = data.slice(
-    currentPage * rowsPerPage,
-    (currentPage + 1) * rowsPerPage
-  )
-  const totalPages = Math.ceil(data.length / rowsPerPage)
+  const paginatedData = filteredData.slice(currentPage * rowsPerPage, (currentPage + 1) * rowsPerPage)
+  const totalPages = Math.ceil(filteredData.length / rowsPerPage)
 
   return (
     <div className="min-h-screen bg-background">
@@ -331,7 +246,7 @@ export default function Home() {
         ) : (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4 flex-wrap">
+              <div className="flex items-center gap-4">
                 <Button variant="outline" size="sm" onClick={handleReset}>
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   Back to Datasets
@@ -353,16 +268,14 @@ export default function Home() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Switch
-                  id="manual-mode"
-                  checked={manualMode}
-                  onCheckedChange={setManualMode}
-                />
+                <Switch id="manual-mode" checked={manualMode} onCheckedChange={setManualMode} />
                 <Label htmlFor="manual-mode" className="cursor-pointer">
                   Manual Labeling Mode
                 </Label>
               </div>
             </div>
+
+            
 
             <ColumnSelector
               columns={columns}
@@ -388,9 +301,7 @@ export default function Home() {
                   onDataUpdate={(updatedRows) => {
                     const newData = [...data]
                     updatedRows.forEach((updatedRow) => {
-                      const index = newData.findIndex(
-                        (row) => row._id === updatedRow._id
-                      )
+                      const index = newData.findIndex((row) => row._id === updatedRow._id)
                       if (index !== -1) {
                         newData[index] = updatedRow
                       }
@@ -400,13 +311,19 @@ export default function Home() {
                 />
               </>
             )}
-
+            <div className="flex items-center gap-4">
+              <SearchFilter onSearchChange={setSearchQuery} />
+              <ColumnVisibility
+                columns={columns}
+                visibleColumns={visibleColumns}
+                onVisibilityChange={setVisibleColumns}
+              />
+            </div>
             {manualMode && (
               <Card className="p-4 bg-blue-500/10 border-blue-500/20">
                 <p className="text-sm text-blue-600 dark:text-blue-400">
-                  <span className="font-medium">Manual Labeling Mode:</span> AI
-                  labeling is disabled. You can edit the Final Result column directly
-                  to label your data manually.
+                  <span className="font-medium">Manual Labeling Mode:</span> AI labeling is disabled. You can edit the
+                  Final Result column directly to label your data manually.
                 </p>
               </Card>
             )}
@@ -414,14 +331,13 @@ export default function Home() {
             <DataGrid
               data={paginatedData}
               columns={columns}
+              visibleColumns={visibleColumns}
               contextColumn={contextColumn}
               resultColumn={resultColumn}
               onDataUpdate={(updatedRows) => {
                 const newData = [...data]
                 updatedRows.forEach((updatedRow) => {
-                  const index = newData.findIndex(
-                    (row) => row._id === updatedRow._id
-                  )
+                  const index = newData.findIndex((row) => row._id === updatedRow._id)
                   if (index !== -1) {
                     newData[index] = updatedRow
                   }

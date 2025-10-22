@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Sparkles, Loader2 } from "lucide-react"
-import { ReferenceUploader } from "@/components/reference-uploader"
+import { ReferenceUploader } from "@/components/label-ai/reference-uploader"
 import { useToast } from "@/hooks/use-toast"
 
 interface DataGeneratorProps {
@@ -21,6 +21,7 @@ export function DataGenerator({ onDataGenerated }: DataGeneratorProps) {
   const [instructions, setInstructions] = useState("")
   const [apiKey, setApiKey] = useState("")
   const [generating, setGenerating] = useState(false)
+  const [referenceContext, setReferenceContext] = useState("")
   const { toast } = useToast()
 
   const handleGenerate = async () => {

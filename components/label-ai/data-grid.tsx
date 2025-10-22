@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast"
 interface DataGridProps {
   data: RowData[]
   columns: string[]
+  visibleColumns?: string[]
   contextColumn: string
   resultColumn: string
   onDataUpdate: (data: RowData[]) => void
@@ -28,6 +29,7 @@ interface DataGridProps {
 export function DataGrid({
   data,
   columns,
+  visibleColumns = [],
   contextColumn,
   resultColumn,
   onDataUpdate,
@@ -209,7 +211,9 @@ export function DataGrid({
     })
   }
 
-  const displayColumns = columns.filter((col) => col !== contextColumn && col !== resultColumn)
+  const displayColumns = (visibleColumns.length > 0 ? visibleColumns : columns).filter(
+    (col) => col !== contextColumn && col !== resultColumn,
+  )
 
   return (
     <TooltipProvider>

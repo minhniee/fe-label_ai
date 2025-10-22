@@ -40,6 +40,7 @@ export interface DataFile {
   file_type?: string
   file_size?: number
   line_count?: number
+  column_count?: number
   content?: string
   uploaded_by: number
   uploaded_at: string
@@ -230,6 +231,22 @@ export async function getFilePreview(fileId: number) {
     return { headers: [], rows: [] } as FilePreviewResponse
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to get file preview'
+    throw new Error(errorMessage)
+  }
+}
+
+// Get actual data from a dataset version
+export async function getVersionData(datasetId: number, versionId: number) {
+  try {
+    const response = await axios.get<any>(`${API_BASE}/datasets/${datasetId}/versions/${versionId}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+    })
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to get version data'
     throw new Error(errorMessage)
   }
 }

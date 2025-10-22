@@ -1,179 +1,46 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from 'next/server'
 
-// Mock dataset data - in production, this would query your database
-const mockDatasetData: Record<string, Record<string, any[]>> = {
-  "dataset-1": {
-    v1: [
-      {
-        id: "1",
-        customer_name: "John Doe",
-        feedback_text: "Great product! Very satisfied with the quality.",
-        sentiment: "positive",
-        date: "2024-01-10",
-      },
-      {
-        id: "2",
-        customer_name: "Jane Smith",
-        feedback_text: "Disappointed with the delivery time. Product is okay.",
-        sentiment: "neutral",
-        date: "2024-01-11",
-      },
-      {
-        id: "3",
-        customer_name: "Bob Johnson",
-        feedback_text: "Terrible experience. Would not recommend.",
-        sentiment: "negative",
-        date: "2024-01-12",
-      },
-      ...Array.from({ length: 147 }, (_, i) => ({
-        id: `${i + 4}`,
-        customer_name: `Customer ${i + 4}`,
-        feedback_text: `Sample feedback text ${i + 4}`,
-        sentiment: "",
-        date: `2024-01-${(i % 28) + 1}`,
-      })),
-    ],
-    v2: [
-      ...Array.from({ length: 200 }, (_, i) => ({
-        id: `${i + 1}`,
-        customer_name: `Customer ${i + 1}`,
-        feedback_text: `Updated feedback text ${i + 1}`,
-        sentiment: i % 3 === 0 ? "positive" : i % 3 === 1 ? "neutral" : "",
-        date: `2024-02-${(i % 28) + 1}`,
-      })),
-    ],
-    v3: [
-      ...Array.from({ length: 350 }, (_, i) => ({
-        id: `${i + 1}`,
-        customer_name: `Customer ${i + 1}`,
-        feedback_text: `Expanded feedback text ${i + 1}`,
-        sentiment: "",
-        rating: i % 5 === 0 ? "5" : "",
-        date: `2024-03-${(i % 28) + 1}`,
-      })),
-    ],
-  },
-  "dataset-2": {
-    v1: [
-      {
-        product_id: "P001",
-        product_name: "Wireless Mouse",
-        description: "Ergonomic wireless mouse with 6 buttons",
-        category: "Electronics",
-        price: "29.99",
-      },
-      {
-        product_id: "P002",
-        product_name: "Office Chair",
-        description: "Comfortable office chair with lumbar support",
-        category: "Furniture",
-        price: "199.99",
-      },
-      ...Array.from({ length: 318 }, (_, i) => ({
-        product_id: `P${String(i + 3).padStart(3, "0")}`,
-        product_name: `Product ${i + 3}`,
-        description: `Description for product ${i + 3}`,
-        category: "",
-        price: `${(Math.random() * 200 + 10).toFixed(2)}`,
-      })),
-    ],
-    v2: [
-      ...Array.from({ length: 320 }, (_, i) => ({
-        product_id: `P${String(i + 1).padStart(3, "0")}`,
-        product_name: `Product ${i + 1}`,
-        description: `Updated description for product ${i + 1}`,
-        category: "",
-        brand: i % 5 === 0 ? "BrandX" : "",
-        price: `${(Math.random() * 200 + 10).toFixed(2)}`,
-      })),
-    ],
-  },
-  "dataset-3": {
-    v1: [
-      {
-        ticket_id: "T001",
-        subject: "Cannot login to account",
-        description: "User is unable to login after password reset",
-        priority: "high",
-        status: "open",
-      },
-      {
-        ticket_id: "T002",
-        subject: "Feature request",
-        description: "Would like to see dark mode option",
-        priority: "low",
-        status: "pending",
-      },
-      ...Array.from({ length: 87 }, (_, i) => ({
-        ticket_id: `T${String(i + 3).padStart(3, "0")}`,
-        subject: `Support ticket ${i + 3}`,
-        description: `Description for ticket ${i + 3}`,
-        priority: "",
-        status: "open",
-      })),
-    ],
-  },
-  "dataset-4": {
-    v1: [
-      {
-        email_id: "E001",
-        subject: "Congratulations! You won $1,000,000",
-        body: "Click here to claim your prize now!",
-        sender: "spam@example.com",
-        is_spam: "yes",
-      },
-      {
-        email_id: "E002",
-        subject: "Meeting reminder for tomorrow",
-        body: "Don't forget our team meeting at 10 AM",
-        sender: "colleague@company.com",
-        is_spam: "no",
-      },
-      ...Array.from({ length: 498 }, (_, i) => ({
-        email_id: `E${String(i + 3).padStart(3, "0")}`,
-        subject: `Email subject ${i + 3}`,
-        body: `Email body content ${i + 3}`,
-        sender: `sender${i + 3}@example.com`,
-        is_spam: "",
-      })),
-    ],
-    v2: [
-      ...Array.from({ length: 750 }, (_, i) => ({
-        email_id: `E${String(i + 1).padStart(3, "0")}`,
-        subject: `Email subject ${i + 1}`,
-        body: `Email body content ${i + 1}`,
-        sender: `sender${i + 1}@example.com`,
-        is_spam: "",
-        spam_score: "",
-        attachments: i % 10 === 0 ? "yes" : "no",
-      })),
-    ],
-  },
-}
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
 
-export async function GET(request: Request, { params }: { params: { id: string; versionId: string } }) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string; versionId: string } }
+) {
   try {
     const { id, versionId } = params
-
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 500))
-
-    const datasetVersions = mockDatasetData[id]
-    if (!datasetVersions) {
-      return NextResponse.json({ success: false, error: "Dataset not found" }, { status: 404 })
-    }
-
-    const versionData = datasetVersions[versionId]
-    if (!versionData) {
-      return NextResponse.json({ success: false, error: "Version not found" }, { status: 404 })
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: versionData,
+    
+    // Get auth token from request headers
+    const authHeader = request.headers.get('authorization')
+    
+    const response = await fetch(`${API_BASE}/datasets/${id}/versions/${versionId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authHeader && { 'Authorization': authHeader }),
+      },
     })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: errorData.detail || `HTTP ${response.status}` 
+        },
+        { status: response.status }
+      )
+    }
+
+    const data = await response.json()
+    return NextResponse.json(data)
   } catch (error) {
-    console.error("[v0] Error fetching dataset version data:", error)
-    return NextResponse.json({ success: false, error: "Failed to fetch dataset version data" }, { status: 500 })
+    console.error('API route error:', error)
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: 'Internal server error' 
+      },
+      { status: 500 }
+    )
   }
 }

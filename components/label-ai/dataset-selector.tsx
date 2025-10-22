@@ -5,17 +5,15 @@ import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Database, Calendar, Columns,User, Loader2, Sparkles, FileText, ArrowLeft, ChevronRight, Upload } from "lucide-react"
-import * as dataset from "@/app/api/datasets"  
+import { Database, Calendar, Columns, Loader2, Sparkles, FileText, ArrowLeft, ChevronRight, Upload } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import * as dataset from "@/app/api/datasets"
 import Papa from "papaparse"
 
 
 
-// satic data
-
 interface DatasetSelectorProps {
-  onVersionSelect: (datasetId:any , versionId: any) => void
+  onVersionSelect: (datasetId: any, versionId: any) => void
   onGenerateClick: () => void
   onFileUpload?: (data: any[], columns: string[], fileName: string) => void
 }
@@ -23,79 +21,65 @@ interface DatasetSelectorProps {
 export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload }: DatasetSelectorProps) {
   const [datasets, setDatasets] = useState<dataset.Dataset[]>([])
   const [versions, setVersions] = useState<dataset.DatasetVersion[]>([])
+  const [files, setFiles] = useState<dataset.DataFile[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingVersions, setLoadingVersions] = useState(false)
+  const [loadingFiles, setLoadingFiles] = useState(false)
   const [selectedDataset, setSelectedDataset] = useState<dataset.Dataset | null>(null)
   const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null)
   const [isUploading, setIsUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
 
-//static data
-const datasetStatic = {columns: [
-    "id",
-    "name",
-    "email",
-    "created_at",
-    "status",
-    "last_login",
-  ]}
-const { columns } = datasetStatic;
-const visibleCols = columns.slice(0, 4);
-const hiddenCount = columns.length - visibleCols.length;
-
-  
   useEffect(() => {
     fetchDatasets()
   }, [])
 
-  // const fetchDatasets = async () => {
-  //   try {
-  //     setLoading(true)
-  //     const datasets = await dataset.getDatasets()
-
-  //     if (datasets) {
-  //       setDatasets(datasets)
-  //     } else {
-  //       console.error("Failed to fetch datasets")
-  //     }
-  //   } catch (error) {
-  //     console.error("Error fetching datasets:", error)
-  //   } finally {
-  //     setLoading(false)
-  //   }
-  // }
-    const fetchDatasets = async () => {
-      try {
-        setLoading(true);
-        const data = await dataset.getDatasets();
-        setDatasets(data);
-      } catch (err: any) {
-        const errorMsg = err?.message || "Failed to load datasets";
-        toast({
-          title: "Error",
-          description: errorMsg,
-          variant: "destructive",
-        });
-      } finally {
-        setLoading(false);
+  const fetchDatasets = async () => {
+    try {
+      setLoading(true)
+      const response = await dataset.getDatasets()
+      if (response) {
+        setDatasets(response)
+      } else {
+        console.error("Failed to fetch datasets:", response)
       }
-    };
+    } catch (error) {
+      console.error("Error fetching datasets:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const fetchVersions = async (datasetId: number) => {
     try {
       setLoadingVersions(true)
-      const datasetVersion = await dataset.getDatasetVersions(datasetId);
-
-      if (datasetVersion) {
-        setVersions(datasetVersion)
+      const response = await dataset.getDatasetVersions(datasetId)
+      if (response) {
+        setVersions(response)
       } else {
-        console.error("Failed to fetch versions:")
+        console.error("Failed to fetch versions:", response)
       }
     } catch (error) {
       console.error("Error fetching versions:", error)
     } finally {
       setLoadingVersions(false)
+    }
+  }
+
+  const fetchFiles = async (versionId: number) => {
+    try {
+      setLoadingFiles(true)
+      const response = await dataset.getVersionFiles(versionId)
+      if (response) {
+        setFiles(response)
+      } else {
+        console.error("Failed to fetch files:", response)
+      }
+    } catch (error) {
+      console.error("Error fetching files:", error)
+    } finally {
+      setLoadingFiles(false)
     }
   }
 
@@ -107,6 +91,7 @@ const hiddenCount = columns.length - visibleCols.length;
 
   const handleVersionSelect = (versionId: number) => {
     setSelectedVersionId(versionId)
+    fetchFiles(versionId)
   }
 
   const handleStartLabeling = () => {
@@ -118,11 +103,12 @@ const hiddenCount = columns.length - visibleCols.length;
   const handleBack = () => {
     setSelectedDataset(null)
     setVersions([])
+    setFiles([])
     setSelectedVersionId(null)
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
+    return new Date(dateString).toLocaleDateString("vi-VN", {
       year: "numeric",
       month: "short",
       day: "numeric",
@@ -270,58 +256,60 @@ const hiddenCount = columns.length - visibleCols.length;
               <div className="space-y-3">
                 {versions.map((version) => (
                   <Card
-                    key={version.dataset_id}
+                    key={version.version_id}
                     className={`p-4 cursor-pointer transition-all hover:border-primary/50 ${
                       selectedVersionId === version.version_id ? "border-primary bg-primary/5" : ""
                     }`}
-                    onClick={() => handleVersionSelect(version.version_number)}
+                    onClick={() => handleVersionSelect(version.version_id)}
                   >
                     <div className="space-y-3">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
                             <FileText className="h-4 w-4 text-primary" />
-                            <h4 className="font-semibold text-foreground">{version.changelog}</h4>
+                            <h4 className="font-semibold text-foreground">{version.changelog || `Version ${version.version_number}`}</h4>
                             <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
                               v{version.version_number}
                             </span>
                           </div>
-                          <p className="text-sm text-muted-foreground mt-1">{formatDate(version.created_at)}</p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {formatDate(version.created_at)}
+                          </p>
                         </div>
                       </div>
 
-                      {/* <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <Database className="h-3 w-3" />
-                          <span>{version.rowCount} rows</span>
+                      {selectedVersionId === version.version_id && (
+                        <div className="mt-3 pt-3 border-t border-border">
+                          {loadingFiles ? (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Loading files...
+                            </div>
+                          ) : files.length > 0 ? (
+                            <div className="space-y-2">
+                              <p className="text-sm font-medium text-foreground">Files in this version:</p>
+                              {files.map((file) => (
+                                <div key={file.file_id} className="flex items-center gap-2 p-2 bg-muted/50 rounded text-sm">
+                                  <FileText className="h-4 w-4 text-muted-foreground" />
+                                  <span className="font-mono">{file.file_name}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    ({file.line_count} rows, {file.column_count} columns)
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">No files in this version</p>
+                          )}
                         </div>
-                        <div className="flex items-center gap-1">
-                          <Columns className="h-3 w-3" />
-                          <span>{version.columnCount} columns</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          <span>{formatDate(version.uploadDate)}</span>
-                        </div>
-                      </div> */}
-
-                      {/* <div>
-                        <p className="text-xs text-muted-foreground mb-1">Columns:</p>
-                        <div className="flex flex-wrap gap-1">
-                          {version.columns.map((col) => (
-                            <span key={col} className="text-xs bg-muted px-2 py-0.5 rounded font-mono">
-                              {col}
-                            </span>
-                          ))}
-                        </div>
-                      </div> */}
+                      )}
                     </div>
                   </Card>
                 ))}
               </div>
             </div>
 
-            {selectedVersionId && (
+            {selectedVersionId && files.length > 0 && (
               <div className="flex justify-end">
                 <Button onClick={handleStartLabeling} size="lg">
                   Start Labeling
@@ -381,53 +369,36 @@ const hiddenCount = columns.length - visibleCols.length;
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <h3 className="font-semibold text-foreground">{dataset.name}</h3>
-                  <p className="text-sm text-muted-foreground mt-1">{dataset.description ? dataset.description : "N/A" } </p>
+                  <p className="text-sm text-muted-foreground mt-1">{dataset.description}</p>
                 </div>
                 <ChevronRight className="h-5 w-5 text-muted-foreground" />
               </div>
 
-              <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                {/* <div className="flex items-center gap-1">
+              {/* <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                <div className="flex items-center gap-1">
                   <Database className="h-3 w-3" />
-                  <span>{dataset.rowCount} rows</span>
+                  <span>{dataset.total_rows} rows</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <Columns className="h-3 w-3" />
-                  <span>{dataset.columns} </span>
-                </div> */}
-                <div className="flex items-center gap-1">
-                  <User className="h-3 w-3" />
-                  <span>Create by: {dataset.created_by_username}</span>
+                  <span>{dataset.column_count} columns</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <Calendar className="h-3 w-3" />
-                  <span>Create at: {formatDate(dataset.created_at)}</span>
+                  <span>{dataset.created_at}</span>
                 </div>
-              </div>
+              </div> */}
 
               {/* <div className="flex flex-wrap gap-1">
-                {dataset.columns.slice(0, 4).map((col) => (
+                {dataset.columns.split(",").slice(0, 4).map((col) => (
                   <span key={col} className="text-xs bg-muted px-2 py-0.5 rounded font-mono">
-                    {col}
+                    {col.trim()}
                   </span>
                 ))}
-                {dataset.columns.length > 4 && (
-                  <span className="text-xs text-muted-foreground px-2 py-0.5">+{dataset.columns.length - 4} more</span>
+                {dataset.columns.split(",").length > 4 && (
+                  <span className="text-xs text-muted-foreground px-2 py-0.5">+{dataset.columns.split(",").length - 4} more</span>
                 )}
               </div> */}
-              <div className="flex flex-wrap gap-1">
-     {datasetStatic.columns.slice(0, 4).map((col: string) => (
-  <span key={col} className="text-xs bg-muted px-2 py-0.5 rounded font-mono">
-    {col}
-  </span>
-))}
-      {hiddenCount > 0 && (
-        <span className="text-xs text-muted-foreground px-2 py-0.5">
-          +{hiddenCount} more
-        </span>
-      )}
-    </div>
-               
             </div>
           </Card>
         ))}
