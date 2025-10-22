@@ -1,17 +1,23 @@
 'use client';
 
-import { useState } from 'react';
-
-
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Loader2 } from 'lucide-react';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://127.0.0.1:8000";
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
-
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
 export default function GoogleLoginButton() {
   const [loading, setLoading] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleLogin = () => {
+    if (typeof window === 'undefined') return;
+    
     const back = window.location.pathname + window.location.search;
     localStorage.setItem('redirect_after_login', back);
 
@@ -21,28 +27,27 @@ export default function GoogleLoginButton() {
     setLoading(true);
 
     const url = new URL(`${API_BASE}/auth/login_by_google`);
-    url.searchParams.set('state', state);
-    url.searchParams.set('redirect_uri', `${SITE_URL}/auth/google-callback`);
-    url.searchParams.set('next', '/dashboard'); 
-
     window.location.href = url.toString();
   };
 
   return (
-    <button
+    <Button
       onClick={handleLogin}
       disabled={loading}
-      className="flex items-center justify-center gap-2 w-full bg-white border border-gray-300 rounded-lg px-4 py-2 shadow-sm hover:bg-gray-100 transition disabled:opacity-60 disabled:cursor-not-allowed"
+      variant="outline"
+      className="w-full h-11 bg-white hover:bg-gray-50 border-gray-300 text-gray-700 font-medium transition-all duration-200 hover:shadow-md"
       aria-busy={loading}
     >
-      <img
-        src="https://www.svgrepo.com/show/475656/google-color.svg"
-        alt="Google logo"
-        className="w-5 h-5"
-      />
-      <span className="text-gray-700 font-medium">
-        {loading ? 'Redirecting…' : 'Login with Google'}
-      </span>
-    </button>
+      {loading ? (
+        <Loader2 className="w-5 h-5 animate-spin mr-2" />
+      ) : (
+        <img
+          src="https://www.svgrepo.com/show/475656/google-color.svg"
+          alt="Google logo"
+          className="w-5 h-5 mr-2"
+        />
+      )}
+      {loading ? 'Redirecting to Google...' : 'Continue with Google'}
+    </Button>
   );
 }
