@@ -40,9 +40,13 @@ import {
   EyeOff,
 } from "lucide-react";
 import { AgGridReact } from "ag-grid-react";
-import type { ColDef } from "ag-grid-community";
+import type { ColDef, GridApi, GridReadyEvent, CellValueChangedEvent } from "ag-grid-community";
+import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-material.css";
+
+// Register AG Grid modules
+ModuleRegistry.registerModules([AllCommunityModule]);
 import * as XLSX from 'xlsx';
 import {
   getDatasets,
@@ -65,6 +69,7 @@ export function DataLabelingInterface() {
   const [columnDefs, setColumnDefs] = useState<ColDef<GridRow>[]>([]);
   const [rowData, setRowData] = useState<GridRow[]>([]);
   const gridRef = useRef<AgGridReact<GridRow>>(null);
+  const [gridApi, setGridApi] = useState<GridApi<GridRow> | null>(null);
   const [quickFilter, setQuickFilter] = useState("");
   const [showColumnMenu, setShowColumnMenu] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({});
@@ -339,18 +344,18 @@ export function DataLabelingInterface() {
   const totalPages = Math.ceil(totalRecords / recordsPerPage);
 
   const handleExportData = (format: 'csv' | 'excel' | 'json') => {
-    if (!gridRef.current?.api) return;
+    if (!gridApi) return;
     
     const fileName = `data-export-${new Date().toISOString().split('T')[0]}`;
     
     if (format === 'csv') {
-      gridRef.current.api.exportDataAsCsv({
+      gridApi.exportDataAsCsv({
         fileName: `${fileName}.csv`
       });
     } else if (format === 'excel') {
       // Export as Excel using xlsx library
       const allData: GridRow[] = [];
-      gridRef.current.api.forEachNode((node) => {
+      gridApi.forEachNode((node) => {
         if (node.data) {
           allData.push(node.data);
         }
@@ -377,7 +382,7 @@ export function DataLabelingInterface() {
       URL.revokeObjectURL(url);
     } else if (format === 'json') {
       const allData: GridRow[] = [];
-      gridRef.current.api.forEachNode((node) => {
+      gridApi.forEachNode((node) => {
         if (node.data) {
           allData.push(node.data);
         }
@@ -396,8 +401,8 @@ export function DataLabelingInterface() {
   };
 
   const handleColumnVisibility = (field: string, visible: boolean) => {
-    if (gridRef.current?.api) {
-      gridRef.current.api.setColumnsVisible([field], visible);
+    if (gridApi) {
+      gridApi.setColumnsVisible([field], visible);
     }
     // Keep local visibility state in sync so it persists when menu is toggled
     setVisibleColumns((prev) => ({
@@ -419,12 +424,12 @@ export function DataLabelingInterface() {
   };
 
   const handleShowAllColumns = () => {
-    if (gridRef.current?.api) {
+    if (gridApi) {
       const fields = columnDefs
         .map(col => col.field)
         .filter((f): f is string => typeof f === 'string');
       if (fields.length > 0) {
-        gridRef.current.api.setColumnsVisible(fields, true);
+        gridApi.setColumnsVisible(fields, true);
       }
     }
     // Update local state for all columns
@@ -442,12 +447,12 @@ export function DataLabelingInterface() {
   };
 
   const handleHideAllColumns = () => {
-    if (gridRef.current?.api) {
+    if (gridApi) {
       const fields = columnDefs
         .map(col => col.field)
         .filter((f): f is string => typeof f === 'string' && f !== 'id');
       if (fields.length > 0) {
-        gridRef.current.api.setColumnsVisible(fields, false);
+        gridApi.setColumnsVisible(fields, false);
       }
     }
     // Update local state for all non-id columns
@@ -619,8 +624,8 @@ export function DataLabelingInterface() {
                         value={quickFilter}
                         onChange={(e) => {
                           setQuickFilter(e.target.value);
-                          if (gridRef.current?.api) {
-                            gridRef.current.api.setQuickFilter(e.target.value);
+                          if (gridApi) {
+                            gridApi.setGridOption('quickFilterText', e.target.value);
                           }
                         }}
                         className="w-48"
@@ -631,8 +636,8 @@ export function DataLabelingInterface() {
                           size="sm"
                           onClick={() => {
                             setQuickFilter("");
-                            if (gridRef.current?.api) {
-                              gridRef.current.api.setQuickFilter("");
+                            if (gridApi) {
+                              gridApi.setGridOption('quickFilterText', "");
                             }
                           }}
                         >
@@ -787,6 +792,7 @@ export function DataLabelingInterface() {
                         ref={gridRef}
                         rowData={rowData}
                         columnDefs={columnDefs}
+                        theme="legacy"
                         defaultColDef={{
                           editable: true,
                           resizable: true,
@@ -798,11 +804,10 @@ export function DataLabelingInterface() {
                         paginationPageSize={recordsPerPage}
                         rowSelection="multiple"
                         getRowId={(params: { data: GridRow }) => params.data.id}
-                        onCellValueChanged={(e: {
-                          data: GridRow;
-                          colDef: { field?: string };
-                          newValue: any;
-                        }) => {
+                        onGridReady={(params: GridReadyEvent<GridRow>) => {
+                          setGridApi(params.api);
+                        }}
+                        onCellValueChanged={(e: CellValueChangedEvent<GridRow>) => {
                           const id = e.data.id;
                           setRowData((prev) =>
                             prev.map((r) =>

@@ -61,6 +61,13 @@ export interface LabelResponse {
   creator_username: string
 }
 
+export interface GetAllLabelsResponse {
+  labels: LabelResponse[]
+  total: number
+  dataset_id: number
+  dataset_name: string
+}
+
 export async function createLabel(data: CreateLabelRequest): Promise<CreateLabelResponse> {
   try {
     const response = await axios.post<CreateLabelResponse>(`${API_BASE}/labels/`, data, {
@@ -81,13 +88,13 @@ export async function createLabel(data: CreateLabelRequest): Promise<CreateLabel
 // GET /labels/ - Get all labels
 export async function getAllLabels(): Promise<LabelResponse[]> {
   try {
-    const response = await axios.get<LabelResponse[]>(`${API_BASE}/labels/`, {
+    const response = await axios.get<GetAllLabelsResponse>(`${API_BASE}/labels/`, {
       headers: {
         'Content-Type': 'application/json',
         ...getAuthHeaders(),
       },
     })
-    return response.data
+    return response.data.labels
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to get labels'
     throw new Error(errorMessage)
