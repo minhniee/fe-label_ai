@@ -250,3 +250,25 @@ export async function getVersionData(datasetId: number, versionId: number) {
     throw new Error(errorMessage)
   }
 }
+
+// Get file data from a specific file
+export async function getFileData(fileId: number) {
+  try {
+    const response = await axios.get<any>(`${API_BASE}/datasets/files/${fileId}/data`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+    })
+    
+    // Extract the data from the response structure
+    if (response.data && response.data.success && response.data.file && response.data.file.data) {
+      return response.data.file.data
+    }
+    
+    throw new Error('Invalid response structure from file data endpoint')
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to get file data'
+    throw new Error(errorMessage)
+  }
+}

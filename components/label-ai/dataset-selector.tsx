@@ -43,9 +43,19 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
         setDatasets(response)
       } else {
         console.error("Failed to fetch datasets:", response)
+        toast({
+          title: "Error",
+          description: "Failed to load datasets",
+          variant: "destructive",
+        })
       }
     } catch (error) {
       console.error("Error fetching datasets:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load datasets. Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }
@@ -59,9 +69,19 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
         setVersions(response)
       } else {
         console.error("Failed to fetch versions:", response)
+        toast({
+          title: "Error",
+          description: "Failed to load dataset versions",
+          variant: "destructive",
+        })
       }
     } catch (error) {
       console.error("Error fetching versions:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load dataset versions. Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setLoadingVersions(false)
     }
@@ -75,9 +95,19 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
         setFiles(response)
       } else {
         console.error("Failed to fetch files:", response)
+        toast({
+          title: "Error",
+          description: "Failed to load version files",
+          variant: "destructive",
+        })
       }
     } catch (error) {
       console.error("Error fetching files:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load version files. Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setLoadingFiles(false)
     }
@@ -275,6 +305,8 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
                           <p className="text-sm text-muted-foreground mt-1">
                             {formatDate(version.created_at)}
                           </p>
+                          
+                        
                         </div>
                       </div>
 
@@ -293,8 +325,12 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
                                   <FileText className="h-4 w-4 text-muted-foreground" />
                                   <span className="font-mono">{file.file_name}</span>
                                   <span className="text-xs text-muted-foreground">
+                                    ({file.content?.at(0)})
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">
                                     ({file.line_count} rows, {file.column_count} columns)
                                   </span>
+                                  <span className="text-xs text-muted-foreground">{file.file_size} bytes</span>
                                 </div>
                               ))}
                             </div>
@@ -358,51 +394,54 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
 
       <input ref={fileInputRef} type="file" accept=".csv" onChange={handleFileUpload} className="hidden" />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {datasets.map((dataset) => (
-          <Card
-            key={dataset.dataset_id}
-            className="p-4 cursor-pointer transition-all hover:border-primary/50"
-            onClick={() => handleDatasetSelect(dataset)}
-          >
-            <div className="space-y-3">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <h3 className="font-semibold text-foreground">{dataset.name}</h3>
-                  <p className="text-sm text-muted-foreground mt-1">{dataset.description}</p>
-                </div>
-                <ChevronRight className="h-5 w-5 text-muted-foreground" />
-              </div>
-
-              {/* <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                <div className="flex items-center gap-1">
-                  <Database className="h-3 w-3" />
-                  <span>{dataset.total_rows} rows</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Columns className="h-3 w-3" />
-                  <span>{dataset.column_count} columns</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Calendar className="h-3 w-3" />
-                  <span>{dataset.created_at}</span>
-                </div>
-              </div> */}
-
-              {/* <div className="flex flex-wrap gap-1">
-                {dataset.columns.split(",").slice(0, 4).map((col) => (
-                  <span key={col} className="text-xs bg-muted px-2 py-0.5 rounded font-mono">
-                    {col.trim()}
-                  </span>
-                ))}
-                {dataset.columns.split(",").length > 4 && (
-                  <span className="text-xs text-muted-foreground px-2 py-0.5">+{dataset.columns.split(",").length - 4} more</span>
-                )}
-              </div> */}
+      {datasets.length === 0 ? (
+        <Card className="p-12 text-center">
+          <div className="flex flex-col items-center gap-4">
+            <Database className="h-12 w-12 text-muted-foreground" />
+            <div>
+              <h3 className="text-lg font-semibold">No datasets found</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                You don't have any datasets yet. Upload a CSV file or generate new data to get started.
+              </p>
             </div>
-          </Card>
-        ))}
-      </div>
+          </div>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {datasets.map((dataset) => (
+            <Card
+              key={dataset.dataset_id}
+              className="p-4 cursor-pointer transition-all hover:border-primary/50"
+              onClick={() => handleDatasetSelect(dataset)}
+            >
+              <div className="space-y-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-foreground">{dataset.name}</h3>
+                    <p className="text-sm text-muted-foreground mt-1">{dataset.description}</p>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                </div>
+
+                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1">
+                    <Calendar className="h-3 w-3" />
+                    <span>{new Date(dataset.created_at).toLocaleDateString()}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Database className="h-3 w-3" />
+                    <span>ID: {dataset.dataset_id}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>Created by: {dataset.created_by_username}</span>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
