@@ -1,256 +1,96 @@
-"use client";
+"use client"
 
-import React from "react";
-
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
-import { HeaderBar } from "./header-bar";
-import { SidebarNav } from "./sidebar-nav";
-import {
-  LayoutDashboard,
-  Database,
-  Tag,
-  Brain,
-  Settings,
-  CheckSquare,
-  Sparkles,
-  GitCompare,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Menu } from "lucide-react";
-import { getMe, logout, type MeResponse } from "@/app/api/auth";
+import React from "react"
+import { usePathname } from "next/navigation"
+import { AppSidebar } from "@/components/app-sidebar"
 import {
   Breadcrumb,
-  BreadcrumbList,
   BreadcrumbItem,
   BreadcrumbLink,
-  BreadcrumbSeparator,
+  BreadcrumbList,
   BreadcrumbPage,
-} from "@/components/ui/breadcrumb";
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb"
+import { cn } from "@/lib/utils"
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
+import { Separator } from "@/components/ui/separator"
 
 interface DashboardLayoutProps {
-  children: React.ReactNode;
+  children: React.ReactNode
 }
 
-const navigation = [
-  {
-    name: "Dashboard",
-    href: "/dashboard",
-    icon: LayoutDashboard,
-  },
-  {
-    name: "Tasks",
-    href: "/tasks",
-    icon: CheckSquare,
-  },
-  {
-    name: "Data Management",
-    href: "/data",
-    icon: Database,
-  },
-  {
-    name: "Labeling",
-    href: "/labeling",
-    icon: Tag,
-  },
-  {
-    name: "Labeling with AI",
-    href: "/labelai",
-    icon: Tag,
-  },
-  {
-    name: "Model Dashboard",
-    href: "/models",
-    icon: Brain,
-  },
-  {
-    name: "AI Suggest",
-    href: "/aisuggest",
-    icon: Sparkles,
-  },
-  {
-    name: "Admin",
-    href: "/admin",
-    icon: Settings,
-  },
-  {
-    name: "Comparison Tool",
-    href: "/comparison-tool",
-    icon: GitCompare,
-  },
-];
+// Route title mapping for breadcrumbs
+const ROUTE_TITLES: Record<string, string> = {
+  dashboard: "Dashboard",
+  tasks: "Tasks",
+  data: "Data Management",
+  labeling: "Labeling",
+  labelai: "Label AI",
+  models: "Model Dashboard",
+  aisuggest: "AI Suggest",
+  "comparison-tool": "Comparison Tool",
+  admin: "Admin",
+}
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
-  const pathname = usePathname();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [me, setMe] = useState<MeResponse | null>(null);
-
-  useEffect(() => {
-    const loadMe = async () => {
-      try {
-        const data = await getMe();
-        setMe(data);
-      } catch {
-        // ignore
-      }
-    };
-    loadMe();
-  }, []);
-
-  // Filter navigation items only for Manager(3) and Labeler(4)
-const visibleNavigation = (() => {
-  if (!me) return navigation;
-  if (me.role_id === 3 || me.role_id === 4) {
-    let items = navigation.filter((i) => i.name !== "Model Dashboard" && i.name !== "Admin");
-    if (me.role_id === 4) {
-      items = items.filter((i) => i.name !== "Data Management");
-    }
-    console.log("[visibleNavigation for role_id=" + me.role_id + "]:", items.map(i => i.name));
-    return items;
-  }
-  console.log("[visibleNavigation for Admin/SuperAdmin]:", navigation.map(i => i.name));
-  return navigation;
-})();
-
+  const pathname = usePathname()
 
   const handleLogout = async () => {
-    await logout();
-    window.location.href = "/";
-  };
+    try {
+      const { logout } = await import("@/app/api/auth")
+      await logout()
+      window.location.href = "/"
+    } catch (error) {
+      console.error("Logout failed:", error)
+    }
+  }
+
+  // Generate breadcrumb items from pathname
+  const generateBreadcrumbs = () => {
+    const segments = pathname.split("/").filter(Boolean)
+    
+    return segments.map((segment, index) => {
+      const isLast = index === segments.length - 1
+      const label = ROUTE_TITLES[segment] ?? segment.replace(/[-_]/g, " ")
+      const href = `/${segments.slice(0, index + 1).join("/")}`
+      
+      return (
+        <React.Fragment key={index}>
+          <BreadcrumbItem>
+            {isLast ? (
+              <BreadcrumbPage>{label}</BreadcrumbPage>
+            ) : (
+              <BreadcrumbLink href={href}>{label}</BreadcrumbLink>
+            )}
+          </BreadcrumbItem>
+          {!isLast && <BreadcrumbSeparator />}
+        </React.Fragment>
+      )
+    })
+  }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="fixed inset-x-0 top-0 z-50 h-16 border-b bg-background">
-        <HeaderBar
-          me={me}
-          onLogout={handleLogout}
-          navigation={visibleNavigation}
-          pathname={pathname}
-          onCloseMobile={() => setSidebarOpen(false)}
-        />
-      </div>
-
-      <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-        <SheetContent
-          side="left"
-          className="top-16 h-[calc(100vh-4rem)] w-64 p-0"
-        >
-          <div className="flex h-full flex-col">
-            <nav className="flex-1 space-y-1 px-3 py-4">
-              {visibleNavigation.map((item) => {
-                const isActive = pathname === item.href;
-                return (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                      isActive
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                    )}
-                    onClick={() => setSidebarOpen(false)}
-                  >
-                    <item.icon className="h-4 w-4" />
-                    {item.name}
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      <div
-        className={cn(
-          "hidden lg:fixed lg:top-16 lg:bottom-0 lg:z-40 lg:flex lg:flex-col transition-all",
-          sidebarCollapsed ? "lg:w-16" : "lg:w-64"
-        )}
-      >
-        <div
-          className={cn(
-            "flex grow flex-col gap-y-5 overflow-y-auto border-r border-sidebar-border",
-            sidebarCollapsed ? "px-2" : "px-6"
-          )}
-        >
-          <div className="flex items-center justify-center py-3">
-            <button
-              onClick={() => setSidebarCollapsed((v) => !v)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-sidebar-accent text-sidebar-foreground"
-              title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-          </div>
-          <SidebarNav items={visibleNavigation} collapsed={sidebarCollapsed} />
-        </div>
-      </div>
-
-      <div
-        className={cn(
-          "pt-16 transition-all",
-          sidebarCollapsed ? "lg:pl-16" : "lg:pl-64"
-        )}
-      >
-        <main className="py-8 px-4 sm:px-6 lg:px-8">
-          {/* Breadcrumb */}
-          <div className="mb-4">
+    <SidebarProvider>
+      <AppSidebar onLogout={handleLogout} />
+      <SidebarInset>
+        <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
+          <div className="flex items-center gap-2 px-4">
+            <SidebarTrigger className="-ml-1" />
+            <Separator 
+              orientation="vertical" 
+              className="mr-2 data-[orientation=vertical]:h-4" 
+            />
             <Breadcrumb>
               <BreadcrumbList>
-                {(() => {
-                  const segments = pathname.split("/").filter(Boolean);
-                  const inDashboard = segments[0] === "dashboard";
-                  // New structure: functional routes are top-level. Keep Dashboard under /dashboard.
-                  const parts = inDashboard ? ["dashboard", ...segments.slice(1)] : segments;
-
-                  const titleMap: Record<string, string> = {
-                    dashboard: "Dashboard",
-                    tasks: "Tasks",
-                    data: "Data Management",
-                    labeling: "Labeling",
-                    models: "Model Dashboard",
-                    aisuggest: "AI Suggest",
-                    "comparison-tool": "Comparison Tool",
-                    admin: "Admin",
-                  };
-
-                  const toTitle = (slug: string) =>
-                    titleMap[slug] ?? slug.replace(/[-_]/g, "_");
-
-                  const hrefFrom = (idx: number) => {
-                    const base = inDashboard ? "/dashboard" : "";
-                    return `${base}/${parts.slice(0, idx + 1).join("/")}`;
-                  };
-
-                  return parts.map((seg, idx) => {
-                    const isLast = idx === parts.length - 1;
-                    const label = toTitle(seg);
-                    return (
-                      <React.Fragment key={idx}>
-                        <BreadcrumbItem>
-                          {isLast ? (
-                            <BreadcrumbPage>{label}</BreadcrumbPage>
-                          ) : (
-                            <BreadcrumbLink href={hrefFrom(idx)}>
-                              {label}
-                            </BreadcrumbLink>
-                          )}
-                        </BreadcrumbItem>
-                        {!isLast && <BreadcrumbSeparator />}
-                      </React.Fragment>
-                    );
-                  });
-                })()}
+                {generateBreadcrumbs()}
               </BreadcrumbList>
             </Breadcrumb>
           </div>
-
+        </header>
+        <div className={cn("flex-1 p-4 pt-0")}>
           {children}
-        </main>
-      </div>
-    </div>
-  );
+        </div>
+      </SidebarInset>
+    </SidebarProvider>
+  )
 }
