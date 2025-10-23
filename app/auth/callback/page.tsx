@@ -10,18 +10,18 @@ export default function AuthCallback() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const code = params.get("code");
+    const code = params.get("access_token");
 
     if (!code) {
       setError("Thiếu mã xác thực từ server.");
       return;
     }
 
-    fetch(`${process.env.NEXT_PUBLIC_API_BASE}/auth/callback?code=${code}`)
+    fetch(`${process.env.NEXT_PUBLIC_API_BASE}/auth/callback?access_token=${code}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.access_token) {
-          localStorage.setItem("token", data.access_token);
+          localStorage.setItem("access_token", data.access_token);
           router.push("/dashboard");
         } else {
           setError("Xác thực thất bại.");
