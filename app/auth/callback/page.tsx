@@ -15,19 +15,13 @@ export default function AuthCallback() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
 
   useEffect(() => {
-<<<<<<< HEAD
     // Chờ client-side mount xong
     setHydrated(true);
   }, []);
-=======
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get("access_token");
->>>>>>> cf0b30e2e92b8172828c688ef97f5953285c6184
 
   useEffect(() => {
     if (!hydrated || typeof window === 'undefined') return; // tránh chạy trên server
 
-<<<<<<< HEAD
     const handleAuthCallback = async () => {
       try {
         const url = window.location.href;
@@ -43,16 +37,6 @@ export default function AuthCallback() {
           setError("Có lỗi xảy ra trong quá trình xác thực với Google. Vui lòng thử lại.");
           setStatus('error');
           return;
-=======
-    fetch(`${process.env.NEXT_PUBLIC_API_BASE}/auth/callback?access_token=${code}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.access_token) {
-          localStorage.setItem("access_token", data.access_token);
-          router.push("/dashboard");
-        } else {
-          setError("Xác thực thất bại.");
->>>>>>> cf0b30e2e92b8172828c688ef97f5953285c6184
         }
 
         if (!accessToken) {
