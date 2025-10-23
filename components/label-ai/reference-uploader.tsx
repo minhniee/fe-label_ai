@@ -15,7 +15,7 @@ interface ReferenceFile {
 }
 
 interface ReferenceUploaderProps {
-  onReferenceUpdate: (content: string, files: ReferenceFile[]) => void
+  onReferenceUpdate: (content: string) => void
 }
 
 export function ReferenceUploader({ onReferenceUpdate }: ReferenceUploaderProps) {
@@ -36,7 +36,7 @@ export function ReferenceUploader({ onReferenceUpdate }: ReferenceUploaderProps)
         const formData = new FormData()
         formData.append("file", file)
 
-        const response = await fetch("/api/parse-reference", {
+        const response = await fetch("http://localhost:8000/gen-ai/parse-reference", {
           method: "POST",
           body: formData,
         })
@@ -59,7 +59,7 @@ export function ReferenceUploader({ onReferenceUpdate }: ReferenceUploaderProps)
 
       // Combine all file contents
       const combinedContent = updatedFiles.map((f) => `=== ${f.name} ===\n${f.content}`).join("\n\n")
-      onReferenceUpdate(combinedContent, updatedFiles)
+      onReferenceUpdate(combinedContent)
 
       toast({
         title: "Reference files uploaded",
@@ -84,7 +84,7 @@ export function ReferenceUploader({ onReferenceUpdate }: ReferenceUploaderProps)
     setFiles(updatedFiles)
 
     const combinedContent = updatedFiles.map((f) => `=== ${f.name} ===\n${f.content}`).join("\n\n")
-    onReferenceUpdate(combinedContent, updatedFiles)
+    onReferenceUpdate(combinedContent)
 
     toast({
       title: "File removed",

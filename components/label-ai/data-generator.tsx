@@ -19,7 +19,6 @@ export function DataGenerator({ onDataGenerated }: DataGeneratorProps) {
   const [rowCount, setRowCount] = useState("20")
   const [columns, setColumns] = useState("context, category")
   const [instructions, setInstructions] = useState("")
-  const [apiKey, setApiKey] = useState("")
   const [generating, setGenerating] = useState(false)
   const [referenceContext, setReferenceContext] = useState("")
   const { toast } = useToast()
@@ -34,43 +33,47 @@ export function DataGenerator({ onDataGenerated }: DataGeneratorProps) {
       return
     }
 
-    if (!apiKey.trim()) {
-      toast({
-        title: "API Key required",
-        description: "Please enter your Gemini API key",
-        variant: "destructive",
-      })
-      return
-    }
-
     try {
       setGenerating(true)
 
-      const response = await fetch("/api/generate-data", {
+      // Send JSON data to backend API
+      const requestData = {
+        topic: topic.trim(),
+        row_count: Number.parseInt(rowCount) || 20,
+        columns: columns.trim(),
+        instructions: instructions.trim(),
+        reference_context: referenceContext.trim()
+      }
+
+      const response = await fetch("http://localhost:8000/gen-ai/generate-dataset", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          topic: topic.trim(),
-          rowCount: Number.parseInt(rowCount) || 20,
-          columns: columns
-            .split(",")
-            .map((c) => c.trim())
-            .filter(Boolean),
-          instructions: instructions.trim(),
-          apiKey: apiKey.trim(),
-        }),
+        body: JSON.stringify(requestData),
       })
 
       const result = await response.json()
 
-      if (result.success) {
-        // Parse the CSV data
-        const lines = result.csv.trim().split("\n")
-        const headers = lines[0].split(",").map((h: string) => h.trim())
+      if (result.status === "success") {
+        // The backend returns a CSV file path, we need to fetch the actual CSV content
+        const csvResponse = await fetch(`http://localhost:8000/gen-ai/files/${result.data}`)
+        
+        if (!csvResponse.ok) {
+          throw new Error(`Failed to fetch CSV file: ${csvResponse.statusText}`)
+        }
+        
+        const csvContent = await csvResponse.text()
+        
+        // Parse the CSV data (using pipe delimiter as specified in backend)
+        const lines = csvContent.trim().split("\n")
+        if (lines.length < 2) {
+          throw new Error("Generated CSV file is empty or invalid")
+        }
+        
+        const headers = lines[0].split("|").map((h: string) => h.trim())
         const rows = lines.slice(1).map((line: string) => {
-          const values = line.split(",").map((v: string) => v.trim())
+          const values = line.split("|").map((v: string) => v.trim())
           const row: any = {}
           headers.forEach((header: string, index: number) => {
             row[header] = values[index] || ""
@@ -95,7 +98,7 @@ export function DataGenerator({ onDataGenerated }: DataGeneratorProps) {
       console.error("Error generating data:", error)
       toast({
         title: "Error",
-        description: "Failed to generate data",
+        description: error instanceof Error ? error.message : "Failed to generate data",
         variant: "destructive",
       })
     } finally {
@@ -168,17 +171,6 @@ export function DataGenerator({ onDataGenerated }: DataGeneratorProps) {
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="apiKey">Gemini API Key *</Label>
-            <Input
-              id="apiKey"
-              type="password"
-              placeholder="Enter your Gemini API key"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">Your API key is only used for this request and not stored</p>
-          </div>
 
           <Button onClick={handleGenerate} disabled={generating} className="w-full">
             {generating ? (

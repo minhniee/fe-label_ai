@@ -53,6 +53,19 @@ export default function AuthCallback() {
         localStorage.setItem("access_token", accessToken);
         if (refreshToken) localStorage.setItem("refresh_token", refreshToken);
 
+        // Verify user with backend to get user info
+        try {
+          const { getMe } = await import("@/app/api/auth");
+          const userInfo = await getMe();
+          localStorage.setItem("user", JSON.stringify(userInfo));
+          console.log("✅ User info saved:", userInfo);
+        } catch (error) {
+          console.error("❌ Failed to get user info:", error);
+          setError("Không thể lấy thông tin người dùng. Vui lòng thử lại.");
+          setStatus('error');
+          return;
+        }
+
         setStatus('success');
         
         // Redirect after a short delay to show success state
