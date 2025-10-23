@@ -9,67 +9,35 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // Headers for caching
+  // Disable caching
   async headers() {
     return [
       {
-        // Cache static assets
+        // Disable cache for all routes
         source: '/(.*)',
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
+            value: 'no-cache, no-store, must-revalidate',
           },
-        ],
-      },
-      {
-        // Cache API routes (shorter cache for dynamic data)
-        source: '/api/(.*)',
-        headers: [
           {
-            key: 'Cache-Control',
-            value: 'public, max-age=60, s-maxage=60',
+            key: 'Pragma',
+            value: 'no-cache',
           },
-        ],
-      },
-      {
-        // Cache navigation pages
-        source: '/(tasks|data|labeling|labelai|models|comparison-tool|admin|aisuggest|dashboard)(.*)',
-        headers: [
           {
-            key: 'Cache-Control',
-            value: 'public, max-age=3600, s-maxage=3600',
-          },
-        ],
-      },
-      {
-        // Cache images
-        source: '/images/(.*)',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
-          },
-        ],
-      },
-      {
-        // Cache fonts
-        source: '/fonts/(.*)',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
+            key: 'Expires',
+            value: '0',
           },
         ],
       },
     ]
   },
-  // Compression
-  compress: true,
+  // Disable compression
+  compress: false,
   // Power by header
   poweredByHeader: false,
-  // Generate ETags
-  generateEtags: true,
+  // Disable ETags
+  generateEtags: false,
   // Trailing slash
   trailingSlash: false,
 }
