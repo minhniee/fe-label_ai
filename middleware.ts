@@ -1,6 +1,6 @@
 /**
- * Next.js Middleware for cache optimization
- * Xử lý cache headers và optimization
+ * Next.js Middleware - Cache disabled
+ * Disable all caching for development and testing
  */
 
 import { NextResponse } from 'next/server'
@@ -9,39 +9,10 @@ import type { NextRequest } from 'next/server'
 export function middleware(request: NextRequest) {
   const response = NextResponse.next()
 
-  // Add cache headers based on path
-  const pathname = request.nextUrl.pathname
-
-  // Static assets - cache for 1 year
-  if (pathname.startsWith('/_next/static/') || 
-      pathname.startsWith('/images/') || 
-      pathname.startsWith('/fonts/') ||
-      pathname.match(/\.(ico|png|jpg|jpeg|gif|svg|css|js|woff|woff2|ttf|eot)$/)) {
-    response.headers.set('Cache-Control', 'public, max-age=31536000, immutable')
-  }
-  
-  // API routes - cache for 1 minute (shorter for dynamic data)
-  else if (pathname.startsWith('/api/')) {
-    response.headers.set('Cache-Control', 'public, max-age=60, s-maxage=60')
-  }
-  
-  // Dashboard and navigation pages - cache for 1 hour
-  else if (pathname.startsWith('/dashboard') || 
-           pathname.startsWith('/tasks') ||
-           pathname.startsWith('/data') ||
-           pathname.startsWith('/labeling') ||
-           pathname.startsWith('/labelai') ||
-           pathname.startsWith('/models') ||
-           pathname.startsWith('/comparison-tool') ||
-           pathname.startsWith('/admin') ||
-           pathname.startsWith('/aisuggest')) {
-    response.headers.set('Cache-Control', 'public, max-age=3600, s-maxage=3600')
-  }
-  
-  // Other pages - cache for 1 hour
-  else {
-    response.headers.set('Cache-Control', 'public, max-age=3600, s-maxage=3600')
-  }
+  // Disable cache for all routes
+  response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate')
+  response.headers.set('Pragma', 'no-cache')
+  response.headers.set('Expires', '0')
 
   // Add security headers
   response.headers.set('X-Frame-Options', 'DENY')
@@ -50,7 +21,7 @@ export function middleware(request: NextRequest) {
   response.headers.set('X-DNS-Prefetch-Control', 'on')
 
   // Add CORS headers for API routes
-  if (pathname.startsWith('/api/')) {
+  if (request.nextUrl.pathname.startsWith('/api/')) {
     response.headers.set('Access-Control-Allow-Origin', '*')
     response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
     response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
