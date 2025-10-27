@@ -126,7 +126,7 @@ export default function AuthCallback() {
                   asChild
                   className="flex-1"
                 >
-                  <Link href="/">
+                  <Link href="/login">
                     <ArrowLeft className="w-4 h-4 mr-2" />
                     Về trang chủ
                   </Link>

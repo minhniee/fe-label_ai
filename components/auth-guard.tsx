@@ -55,7 +55,7 @@ export function AuthGuard({ children, allowedRoleIds }: AuthGuardProps) {
           if (!cancelled) {
             // Clear any cached user data
             try { localStorage.removeItem("user") } catch {}
-            router.push("/")
+            router.push("/login")
           }
           return
         }
@@ -132,7 +132,7 @@ export function useAuth() {
       } catch {}
       
       // Redirect to login
-      window.location.href = "/"
+      window.location.href = "/login"
     }
   }
 
