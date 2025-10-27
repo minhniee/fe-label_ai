@@ -147,7 +147,7 @@ export default function RegisterPage() {
         <Card className="shadow-lg border-0  backdrop-blur-sm">
           <CardHeader className="space-y-1">
             <div className="flex items-center gap-2">
-              <Link href="/" className="text-muted-foreground hover:text-foreground">
+              <Link href="/login" className="text-muted-foreground hover:text-foreground">
                 <ArrowLeft className="h-4 w-4" />
               </Link>
               <CardTitle className="text-2xl text-card-foreground">Register Account</CardTitle>
@@ -357,7 +357,7 @@ export default function RegisterPage() {
             <div className="mt-4 text-center">
               <p className="text-sm text-muted-foreground">
                 Already have an account?{" "}
-                <Link href="/" className="text-primary hover:text-primary/80 underline-offset-4 hover:underline">
+                <Link href="/login" className="text-primary hover:text-primary/80 underline-offset-4 hover:underline">
                   Login now
                 </Link>
               </p>

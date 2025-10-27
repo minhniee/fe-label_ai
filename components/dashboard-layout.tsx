@@ -39,7 +39,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     try {
       const { logout } = await import("@/app/api/auth")
       await logout()
-      window.location.href = "/"
+      window.location.href = "/login"
     } catch (error) {
       console.error("Logout failed:", error)
     }
