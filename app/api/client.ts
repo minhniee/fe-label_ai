@@ -6,7 +6,6 @@ export interface RequestOptions {
   method?: HttpMethod
   headers?: Record<string, string>
   body?: unknown
-  auth?: boolean
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
@@ -18,22 +17,13 @@ const axiosInstance: AxiosInstance = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true, // Enable cookies for all requests
 })
 
-// Request interceptor to add auth token
+// Request interceptor - no longer needed for auth tokens since they're in cookies
 axiosInstance.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // Check if auth is enabled for this request (using custom property)
-    if ((config as any).needsAuth !== false && typeof window !== 'undefined') {
-      try {
-        const token = localStorage.getItem("access_token")
-        if (token) {
-          config.headers.set('Authorization', `Bearer ${token}`)
-        }
-      } catch (error) {
-        console.warn('Failed to get auth token:', error)
-      }
-    }
+    // Cookies are automatically included with withCredentials: true
     return config
   },
   (error) => {
@@ -162,14 +152,14 @@ axiosInstance.interceptors.response.use(
 )
 
 export async function apiRequest<T = any>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = "GET", headers = {}, body, auth = false } = options
+  const { method = "GET", headers = {}, body } = options
 
   const config: any = {
     method: method.toLowerCase(),
     url: path,
     headers,
     data: body,
-    needsAuth: auth, // Custom property to indicate if auth is needed
+    withCredentials: true, // Ensure cookies are sent
   }
 
   try {

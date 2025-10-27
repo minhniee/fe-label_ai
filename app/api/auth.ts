@@ -45,6 +45,7 @@ export async function registerUser(payload: RegisterPayload) {
       headers: {
         'Content-Type': 'application/json',
       },
+      withCredentials: true,
     })
     return response.data
   } catch (error: any) {
@@ -61,6 +62,7 @@ export async function loginUser(username_or_email: string, password: string) {
         headers: {
           'Content-Type': 'application/json',
         },
+        withCredentials: true,
       }
     )
     return response.data
@@ -71,9 +73,9 @@ export async function loginUser(username_or_email: string, password: string) {
 }
 
 export function persistAuth(token: TokenResponse) {
+  // No longer needed - tokens are stored in HTTP-only cookies
+  // Keep this function for backward compatibility but don't store in localStorage
   try {
-    localStorage.setItem("access_token", token.access_token)
-    if (token.refresh_token) localStorage.setItem("refresh_token", token.refresh_token)
     if (token.user) localStorage.setItem("user", JSON.stringify(token.user))
   } catch {}
 }
@@ -83,8 +85,8 @@ export async function getMe() {
     const response = await axios.get<MeResponse>(`${API_BASE}/auth/me`, {
       headers: {
         'Content-Type': 'application/json',
-        ...getAuthHeaders(),
       },
+      withCredentials: true,
     })
     return response.data
   } catch (error: any) {
@@ -98,16 +100,18 @@ export async function logout() {
     await axios.post(`${API_BASE}/auth/logout`, {}, {
       headers: {
         'Content-Type': 'application/json',
-        ...getAuthHeaders(),
       },
+      withCredentials: true,
     })
   } catch (error) {
     // Continue with cleanup even if logout request fails
   } finally {
     try {
-      localStorage.removeItem("access_token")
-      localStorage.removeItem("refresh_token")
+      // Clear user data from localStorage (tokens are cleared by server cookies)
       localStorage.removeItem("user")
+      localStorage.removeItem("user_picture")
+      localStorage.removeItem("user_name")
+      localStorage.removeItem("user_email")
     } catch {}
   }
 }
