@@ -35,44 +35,40 @@ export function AuthGuard({ children, allowedRoleIds }: AuthGuardProps) {
 
     const verify = async () => {
       try {
-        // Prefer cached user if available
-        const cached = localStorage.getItem("user")
-        if (cached) {
-          try {
-            const parsed = JSON.parse(cached) as BackendUser
-            if (!cancelled) setUser(parsed)
-          } catch {}
-        }
-
-        // If we have a token, confirm with backend (fixes intermittent missing cached user)
-        const token = localStorage.getItem("access_token")
+        // With HTTP-only cookies, we can't check localStorage for tokens
+        // Instead, we try to get user info from backend using cookies
         let me: BackendUser | null = null
-        if (token) {
-          try {
-            const resp = await getMe()
-            me = resp as unknown as BackendUser
-            try { localStorage.setItem("user", JSON.stringify(me)) } catch {}
-          } catch {
-            me = null
-          }
+        
+        try {
+          const resp = await getMe()
+          me = resp as unknown as BackendUser
+          // Cache user data in localStorage for UI purposes
+          try { 
+            localStorage.setItem("user", JSON.stringify(me)) 
+          } catch {}
+        } catch (error) {
+          console.log("Authentication failed:", error)
+          me = null
         }
 
-        const effective = (me ?? (cached ? (JSON.parse(cached) as BackendUser) : null))
-
-        if (!effective) {
-          if (!cancelled) router.push("/")
+        if (!me) {
+          if (!cancelled) {
+            // Clear any cached user data
+            try { localStorage.removeItem("user") } catch {}
+            router.push("/")
+          }
           return
         }
 
         if (allowedRoleIds && allowedRoleIds.length > 0) {
-          const isAllowed = allowedRoleIds.includes(effective.role_id)
+          const isAllowed = allowedRoleIds.includes(me.role_id)
           if (!isAllowed) {
             if (!cancelled) router.push("/dashboard")
             return
           }
         }
 
-        if (!cancelled) setUser(effective)
+        if (!cancelled) setUser(me)
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -113,10 +109,31 @@ export function useAuth() {
     if (userStr) setUser(JSON.parse(userStr))
   }, [mounted])
 
-  const logout = () => {
+  const logout = async () => {
     if (typeof window === 'undefined') return
-    localStorage.removeItem("user")
-    window.location.href = "/"
+    
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+    } catch (error) {
+      console.error('Logout error:', error)
+    } finally {
+      // Clear local user data
+      try { 
+        localStorage.removeItem("user")
+        localStorage.removeItem("user_picture")
+        localStorage.removeItem("user_name")
+        localStorage.removeItem("user_email")
+      } catch {}
+      
+      // Redirect to login
+      window.location.href = "/"
+    }
   }
 
   return { user, logout }

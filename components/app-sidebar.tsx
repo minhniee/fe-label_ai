@@ -10,6 +10,7 @@ import {
   CheckSquare,
   Sparkles,
   GitCompare,
+  FileCode,
   type LucideIcon,
 } from "lucide-react";
 
@@ -108,6 +109,12 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
         url: "/data",
         icon: Database,
         isActive: pathname === "/data",
+      },
+      {
+        title: "Schema",
+        url: "/schema",
+        icon: FileCode,
+        isActive: pathname === "/schema",
       },
       {
         title: "Labeling",
