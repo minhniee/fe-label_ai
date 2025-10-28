@@ -4,10 +4,10 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params
+    const { id } = await params
     
     // Get auth token from request headers
     const authHeader = request.headers.get('authorization')

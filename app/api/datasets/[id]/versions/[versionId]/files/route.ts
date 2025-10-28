@@ -4,10 +4,10 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string; versionId: string } }
+  { params }: { params: Promise<{ id: string; versionId: string }> }
 ) {
   try {
-    const { id, versionId } = params
+    const { id, versionId } = await params
     
     // Get auth token from request headers
     const authHeader = request.headers.get('authorization')
@@ -34,11 +34,10 @@ export async function GET(
     const data = await response.json()
     return NextResponse.json(data)
   } catch (error) {
-    console.error('API route error:', error)
     return NextResponse.json(
       { 
         success: false, 
-        error: 'Internal server error' 
+        error: error instanceof Error ? error.message : 'Internal server error' 
       },
       { status: 500 }
     )

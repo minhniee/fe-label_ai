@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Database, Calendar, Columns, Loader2, Sparkles, FileText, ArrowLeft, ChevronRight, Upload } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { getAuthHeaders } from "@/app/api/auth"
 import Papa from "papaparse"
 
 interface Dataset {
@@ -54,16 +55,40 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
   const fetchDatasets = async () => {
     try {
       setLoading(true)
-      const response = await fetch("/api/datasets")
+      
+      const response = await fetch("/api/datasets", {
+        method: 'GET',
+        headers: getAuthHeaders(),
+      })
       const result = await response.json()
 
       if (result.success) {
         setDatasets(result.datasets)
       } else {
-        console.error("Failed to fetch datasets:", result.error)
+        if (result.error === "Not authenticated" || result.error?.includes("authentication")) {
+          toast({
+            title: "Authentication Required",
+            description: "Please log in to access datasets. Redirecting to login page...",
+            variant: "destructive",
+          })
+          // Redirect to login page after a short delay
+          setTimeout(() => {
+            window.location.href = "/"
+          }, 2000)
+        } else {
+          toast({
+            title: "Failed to fetch datasets",
+            description: result.error || "An unexpected error occurred",
+            variant: "destructive",
+          })
+        }
       }
     } catch (error) {
-      console.error("Error fetching datasets:", error)
+      toast({
+        title: "Error fetching datasets",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }
@@ -72,16 +97,28 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
   const fetchVersions = async (datasetId: string) => {
     try {
       setLoadingVersions(true)
-      const response = await fetch(`/api/datasets/${datasetId}/versions`)
+      
+      const response = await fetch(`/api/datasets/${datasetId}/versions`, {
+        method: 'GET',
+        headers: getAuthHeaders(),
+      })
       const result = await response.json()
 
       if (result.success) {
         setVersions(result.versions)
       } else {
-        console.error("Failed to fetch versions:", result.error)
+        toast({
+          title: "Failed to fetch versions",
+          description: result.error || "An unexpected error occurred",
+          variant: "destructive",
+        })
       }
     } catch (error) {
-      console.error("Error fetching versions:", error)
+      toast({
+        title: "Error fetching versions",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
+        variant: "destructive",
+      })
     } finally {
       setLoadingVersions(false)
     }

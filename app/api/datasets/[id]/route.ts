@@ -107,9 +107,9 @@ const mockDatasetData: Record<string, any[]> = {
   ],
 }
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = params
+    const { id } = await params
 
     // Simulate API delay
     await new Promise((resolve) => setTimeout(resolve, 500))

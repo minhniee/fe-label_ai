@@ -30,6 +30,58 @@ export type RowData = {
 }
 
 export default function Home() {
+  // Labeling API integration
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
+
+  const handleAILabeling = async (
+    rows: RowData[],
+    model: string,
+    apiKey: string,
+    contextColumn: string,
+    referenceContext: string
+  ): Promise<RowData[]> => {
+    const response = await fetch(`${API_BASE}/ai-labeling/label`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify({
+        rows,
+        model,
+        apiKey,
+        contextColumn,
+        referenceContext,
+      }),
+    })
+
+    const result = await response.json()
+
+    if (!result.success) {
+      throw new Error(result.error || "Failed to label data")
+    }
+
+    return result.data || []
+  }
+
+  const handleTestAPIKey = async (apiKey: string, model: string): Promise<boolean> => {
+    try {
+      const response = await fetch(`${API_BASE}/ai-labeling/test-key`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({ apiKey, model }),
+      })
+
+      const result = await response.json()
+      return result.success === true
+    } catch (error) {
+      console.error("Error testing API key:", error)
+      return false
+    }
+  }
   const [data, setData] = useState<RowData[]>([])
   const [columns, setColumns] = useState<string[]>([])
   const [datasetName, setDatasetName] = useState<string>("")
@@ -428,6 +480,8 @@ export default function Home() {
                     })
                     setData(newData)
                   }}
+                  onLabel={handleAILabeling}
+                  onTestKey={handleTestAPIKey}
                 />
               </>
             )}
