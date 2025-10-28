@@ -8,11 +8,24 @@ export async function GET(
 ) {
   try {
     const { id, versionId } = params
+    const { searchParams } = new URL(request.url)
+    
+    // Get pagination parameters
+    const page = parseInt(searchParams.get('page') || '0')
+    const limit = parseInt(searchParams.get('limit') || '50')
+    const search = searchParams.get('search') || ''
     
     // Get auth token from request headers
     const authHeader = request.headers.get('authorization')
     
-    const response = await fetch(`${API_BASE}/datasets/${id}/versions/${versionId}`, {
+    // Build query string for backend
+    const queryParams = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+      ...(search && { search }),
+    })
+    
+    const response = await fetch(`${API_BASE}/datasets/${id}/versions/${versionId}?${queryParams}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

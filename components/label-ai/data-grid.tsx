@@ -1,14 +1,14 @@
 "use client"
 
 import { useState } from "react"
-import { Check, ChevronLeft, ChevronRight, Download, X, CheckCheck, Send, Info } from "lucide-react"
+import { Check, ChevronLeft, ChevronRight, Download, X, CheckCheck, Send, Trash2, Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import type { RowData } from "@/app/(navigation)/labelai/page"
+import type { RowData } from "@/app/page"
 import { useToast } from "@/hooks/use-toast"
 
 interface DataGridProps {
@@ -46,13 +46,14 @@ export function DataGrid({
   } | null>(null)
   const [versionName, setVersionName] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [hoveredCell, setHoveredCell] = useState<{ rowId: string; field: string } | null>(null)
   const { toast } = useToast()
 
   const confirmedCount = manualMode
     ? allData.filter((row) => row[resultColumn] && row[resultColumn].toString().trim() !== "").length
     : allData.filter((row) => row._confirmed).length
-  const labeledCount = allData.filter((row) => row._ai_suggestion).length
-  const pendingOnPage = data.filter((row) => row._ai_suggestion && !row._confirmed).length
+  const validatedCount = allData.filter((row) => row._validation_status).length
+  const pendingOnPage = data.filter((row) => row._validation_status && !row._confirmed).length
   const allConfirmed = confirmedCount === allData.length && allData.length > 0
 
   const generateVersionName = () => {
@@ -72,25 +73,12 @@ export function DataGrid({
   }
 
   const handleConfirm = (rowId: string) => {
-    const updatedData = data.map((row) =>
-      row._id === rowId
-        ? {
-            ...row,
-            [resultColumn]: row._ai_suggestion || row[resultColumn],
-            _confirmed: true,
-          }
-        : row,
-    )
-    onDataUpdate(updatedData)
-  }
-
-  const handleReject = (rowId: string) => {
     const row = data.find((r) => r._id === rowId)
     const updatedData = data.map((r) =>
       r._id === rowId
         ? {
             ...r,
-            _ai_suggestion: "",
+            [resultColumn]: row?._corrected_value || row?.[resultColumn],
             _confirmed: true,
           }
         : r,
@@ -98,22 +86,69 @@ export function DataGrid({
     onDataUpdate(updatedData)
   }
 
+  const handleReject = (rowId: string) => {
+    const updatedData = data.map((r) =>
+      r._id === rowId
+        ? {
+            ...r,
+            _validation_status: "",
+            _corrected_value: "",
+            _confirmed: true,
+          }
+        : r,
+    )
+    onDataUpdate(updatedData)
+  }
+
+  const handleClearAllSuggestions = () => {
+    const updatedData = allData.map((row) => ({
+      ...row,
+      _validation_status: "",
+      _corrected_value: "",
+      _ai_reasoning: "",
+      _confirmed: false,
+    }))
+    onDataUpdate(updatedData)
+    toast({
+      title: "Validation cleared",
+      description: "All data validation has been removed. You can generate new validation.",
+    })
+  }
+
   const handleConfirmAll = () => {
     const updatedData = data.map((row) =>
-      row._ai_suggestion && !row._confirmed
+      row._validation_status && !row._confirmed
         ? {
             ...row,
-            [resultColumn]: row._ai_suggestion,
+            [resultColumn]: row._corrected_value || row[resultColumn],
             _confirmed: true,
           }
         : row,
     )
     onDataUpdate(updatedData)
     toast({
-      title: "Confirmed all suggestions",
+      title: "Confirmed all validations",
       description: `Confirmed ${
         updatedData.filter((r) => r._confirmed).length - data.filter((r) => r._confirmed).length
-      } AI suggestions on this page.`,
+      } validations on this page.`,
+    })
+  }
+
+  const handleRejectAll = () => {
+    const updatedData = data.map((row) =>
+      row._validation_status && !row._confirmed
+        ? {
+            ...row,
+            _validation_status: "",
+            _corrected_value: "",
+            _confirmed: true,
+          }
+        : row,
+    )
+    onDataUpdate(updatedData)
+    toast({
+      title: "Rejected all validations",
+      description: `Rejected ${pendingOnPage} validations on this page.`,
     })
   }
 
@@ -184,13 +219,13 @@ export function DataGrid({
   }
 
   const handleExport = () => {
-    const exportColumns = [...columns, "_ai_suggestion", "_final_result"]
+    const exportColumns = [...columns, "_validation_status", "_corrected_value"]
     const csv = [
       exportColumns.join(","),
       ...allData.map((row) =>
         exportColumns
           .map((col) => {
-            const value = col === "_final_result" ? row[resultColumn] || "" : row[col] || ""
+            const value = col === "_corrected_value" ? row._corrected_value || "" : row[col] || ""
             return `"${String(value).replace(/"/g, '""')}"`
           })
           .join(","),
@@ -201,19 +236,70 @@ export function DataGrid({
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = "labeled-data.csv"
+    a.download = "validated-data.csv"
     a.click()
     URL.revokeObjectURL(url)
 
     toast({
       title: "Export successful",
-      description: `Exported ${allData.length} rows to labeled-data.csv`,
+      description: `Exported ${allData.length} rows to validated-data.csv`,
     })
   }
 
   const displayColumns = (visibleColumns.length > 0 ? visibleColumns : columns).filter(
     (col) => col !== contextColumn && col !== resultColumn,
   )
+
+  const getCellColor = (status: string) => {
+    switch (status) {
+      case "correct":
+        return "bg-green-50 dark:bg-green-950/30 border-l-4 border-l-green-500"
+      case "incorrect":
+        return "bg-red-50 dark:bg-red-950/30 border-l-4 border-l-red-500"
+      case "ambiguous":
+        return "bg-yellow-50 dark:bg-yellow-950/30 border-l-4 border-l-yellow-500"
+      default:
+        return "bg-background border-l-4 border-l-transparent"
+    }
+  }
+
+  const getCellTextColor = (status: string) => {
+    switch (status) {
+      case "correct":
+        return "text-green-900 dark:text-green-100"
+      case "incorrect":
+        return "text-red-900 dark:text-red-100"
+      case "ambiguous":
+        return "text-yellow-900 dark:text-yellow-100"
+      default:
+        return ""
+    }
+  }
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "correct":
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs font-medium">
+            <Check className="h-3 w-3" /> Correct
+          </span>
+        )
+      case "incorrect":
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-xs font-medium">
+            <X className="h-3 w-3" /> Incorrect
+          </span>
+        )
+      case "ambiguous":
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-xs font-medium">
+            <Info className="h-3 w-3" /> Ambiguous
+          </span>
+        )
+      default:
+        return null
+    }
+  }
 
   return (
     <TooltipProvider>
@@ -226,7 +312,7 @@ export function DataGrid({
                   <CheckCheck className="h-5 w-5 text-success" />
                   <h3 className="font-semibold text-success">All rows confirmed!</h3>
                 </div>
-                <p className="text-sm text-muted-foreground">Ready to submit your labeled dataset as a new version</p>
+                <p className="text-sm text-muted-foreground">Ready to submit your validated dataset as a new version</p>
               </div>
               <div className="flex items-center gap-4">
                 <div className="space-y-2">
@@ -264,9 +350,9 @@ export function DataGrid({
             {!manualMode && (
               <>
                 <div>
-                  <p className="text-sm text-muted-foreground">AI Labeled</p>
+                  <p className="text-sm text-muted-foreground">Validated</p>
                   <p className="font-mono text-sm font-medium text-primary">
-                    {labeledCount} / {allData.length}
+                    {validatedCount} / {allData.length}
                   </p>
                 </div>
                 <div className="h-8 w-px bg-border" />
@@ -283,21 +369,52 @@ export function DataGrid({
                 <div className="h-8 w-px bg-border" />
                 <div>
                   <p className="text-sm text-muted-foreground">Pending Review</p>
-                  <p className="font-mono text-sm font-medium text-warning">{labeledCount - confirmedCount}</p>
+                  <p className="font-mono text-sm font-medium text-warning">{validatedCount - confirmedCount}</p>
                 </div>
               </>
             )}
           </div>
           <div className="flex items-center gap-2">
+            {!manualMode && validatedCount > 0 && (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      onClick={handleClearAllSuggestions}
+                      variant="outline"
+                      className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10 bg-transparent"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Clear Validation
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Remove all data validation and start over</TooltipContent>
+                </Tooltip>
+              </>
+            )}
             {!manualMode && pendingOnPage > 0 && (
-              <Button onClick={handleConfirmAll} variant="outline" className="gap-2 bg-transparent">
-                <CheckCheck className="h-4 w-4" />
-                Confirm All on Page
-              </Button>
+              <>
+                <Button
+                  onClick={handleConfirmAll}
+                  variant="outline"
+                  className="gap-2 bg-transparent text-success hover:text-success hover:bg-success/10"
+                >
+                  <CheckCheck className="h-4 w-4" />
+                  Accept All
+                </Button>
+                <Button
+                  onClick={handleRejectAll}
+                  variant="outline"
+                  className="gap-2 bg-transparent text-destructive hover:text-destructive hover:bg-destructive/10"
+                >
+                  <X className="h-4 w-4" />
+                  Reject All
+                </Button>
+              </>
             )}
             <Button onClick={handleExport} className="gap-2">
               <Download className="h-4 w-4" />
-              Export Final CSV
+              Export CSV
             </Button>
           </div>
         </div>
@@ -316,39 +433,26 @@ export function DataGrid({
                   {displayColumns.map((col) => (
                     <th
                       key={col}
-                      className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-32"
+                      className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider min-w-[250px]"
                     >
                       {col}
                     </th>
                   ))}
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-32">
-                    {resultColumn || "Original"}
-                  </th>
-                  {!manualMode && (
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-32">
-                      AI Suggestion
-                    </th>
-                  )}
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-32">
-                    Final Result
-                  </th>
                   {!manualMode && (
                     <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-40">
-                      Actions
+                      Status
                     </th>
                   )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {data.map((row, index) => {
-                  const originalValue = row[resultColumn]
-                  const isDifferent = row._ai_suggestion && originalValue && row._ai_suggestion !== originalValue
-
                   return (
                     <tr
                       key={row._id}
                       className={cn(
                         "hover:bg-secondary/50 transition-colors",
+                        row._is_new && "bg-blue-50 dark:bg-blue-950/20 border-l-4 border-l-blue-500",
                         !manualMode && row._confirmed && "bg-success/5",
                         manualMode && row[resultColumn] && row[resultColumn].toString().trim() !== "" && "bg-success/5",
                       )}
@@ -362,103 +466,95 @@ export function DataGrid({
                         </div>
                       </td>
                       {displayColumns.map((col) => (
-                        <td key={col} className="px-4 py-3 text-sm">
-                          <div className="max-w-[150px] truncate font-mono text-muted-foreground" title={row[col]}>
-                            {row[col] || "-"}
-                          </div>
-                        </td>
-                      ))}
-                      <td className="px-4 py-3 text-sm">
-                        <span className="font-mono text-muted-foreground">{originalValue || "-"}</span>
-                      </td>
-                      {!manualMode && (
-                        <td className="px-4 py-3 text-sm">
-                          {row._ai_suggestion ? (
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={cn(
-                                  "font-mono px-2 py-1 rounded",
-                                  isDifferent ? "bg-warning/20 text-warning-foreground" : "bg-primary/20 text-primary",
-                                )}
-                              >
-                                {row._ai_suggestion}
-                              </span>
-                              {row._ai_reasoning && (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <button className="text-muted-foreground hover:text-foreground transition-colors">
-                                      <Info className="h-4 w-4" />
-                                    </button>
-                                  </TooltipTrigger>
-                                  <TooltipContent className="max-w-xs">
-                                    <p className="text-xs">{row._ai_reasoning}</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </td>
-                      )}
-                      <td className="px-4 py-3 text-sm">
-                        {editingCell?.rowId === row._id && editingCell?.field === resultColumn ? (
-                          <Input
-                            autoFocus
-                            value={row[resultColumn]}
-                            onChange={(e) => handleCellEdit(row._id, resultColumn, e.target.value)}
-                            onBlur={() => setEditingCell(null)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                setEditingCell(null)
+                        <td
+                          key={col}
+                          className="px-4 py-3 text-sm relative"
+                          onMouseEnter={() => setHoveredCell({ rowId: row._id, field: col })}
+                          onMouseLeave={() => setHoveredCell(null)}
+                        >
+                          <div
+                            className={cn(
+                              "rounded px-3 py-2 font-mono text-sm border transition-all cursor-pointer hover:shadow-md",
+                              getCellColor(row._validation_status),
+                              getCellTextColor(row._validation_status),
+                            )}
+                            onClick={() => {
+                              if (manualMode) {
+                                setEditingCell({ rowId: row._id, field: col })
                               }
                             }}
-                            className="h-8 font-mono"
-                          />
-                        ) : (
-                          <div
-                            onClick={() =>
-                              setEditingCell({
-                                rowId: row._id,
-                                field: resultColumn,
-                              })
-                            }
-                            className="cursor-pointer hover:bg-secondary/50 px-2 py-1 rounded font-mono"
                           >
-                            {row[resultColumn] || "-"}
+                            {editingCell?.rowId === row._id && editingCell?.field === col ? (
+                              <Input
+                                autoFocus
+                                value={row[col]}
+                                onChange={(e) => handleCellEdit(row._id, col, e.target.value)}
+                                onBlur={() => setEditingCell(null)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    setEditingCell(null)
+                                  }
+                                }}
+                                className="h-6 font-mono text-sm p-1"
+                              />
+                            ) : (
+                              <span>{row[col] || "-"}</span>
+                            )}
                           </div>
-                        )}
-                      </td>
+
+                          {hoveredCell?.rowId === row._id &&
+                            hoveredCell?.field === col &&
+                            row._validation_status &&
+                            row._validation_status !== "correct" && (
+                              <div className="absolute top-full left-0 mt-2 z-50 bg-card border border-border rounded-lg shadow-xl p-4 min-w-[350px]">
+                                <div className="space-y-3">
+                                  <div>
+                                    <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">
+                                      Corrected Value
+                                    </p>
+                                    <div className="bg-secondary/50 rounded px-3 py-2 border border-border font-mono text-sm">
+                                      {row._corrected_value || row[col] || "-"}
+                                    </div>
+                                  </div>
+                                  {row._ai_reasoning && (
+                                    <div>
+                                      <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">
+                                        Reasoning
+                                      </p>
+                                      <p className="text-sm text-muted-foreground leading-relaxed">
+                                        {row._ai_reasoning}
+                                      </p>
+                                    </div>
+                                  )}
+                                  <div className="flex gap-2 pt-2 border-t border-border">
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleConfirm(row._id)}
+                                      className="flex-1 h-8 text-xs gap-1 bg-green-600 hover:bg-green-700 text-white"
+                                    >
+                                      <Check className="h-3 w-3" />
+                                      Confirm
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleReject(row._id)}
+                                      className="flex-1 h-8 text-xs gap-1 bg-red-600 hover:bg-red-700 text-white"
+                                    >
+                                      <X className="h-3 w-3" />
+                                      Reject
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                        </td>
+                      ))}
                       {!manualMode && (
                         <td className="px-4 py-3 text-sm">
-                          {row._ai_suggestion &&
-                          !row._confirmed &&
-                          row._ai_suggestion.toString().trim().toLowerCase() !==
-                            (row[resultColumn]?.toString().trim().toLowerCase() || "") ? (
-                            <div className="flex items-center gap-1">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleConfirm(row._id)}
-                                className="h-8 gap-1 text-success hover:text-success hover:bg-success/10"
-                              >
-                                <Check className="h-4 w-4" />
-                                Accept
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleReject(row._id)}
-                                className="h-8 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10"
-                              >
-                                <X className="h-4 w-4" />
-                                Reject
-                              </Button>
-                            </div>
-                          ) : row._confirmed ? (
-                            <div className="flex items-center gap-1 text-success">
-                              <Check className="h-4 w-4" />
-                              <span className="text-xs">Confirmed</span>
+                          {row._validation_status ? (
+                            <div className="flex items-center gap-2">
+                              {getStatusBadge(row._validation_status)}
+                              {row._confirmed && <span className="text-xs text-success font-medium">✓ Confirmed</span>}
                             </div>
                           ) : null}
                         </td>

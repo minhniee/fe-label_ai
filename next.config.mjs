@@ -9,37 +9,31 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // Disable caching
-  async headers() {
-    return [
-      {
-        // Disable cache for all routes
-        source: '/(.*)',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'no-cache, no-store, must-revalidate',
-          },
-          {
-            key: 'Pragma',
-            value: 'no-cache',
-          },
-          {
-            key: 'Expires',
-            value: '0',
-          },
-        ],
-      },
-    ]
-  },
-  // Disable compression
-  compress: false,
+  // Enable compression for better performance
+  compress: true,
   // Power by header
   poweredByHeader: false,
-  // Disable ETags
-  generateEtags: false,
+  // Enable ETags for caching
+  generateEtags: true,
   // Trailing slash
   trailingSlash: false,
+  // Enable experimental features for better performance
+  experimental: {
+    optimizeCss: true,
+    optimizePackageImports: ['lucide-react', '@radix-ui/react-icons'],
+  },
+  // Optimize bundle
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+      };
+    }
+    return config;
+  },
 }
 
 export default nextConfig

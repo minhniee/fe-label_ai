@@ -3,8 +3,10 @@ import axios from 'axios'
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
 
 // Helper function to get auth headers
-const getAuthHeaders = () => {
-  const headers: Record<string, string> = {}
+export const getAuthHeaders = () => {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
   try {
     const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null
     if (token) {
