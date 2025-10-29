@@ -82,6 +82,19 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
         const { getMe } = await import("@/app/api/auth");
         const data = await getMe();
         setMe(data);
+        // Also hydrate visible user info from backend (Google name/email/image if provided)
+        try {
+          setUser((prev) => ({
+            name: (data as any).username || (data as any).name || prev.name || "User",
+            email: (data as any).email || prev.email || "",
+            avatar:
+              // prefer picture from backend if available
+              (data as any).picture ||
+              (typeof window !== "undefined" ? localStorage.getItem("user_picture") : null) ||
+              prev.avatar ||
+              "/avatars/default.jpg",
+          }));
+        } catch {}
       } catch (error) {
         console.warn("Failed to load user role:", error);
       }

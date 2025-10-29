@@ -21,7 +21,7 @@ import { Input } from "@/components/ui/input"
 import { Eye, EyeOff } from "lucide-react"
 import { loginUser, persistAuth } from "@/app/api/auth"
 import { useToast } from "@/hooks/use-toast"
-import GoogleLoginButton from "@/components/google-login-button"
+import GoogleLoginButton from "@/components/google-login"
 import Link from "next/link"
 
 export function LoginForm({
