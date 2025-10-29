@@ -95,11 +95,11 @@ export function TaskList({ tasks, onTaskAction }: TaskListProps) {
   return (
     <div className="space-y-4">
       {tasks.map((task) => (
-        <Card
+        <Card className=" "
           key={task.id}
           className={`hover:shadow-md transition-shadow ${isOverdue(task.dueDate) ? "border-red-200 bg-red-50" : ""}`}
         >
-          <CardContent className="p-6">
+          <Card className=" "Content className="p-6">
             <div className="flex items-start justify-between mb-4">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">

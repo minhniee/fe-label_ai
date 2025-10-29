@@ -24,6 +24,7 @@ import {
   AlertCircle,
   FileText,
 } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 interface Model {
   id: string
@@ -51,6 +52,7 @@ interface TrainingJob {
 }
 
 export function ModelTraining() {
+  const { toast } = useToast()
   const [selectedDataVersion, setSelectedDataVersion] = useState<string>("")
   const [modelName, setModelName] = useState<string>("")
   const [modelDescription, setModelDescription] = useState<string>("")
@@ -114,18 +116,14 @@ export function ModelTraining() {
 
   const handleExportData = (format: "csv" | "jsonl") => {
     // TODO: Implement data export logic
-    console.log(`Exporting data in ${format} format`)
+    toast({ title: "Exporting data..." })
   }
 
   const handleStartTraining = () => {
     if (!selectedDataVersion || !modelName) return
 
     // TODO: Implement training start logic
-    console.log("Starting training:", {
-      dataVersion: selectedDataVersion,
-      modelName,
-      description: modelDescription,
-    })
+    toast({ title: "Started training!" })
     setIsTraining(true)
   }
 
@@ -203,7 +201,7 @@ export function ModelTraining() {
 
       {/* Current Training Status */}
       {currentTraining && (
-        <Card>
+        <Card className=" ">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Brain className="h-5 w-5" />

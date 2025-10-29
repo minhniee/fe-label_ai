@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,247 +11,242 @@ import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Upload, FileText, Calendar, Eye, Download, CheckCircle, AlertCircle, Clock, Plus } from "lucide-react"
+import { Upload, FileText, Calendar, Eye, Download, CheckCircle, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { getDatasets, createDatasetVersion, getDatasetVersions, uploadFileToVersion, getVersionFiles, createDataset, type Dataset, type DatasetVersion, type DataFile } from "@/api/datasets"
+import { getDatasets, createDatasetVersion, getDatasetVersions, uploadFileToVersion, getVersionFiles, createDataset, type Dataset, type DatasetVersion, type DataFile } from "@/app/api/datasets"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { useToast } from "@/hooks/use-toast"
+import { FileUpload } from "@/components/file-upload"
 
 export function DataUpload() {
-  const [dragActive, setDragActive] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState(0)
-  const [isUploading, setIsUploading] = useState(false)
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [description, setDescription] = useState("")
-  const [selectedDatasetId, setSelectedDatasetId] = useState<string>("")
-  const [versionId, setVersionId] = useState<string>("")
-  const [error, setError] = useState("")
-  const [success, setSuccess] = useState("")
+  const { toast } = useToast();
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [description, setDescription] = useState("");
+  const [selectedDatasetId, setSelectedDatasetId] = useState<string>("");
+  const [versionId, setVersionId] = useState<string>("");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   // Dataset creation state
-  const [isCreateDatasetOpen, setIsCreateDatasetOpen] = useState(false)
+  const [isCreateDatasetOpen, setIsCreateDatasetOpen] = useState(false);
   const [newDataset, setNewDataset] = useState({
     name: "",
     description: "",
-  })
-  const [isCreatingDataset, setIsCreatingDataset] = useState(false)
-  const [datasetError, setDatasetError] = useState("")
-  const [datasetSuccess, setDatasetSuccess] = useState("")
+  });
+  const [isCreatingDataset, setIsCreatingDataset] = useState(false);
+  const [datasetError, setDatasetError] = useState("");
+  const [datasetSuccess, setDatasetSuccess] = useState("");
 
   // Data state
-  const [datasets, setDatasets] = useState<Dataset[]>([])
-  const [versions, setVersions] = useState<DatasetVersion[]>([])
-  const [files, setFiles] = useState<DataFile[]>([])
-  const [loading, setLoading] = useState(false)
-  const [selectedVersion, setSelectedVersion] = useState<DatasetVersion | null>(null)
+  const [datasets, setDatasets] = useState<Dataset[]>([]);
+  const [versions, setVersions] = useState<DatasetVersion[]>([]);
+  const [files, setFiles] = useState<DataFile[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedVersion, setSelectedVersion] = useState<DatasetVersion | null>(
+    null
+  );
 
   // Load datasets on mount
   useEffect(() => {
-    loadDatasets()
-  }, [])
+    loadDatasets();
+  }, []);
 
   // Load versions when dataset changes
   useEffect(() => {
     if (selectedDatasetId) {
-      loadVersions(parseInt(selectedDatasetId))
+      loadVersions(parseInt(selectedDatasetId));
     }
-  }, [selectedDatasetId])
+  }, [selectedDatasetId]);
 
   // Load files when version changes
   useEffect(() => {
     if (versionId) {
-      loadFiles(parseInt(versionId))
+      loadFiles(parseInt(versionId));
       // Find and set the selected version
-      const version = versions.find(v => v.version_id.toString() === versionId)
-      setSelectedVersion(version || null)
+      const version = versions.find(
+        (v) => v.version_id.toString() === versionId
+      );
+      setSelectedVersion(version || null);
     } else {
-      setSelectedVersion(null)
+      setSelectedVersion(null);
     }
-  }, [versionId, versions])
+  }, [versionId, versions]);
 
   const loadDatasets = async () => {
     try {
-      setLoading(true)
-      const data = await getDatasets()
-      setDatasets(data)
+      setLoading(true);
+      const data = await getDatasets();
+      setDatasets(data);
     } catch (err: any) {
-      setError(err?.message || "Failed to load datasets")
+      setError(err?.message || "Failed to load datasets");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const loadVersions = async (datasetId: number) => {
     try {
-      const data = await getDatasetVersions(datasetId)
-      setVersions(data)
+      const data = await getDatasetVersions(datasetId);
+      setVersions(data);
     } catch (err: any) {
-      setError(err?.message || "Failed to load versions")
+      setError(err?.message || "Failed to load versions");
     }
-  }
+  };
 
   const loadFiles = async (versionId: number) => {
     try {
-      const data = await getVersionFiles(versionId)
-      setFiles(data)
+      const data = await getVersionFiles(versionId);
+      setFiles(data);
     } catch (err: any) {
-      setError(err?.message || "Failed to load files")
+      setError(err?.message || "Failed to load files");
     }
-  }
+  };
 
   const handleCreateDataset = async () => {
     if (!newDataset.name.trim()) {
-      setDatasetError("Dataset name is required")
-      return
+      setDatasetError("Dataset name is required");
+      return;
     }
 
     try {
-      setIsCreatingDataset(true)
-      setDatasetError("")
-      setDatasetSuccess("")
+      setIsCreatingDataset(true);
+      setDatasetError("");
+      setDatasetSuccess("");
 
-      const dataset = await createDataset(newDataset.name, newDataset.description)
-      
-      setDatasetSuccess(`Dataset "${dataset.name}" đã được tạo thành công!`)
-      
+      const dataset = await createDataset(
+        newDataset.name,
+        newDataset.description
+      );
+
       // Reset form
-      setNewDataset({ name: "", description: "" })
-      
+      setNewDataset({ name: "", description: "" });
+
       // Reload datasets to show the new one
-      loadDatasets()
-      
-      // Close dialog after a short delay
-      setTimeout(() => {
-        setIsCreateDatasetOpen(false)
-        setDatasetSuccess("")
-      }, 2000)
-      
+      loadDatasets();
+
+      // Close dialog
+      setIsCreateDatasetOpen(false);
+
+      // Show success toast
+      toast({ title: "Dataset created successfully!" });
     } catch (err: any) {
-      setDatasetError(err?.message || "Failed to create dataset")
+      const errorMsg = err?.message || "Failed to create dataset";
+      setDatasetError(errorMsg);
+      toast({ title: "Failed to create dataset", variant: "destructive" });
     } finally {
-      setIsCreatingDataset(false)
+      setIsCreatingDataset(false);
     }
-  }
+  };
 
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true)
-    } else if (e.type === "dragleave") {
-      setDragActive(false)
-    }
-  }
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setDragActive(false)
-
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFiles(e.dataTransfer.files)
-    }
-  }
-
-  const handleFiles = (files: FileList) => {
-    const file = files[0]
-    if (
-      file &&
-      (file.type === "text/csv" ||
-        file.type === "application/vnd.ms-excel" ||
-        file.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    ) {
-      setSelectedFile(file)
-      setError("")
-    } else {
-      setError("Only CSV and Excel files (.xlsx, .xls) are supported")
-    }
-  }
+  const handleFileSelect = (file: File | null) => {
+    setSelectedFile(file);
+    setError("");
+  };
 
   const handleUpload = async () => {
     if (!selectedFile) {
-      setError("Please select a file")
-      return
+      toast({ title: "Please select a file" });
+      return;
     }
     if (!selectedDatasetId) {
-      setError("Please select a dataset")
-      return
+      toast({ title: "Please select a dataset" });
+      return;
     }
 
     try {
-      setIsUploading(true)
-      setUploadProgress(0)
-      setError("")
-      setSuccess("")
+      setIsUploading(true);
+      setUploadProgress(0);
+      setError("");
+      setSuccess("");
 
-      let currentVersionId = parseInt(versionId)
-      
+      let currentVersionId = parseInt(versionId);
+
       // If no version selected, create a new one
       if (!currentVersionId) {
-        const newVersion = await createDatasetVersion(parseInt(selectedDatasetId), description || "Initial version")
-        currentVersionId = newVersion.version_id
-        setVersionId(currentVersionId.toString())
+        const newVersion = await createDatasetVersion(
+          parseInt(selectedDatasetId),
+          description || "Initial version"
+        );
+        currentVersionId = newVersion.version_id;
+        setVersionId(currentVersionId.toString());
         // Reload versions to show the new one
-        loadVersions(parseInt(selectedDatasetId))
+        loadVersions(parseInt(selectedDatasetId));
       }
 
       // Upload file
-      const uploadedFile = await uploadFileToVersion(currentVersionId, selectedFile)
-      
-      setUploadProgress(100)
-      setSuccess(`Upload thành công: ${uploadedFile.file_name}`)
-      
+      const uploadedFile = await uploadFileToVersion(
+        currentVersionId,
+        selectedFile
+      );
+
+      setUploadProgress(100);
+
+      // Show success toast
+      toast({ title: "Uploaded file successfully!" });
+
       // Reload files to show the new upload
-      loadFiles(currentVersionId)
-      
+      loadFiles(currentVersionId);
+
       // Reset form
-      setSelectedFile(null)
-      setDescription("")
-      
+      setSelectedFile(null);
+      setDescription("");
     } catch (err: any) {
-      setError(err?.message || "Upload failed")
+      const errorMsg = err?.message || "Upload failed";
+      setError(errorMsg);
+      toast({ title: "Failed to upload failed!" });
     } finally {
-      setIsUploading(false)
+      setIsUploading(false);
     }
-  }
+  };
 
   const getStatusIcon = (file: DataFile) => {
-    return <CheckCircle className="h-4 w-4 text-green-500" />
-  }
+    return <CheckCircle className="h-4 w-4 text-green-500" />;
+  };
 
   const getStatusBadge = (file: DataFile) => {
-    return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Hoàn thành</Badge>
-  }
+    return (
+      <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+        Completed
+      </Badge>
+    );
+  };
+
 
   const formatFileSize = (bytes?: number) => {
-    if (!bytes) return "Unknown"
-    const sizes = ["Bytes", "KB", "MB", "GB"]
-    const i = Math.floor(Math.log(bytes) / Math.log(1024))
-    return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + " " + sizes[i]
-  }
+    if (!bytes) return "Unknown";
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return Math.round((bytes / Math.pow(1024, i)) * 100) / 100 + " " + sizes[i];
+  };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("vi-VN")
-  }
+    return new Date(dateString).toLocaleDateString("vi-VN");
+  };
 
   return (
     <div className="space-y-6">
       {/* Upload Section */}
-      <Card>
+      <Card className=" ">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Upload className="h-5 w-5" />
-            Tải lên dữ liệu mới
+            Upload new data
           </CardTitle>
           <CardDescription>
-            Tải lên file CSV hoặc Excel chứa dữ liệu tuyển sinh để gán nhãn và huấn luyện AI
+            Upload files containing admission data for labeling
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Dataset Selection */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label htmlFor="dataset">Chọn Dataset</Label>
-              <Dialog open={isCreateDatasetOpen} onOpenChange={setIsCreateDatasetOpen}>
+              <Label htmlFor="dataset">Select Dataset</Label>
+              <Dialog
+                open={isCreateDatasetOpen}
+                onOpenChange={setIsCreateDatasetOpen}
+              >
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm">
                     <Plus className="h-4 w-4 mr-2" />
@@ -260,57 +255,74 @@ export function DataUpload() {
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Tạo Dataset mới</DialogTitle>
-                    <DialogDescription>Tạo dataset mới để quản lý dữ liệu gán nhãn</DialogDescription>
+                    <DialogTitle>Create new Dataset</DialogTitle>
+                    <DialogDescription>
+                      Create a new dataset to manage labeled data
+                    </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="dataset-name">Tên Dataset *</Label>
+                      <Label htmlFor="dataset-name">Dataset Name *</Label>
                       <Input
                         id="dataset-name"
                         placeholder="Enter dataset name"
                         value={newDataset.name}
-                        onChange={(e) => setNewDataset({ ...newDataset, name: e.target.value })}
+                        onChange={(e) =>
+                          setNewDataset({ ...newDataset, name: e.target.value })
+                        }
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="dataset-description">Mô tả</Label>
+                      <Label htmlFor="dataset-description">Description</Label>
                       <Input
                         id="dataset-description"
                         placeholder="Enter dataset description (optional)"
                         value={newDataset.description}
-                        onChange={(e) => setNewDataset({ ...newDataset, description: e.target.value })}
+                        onChange={(e) =>
+                          setNewDataset({
+                            ...newDataset,
+                            description: e.target.value,
+                          })
+                        }
                       />
                     </div>
                     {datasetError && (
-                      <div className="text-sm text-destructive bg-destructive/10 p-2 rounded">
+                      <div className="text-sm text-destructive bg-destructive/10 p-2 rounded break-words whitespace-pre-wrap overflow-hidden max-w-full">
                         {datasetError}
-                      </div>
-                    )}
-                    {datasetSuccess && (
-                      <div className="text-sm text-green-600 bg-green-100 p-2 rounded">
-                        {datasetSuccess}
                       </div>
                     )}
                   </div>
                   <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsCreateDatasetOpen(false)}>
-                      Hủy
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsCreateDatasetOpen(false)}
+                    >
+                      Cancel
                     </Button>
-                    <Button onClick={handleCreateDataset} disabled={isCreatingDataset}>
+                    <Button
+                      onClick={handleCreateDataset}
+                      disabled={isCreatingDataset}
+                    >
                       {isCreatingDataset ? "Creating..." : "Create Dataset"}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
             </div>
-            <Select value={selectedDatasetId} onValueChange={setSelectedDatasetId}>
-              <SelectTrigger>
+            <Select
+              value={selectedDatasetId}
+              onValueChange={setSelectedDatasetId}
+            >
+              <SelectTrigger className="bg-gray-200 hover:bg-gray-300">
                 <SelectValue placeholder="Select dataset to upload file" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-white dark:bg-gray-800">
                 {datasets.map((dataset) => (
-                  <SelectItem key={dataset.dataset_id} value={dataset.dataset_id.toString()}>
+                  <SelectItem
+                    key={dataset.dataset_id}
+                    value={dataset.dataset_id.toString()}
+                    className="bg-white hover:bg-gray-100 focus:bg-gray-200"
+                  >
                     {dataset.name}
                   </SelectItem>
                 ))}
@@ -321,15 +333,21 @@ export function DataUpload() {
           {/* Version Selection */}
           {selectedDatasetId && (
             <div className="space-y-2">
-              <Label htmlFor="version">Chọn Version (hoặc để trống để tạo mới)</Label>
+              <Label htmlFor="version">
+                Select Version (or leave empty to create new)
+              </Label>
               <Select value={versionId} onValueChange={setVersionId}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select version or leave empty to create new" />
                 </SelectTrigger>
                 <SelectContent>
                   {versions.map((version) => (
-                    <SelectItem key={version.version_id} value={version.version_id.toString()}>
-                      v{version.version_number} - {version.changelog || "No description"}
+                    <SelectItem
+                      key={version.version_id}
+                      value={version.version_id.toString()}
+                    >
+                      v{version.version_number} -{" "}
+                      {version.changelog || "No description"}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -338,44 +356,18 @@ export function DataUpload() {
           )}
 
           {/* File Upload Area */}
-          <div
-            className={cn(
-              "border-2 border-dashed rounded-lg p-8 text-center transition-colors",
-              dragActive ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-accent/50",
-            )}
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-          >
-            <Upload className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-            <div className="space-y-2">
-              <p className="text-lg font-medium">Kéo thả file vào đây hoặc</p>
-              <Button variant="outline" onClick={() => document.getElementById("file-upload")?.click()}>
-                Chọn file
-              </Button>
-              <input
-                id="file-upload"
-                type="file"
-                accept=".csv,.xlsx,.xls"
-                className="hidden"
-                onChange={(e) => e.target.files && handleFiles(e.target.files)}
-              />
-            </div>
-            <p className="text-sm text-muted-foreground mt-4">Hỗ trợ file CSV, Excel (.xlsx, .xls). Tối đa 10MB.</p>
-            {selectedFile && (
-              <div className="mt-4 p-2 bg-accent rounded">
-                <p className="text-sm font-medium">File đã chọn: {selectedFile.name}</p>
-                <p className="text-xs text-muted-foreground">Size: {formatFileSize(selectedFile.size)}</p>
-              </div>
-            )}
-          </div>
+          <FileUpload
+            onFileSelect={handleFileSelect}
+            selectedFile={selectedFile}
+            accept=".csv,.xlsx,.xls"
+            maxSize={10}
+          />
 
           {/* Upload Progress */}
           {isUploading && (
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
-                <span>Đang tải lên...</span>
+                <span>Uploading...</span>
                 <span>{uploadProgress}%</span>
               </div>
               <Progress value={uploadProgress} />
@@ -384,31 +376,26 @@ export function DataUpload() {
 
           {/* Description Input */}
           <div className="space-y-2">
-            <Label htmlFor="description">Mô tả phiên bản </Label>
-            <Textarea 
-              id="description" 
-              placeholder="Enter changelog for this data version..." 
+            <Label htmlFor="description">Version description </Label>
+            <Textarea
+              id="description"
+              placeholder="Enter changelog for this data version..."
               className="resize-none"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
           </div>
 
-          {/* Error/Success Messages */}
+          {/* Error Message */}
           {error && (
-            <div className="text-sm text-destructive bg-destructive/10 p-2 rounded">
+            <div className="text-sm text-destructive bg-destructive/10 p-2 rounded break-words whitespace-pre-wrap overflow-hidden max-w-full">
               {error}
-            </div>
-          )}
-          {success && (
-            <div className="text-sm text-green-600 bg-green-100 p-2 rounded">
-              {success}
             </div>
           )}
 
           {/* Upload Button */}
-          <Button 
-            onClick={handleUpload} 
+          <Button
+            onClick={handleUpload}
             disabled={!selectedFile || !selectedDatasetId || isUploading}
             className="w-full"
           >
@@ -418,28 +405,31 @@ export function DataUpload() {
       </Card>
 
       {/* Files List */}
-      <Card>
+      <Card className=" ">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            Files đã upload
+            Uploaded files
           </CardTitle>
           <CardDescription>
-            {selectedVersion 
-              ? `Files trong version v${selectedVersion.version_number} - ${selectedVersion.changelog || "No description"}` 
-              : "Select dataset and version to view files"
-            }
+            {selectedVersion
+              ? `Files trong version v${selectedVersion.version_number} - ${
+                  selectedVersion.changelog || "No description"
+                }`
+              : "Select dataset and version to view files"}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="text-center py-8">
-              <p className="text-muted-foreground">Đang tải...</p>
+              <p className="text-muted-foreground">Loading...</p>
             </div>
           ) : files.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-muted-foreground">
-                {versionId ? "No files in this version" : "Select dataset and version to view files"}
+                {versionId
+                  ? "No files in this version"
+                  : "Select dataset and version to view files"}
               </p>
             </div>
           ) : (
@@ -470,10 +460,13 @@ export function DataUpload() {
                           {formatDate(file.uploaded_at)}
                         </span>
                         <span>{formatFileSize(file.file_size)}</span>
-                        {file.line_count && <span>{file.line_count.toLocaleString()} dòng</span>}
+                        {file.line_count && (
+                          <span>{file.line_count.toLocaleString()} lines</span>
+                        )}
                         {selectedVersion && (
                           <span className="text-blue-600">
-                            Version: {selectedVersion.changelog || "No description"}
+                            Version:{" "}
+                            {selectedVersion.changelog || "No description"}
                           </span>
                         )}
                       </div>
@@ -482,11 +475,11 @@ export function DataUpload() {
                   <div className="flex items-center gap-2">
                     <Button variant="outline" size="sm">
                       <Eye className="h-4 w-4 mr-2" />
-                      Xem dữ liệu
+                      View data
                     </Button>
                     <Button variant="outline" size="sm">
                       <Download className="h-4 w-4 mr-2" />
-                      Tải xuống
+                      Download
                     </Button>
                   </div>
                 </div>
@@ -496,6 +489,5 @@ export function DataUpload() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
-

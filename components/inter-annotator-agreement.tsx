@@ -155,21 +155,21 @@ export function InterAnnotatorAgreement() {
         return (
           <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
             <Clock className="w-3 h-3 mr-1" />
-            Chờ xử lý
+            Pending
           </Badge>
         )
       case "resolved":
         return (
           <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
             <CheckCircle className="w-3 h-3 mr-1" />
-            Đã giải quyết
+            Resolved
           </Badge>
         )
       case "escalated":
         return (
           <Badge variant="destructive">
             <AlertTriangle className="w-3 h-3 mr-1" />
-            Cần xem xét
+            Needs review
           </Badge>
         )
     }
@@ -182,52 +182,52 @@ export function InterAnnotatorAgreement() {
   }
 
   const getKappaInterpretation = (kappa: number) => {
-    if (kappa >= 0.8) return { text: "Rất tốt", color: "text-green-600" }
-    if (kappa >= 0.6) return { text: "Tốt", color: "text-blue-600" }
-    if (kappa >= 0.4) return { text: "Trung bình", color: "text-yellow-600" }
-    return { text: "Kém", color: "text-red-600" }
+    if (kappa >= 0.8) return { text: "Excellent", color: "text-green-600" }
+    if (kappa >= 0.6) return { text: "Good", color: "text-blue-600" }
+    if (kappa >= 0.4) return { text: "Average", color: "text-yellow-600" }
+    return { text: "Poor", color: "text-red-600" }
   }
 
   return (
     <div className="space-y-6">
       {/* Agreement Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
+        <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tổng bất đồng</CardTitle>
+            <CardTitle className="text-sm font-medium">Total disagreements</CardTitle>
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{disagreements.filter((d) => d.status === "pending").length}</div>
-            <p className="text-xs text-muted-foreground">Cần xem xét</p>
+            <p className="text-xs text-muted-foreground">Needs review</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Đã giải quyết</CardTitle>
+            <CardTitle className="text-sm font-medium">Resolved</CardTitle>
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{disagreements.filter((d) => d.status === "resolved").length}</div>
-            <p className="text-xs text-muted-foreground">Hoàn thành</p>
+            <p className="text-xs text-muted-foreground">Completed</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tỷ lệ đồng thuận</CardTitle>
+            <CardTitle className="text-sm font-medium">Agreement rate</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {Math.round(agreementStats.reduce((sum, stat) => sum + stat.agreementRate, 0) / agreementStats.length)}%
             </div>
-            <p className="text-xs text-muted-foreground">Trung bình</p>
+            <p className="text-xs text-muted-foreground">Average</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Kappa Score</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
@@ -236,35 +236,35 @@ export function InterAnnotatorAgreement() {
             <div className="text-2xl font-bold">
               {(agreementStats.reduce((sum, stat) => sum + stat.kappaScore, 0) / agreementStats.length).toFixed(2)}
             </div>
-            <p className="text-xs text-muted-foreground">Độ tin cậy</p>
+            <p className="text-xs text-muted-foreground">Confidence</p>
           </CardContent>
         </Card>
       </div>
 
       <Tabs defaultValue="disagreements" className="space-y-6">
         <TabsList>
-          <TabsTrigger value="disagreements">Bất đồng cần xử lý</TabsTrigger>
-          <TabsTrigger value="statistics">Thống kê đồng thuận</TabsTrigger>
+          <TabsTrigger value="disagreements">Disagreements</TabsTrigger>
+          <TabsTrigger value="statistics">Agreement statistics</TabsTrigger>
         </TabsList>
 
         <TabsContent value="disagreements" className="space-y-6">
-          <Card>
+          <Card className=" ">
             <CardHeader>
-              <CardTitle>Danh sách bất đồng trong gán nhãn</CardTitle>
+              <CardTitle>Disagreement list in labeling</CardTitle>
               <CardDescription>
-                Xem xét và giải quyết những trường hợp các annotator có ý kiến khác nhau
+                Review and resolve cases where annotators disagree
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Câu hỏi</TableHead>
+                    <TableHead>Question</TableHead>
                     <TableHead>Annotator 1</TableHead>
                     <TableHead>Annotator 2</TableHead>
                     <TableHead>Batch</TableHead>
-                    <TableHead>Trạng thái</TableHead>
-                    <TableHead>Thao tác</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -285,7 +285,7 @@ export function InterAnnotatorAgreement() {
                           >
                             {disagreement.annotator1Label}
                           </Badge>
-                          <div className="text-xs text-muted-foreground">Tin cậy: {disagreement.confidence1}%</div>
+                          <div className="text-xs text-muted-foreground">Confidence: {disagreement.confidence1}%</div>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -297,7 +297,7 @@ export function InterAnnotatorAgreement() {
                           >
                             {disagreement.annotator2Label}
                           </Badge>
-                          <div className="text-xs text-muted-foreground">Tin cậy: {disagreement.confidence2}%</div>
+                          <div className="text-xs text-muted-foreground">Confidence: {disagreement.confidence2}%</div>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -308,15 +308,15 @@ export function InterAnnotatorAgreement() {
                         {disagreement.status === "pending" && (
                           <Button size="sm" onClick={() => openResolveDialog(disagreement)}>
                             <Eye className="h-4 w-4 mr-1" />
-                            Xem xét
+                            Review
                           </Button>
                         )}
                         {disagreement.status === "resolved" && (
                           <div className="text-xs text-muted-foreground">
                             <div>
-                              Kết quả: <strong>{disagreement.finalLabel}</strong>
+                              Result: <strong>{disagreement.finalLabel}</strong>
                             </div>
-                            <div>Bởi: {disagreement.resolvedBy}</div>
+                            <div>By: {disagreement.resolvedBy}</div>
                           </div>
                         )}
                       </TableCell>
@@ -329,10 +329,10 @@ export function InterAnnotatorAgreement() {
         </TabsContent>
 
         <TabsContent value="statistics" className="space-y-6">
-          <Card>
+          <Card className=" ">
             <CardHeader>
-              <CardTitle>Thống kê độ đồng thuận theo Batch</CardTitle>
-              <CardDescription>Phân tích mức độ đồng thuận giữa các annotator trong từng batch</CardDescription>
+              <CardTitle>Agreement statistics by batch</CardTitle>
+              <CardDescription>Analyze agreement level between annotators per batch</CardDescription>
             </CardHeader>
             <CardContent>
               <Table>
@@ -340,10 +340,10 @@ export function InterAnnotatorAgreement() {
                   <TableRow>
                     <TableHead>Batch</TableHead>
                     <TableHead>Annotator</TableHead>
-                    <TableHead>Tổng câu hỏi</TableHead>
-                    <TableHead>Đồng thuận</TableHead>
-                    <TableHead>Bất đồng</TableHead>
-                    <TableHead>Tỷ lệ đồng thuận</TableHead>
+                    <TableHead>Total questions</TableHead>
+                    <TableHead>Agreed</TableHead>
+                    <TableHead>Disagreed</TableHead>
+                    <TableHead>Agreement rate</TableHead>
                     <TableHead>Kappa Score</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -400,20 +400,20 @@ export function InterAnnotatorAgreement() {
       <Dialog open={isResolveDialogOpen} onOpenChange={setIsResolveDialogOpen}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Giải quyết bất đồng gán nhãn</DialogTitle>
-            <DialogDescription>Xem xét chi tiết và đưa ra quyết định cuối cùng cho câu hỏi này</DialogDescription>
+            <DialogTitle>Resolve labeling disagreement</DialogTitle>
+            <DialogDescription>Review details and make the final decision for this question</DialogDescription>
           </DialogHeader>
           {selectedDisagreement && (
             <div className="space-y-6">
               {/* Question Details */}
-              <Card>
+              <Card className=" ">
                 <CardHeader>
-                  <CardTitle className="text-lg">Chi tiết câu hỏi</CardTitle>
+                  <CardTitle className="text-lg">Question details</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
                     <div>
-                      <Label className="text-sm font-medium">ID câu hỏi</Label>
+                      <Label className="text-sm font-medium">Question ID</Label>
                       <div className="text-sm">{selectedDisagreement.questionId}</div>
                     </div>
                     <div>
@@ -426,7 +426,7 @@ export function InterAnnotatorAgreement() {
 
               {/* Annotations Comparison */}
               <div className="grid grid-cols-2 gap-4">
-                <Card>
+                <Card className=" ">
                   <CardHeader>
                     <CardTitle className="text-base flex items-center gap-2">
                       <Users className="h-4 w-4" />
@@ -449,7 +449,7 @@ export function InterAnnotatorAgreement() {
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card className=" ">
                   <CardHeader>
                     <CardTitle className="text-base flex items-center gap-2">
                       <Users className="h-4 w-4" />
@@ -474,7 +474,7 @@ export function InterAnnotatorAgreement() {
               </div>
 
               {/* Final Decision */}
-              <Card>
+              <Card className=" ">
                 <CardHeader>
                   <CardTitle className="text-base">Quyết định cuối cùng</CardTitle>
                 </CardHeader>

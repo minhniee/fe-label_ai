@@ -228,7 +228,7 @@ export function DataExport() {
     <div className="space-y-6">
       {/* Export Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
+        <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Exports</CardTitle>
             <Download className="h-4 w-4 text-muted-foreground" />
@@ -239,7 +239,7 @@ export function DataExport() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Completed</CardTitle>
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
@@ -250,7 +250,7 @@ export function DataExport() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Processing</CardTitle>
             <Settings className="h-4 w-4 text-muted-foreground" />
@@ -261,7 +261,7 @@ export function DataExport() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total records</CardTitle>
             <Database className="h-4 w-4 text-muted-foreground" />
@@ -482,7 +482,7 @@ export function DataExport() {
         <CardContent>
           <div className="space-y-4">
             {exportJobs.map((job) => (
-              <Card key={job.id} className="p-4">
+              <Card key={job.id} className="p-4  ">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className="bg-primary/10 p-2 rounded-full">{getFormatIcon(job.format)}</div>

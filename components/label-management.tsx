@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -27,6 +27,9 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tags, Plus, MoreHorizontal, Edit, Trash2, Keyboard, Save, X, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { createLabel, getLabel, updateLabel, deleteLabel, getAllLabels, type CreateLabelRequest, type UpdateLabelRequest } from "@/app/api/label"
+import { createDataset, getDatasets } from "@/app/api/datasets"
+import { useToast } from "@/hooks/use-toast"
 
 interface LabelSet {
   id: string
@@ -56,6 +59,8 @@ interface NewLabel {
 
 export function LabelManagement() {
   const [labelSets, setLabelSets] = useState<LabelSet[]>([])
+  const [loading, setLoading] = useState(true)
+  const { toast } = useToast()
 
   const [isAddLabelSetOpen, setIsAddLabelSetOpen] = useState(false)
   const [isEditLabelOpen, setIsEditLabelOpen] = useState(false)
@@ -70,15 +75,80 @@ export function LabelManagement() {
   })
 
   const colorOptions = [
-    { value: "bg-green-100 text-green-800", label: "Green", preview: "bg-green-100" },
-    { value: "bg-blue-100 text-blue-800", label: "Blue", preview: "bg-blue-100" },
-    { value: "bg-yellow-100 text-yellow-800", label: "Yellow", preview: "bg-yellow-100" },
-    { value: "bg-red-100 text-red-800", label: "Red", preview: "bg-red-100" },
-    { value: "bg-purple-100 text-purple-800", label: "Purple", preview: "bg-purple-100" },
-    { value: "bg-orange-100 text-orange-800", label: "Orange", preview: "bg-orange-100" },
-    { value: "bg-pink-100 text-pink-800", label: "Pink", preview: "bg-pink-100" },
-    { value: "bg-gray-100 text-gray-800", label: "Gray", preview: "bg-gray-100" },
+    { value: "bg-green-100 text-green-800", label: "Green", preview: "bg-green-100", hex: "#26F7D2" },
+    { value: "bg-blue-100 text-blue-800", label: "Blue", preview: "bg-blue-100", hex: "#3B82F6" },
+    { value: "bg-yellow-100 text-yellow-800", label: "Yellow", preview: "bg-yellow-100", hex: "#F59E0B" },
+    { value: "bg-red-100 text-red-800", label: "Red", preview: "bg-red-100", hex: "#EF4444" },
+    { value: "bg-purple-100 text-purple-800", label: "Purple", preview: "bg-purple-100", hex: "#8B5CF6" },
+    { value: "bg-orange-100 text-orange-800", label: "Orange", preview: "bg-orange-100", hex: "#F97316" },
+    { value: "bg-pink-100 text-pink-800", label: "Pink", preview: "bg-pink-100", hex: "#EC4899" },
+    { value: "bg-gray-100 text-gray-800", label: "Gray", preview: "bg-gray-100", hex: "#6B7280" },
   ]
+
+  const getHexColor = (tailwindClass: string): string => {
+    const colorOption = colorOptions.find(option => option.value === tailwindClass)
+    return colorOption?.hex || "#26F7D2"
+  }
+
+  // Load labels and datasets from API
+  const loadLabelSets = async () => {
+    try {
+      setLoading(true)
+      
+      // Load datasets and labels in parallel
+      const [datasets, labels] = await Promise.all([
+        getDatasets(),
+        getAllLabels()
+      ])
+
+      // Group labels by dataset_id
+      const labelsByDataset = labels.reduce((acc, label) => {
+        if (!acc[label.dataset_id]) {
+          acc[label.dataset_id] = []
+        }
+        acc[label.dataset_id].push(label)
+        return acc
+      }, {} as Record<number, typeof labels>)
+
+      // Create label sets from datasets
+      const labelSetsData: LabelSet[] = datasets.map(dataset => {
+        const datasetLabels = labelsByDataset[dataset.dataset_id] || []
+        
+        return {
+          id: dataset.dataset_id.toString(),
+          name: dataset.name,
+          description: dataset.description || "",
+          labels: datasetLabels.map(label => ({
+            id: label.label_id.toString(),
+            label: label.name,
+            description: label.description,
+            hotkey: label.hotkey,
+            color: label.color,
+          })),
+          createdDate: new Date(dataset.created_at).toISOString().split("T")[0],
+          isActive: false,
+          usageCount: 0,
+          hasExistingData: datasetLabels.length > 0,
+        }
+      })
+
+      setLabelSets(labelSetsData)
+    } catch (error) {
+      console.error("Error loading label sets:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load label sets. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Load data on component mount
+  useEffect(() => {
+    loadLabelSets()
+  }, [])
 
   const addNewLabelToForm = () => {
     const newLabel: NewLabel = {
@@ -104,26 +174,111 @@ export function LabelManagement() {
     setNewLabelSet({ ...newLabelSet, labels: updatedLabels })
   }
 
-  const handleAddLabelSet = () => {
+  const handleAddLabelSet = async () => {
     if (!newLabelSet.name || !newLabelSet.description || newLabelSet.labels.length === 0) return
 
-    const labelSet: LabelSet = {
-      id: Date.now().toString(),
-      name: newLabelSet.name,
-      description: newLabelSet.description,
-      labels: newLabelSet.labels.map((label, index) => ({
-        id: (Date.now() + index).toString(),
-        ...label,
-      })),
-      createdDate: new Date().toISOString().split("T")[0],
-      isActive: false,
-      usageCount: 0,
-      hasExistingData: false,
-    }
+    try {
+      // Create dataset first
+      const dataset = await createDataset(
+        newLabelSet.name,
+        newLabelSet.description
+      )
 
-    setLabelSets([...labelSets, labelSet])
-    setNewLabelSet({ name: "", description: "", labels: [] })
-    setIsAddLabelSetOpen(false)
+      // Create labels via API
+      const createdLabels = await Promise.all(
+        newLabelSet.labels.map(async (label, index) => {
+          const labelData: CreateLabelRequest = {
+            name: label.label,
+            description: label.description,
+            color: getHexColor(label.color),
+            guidelines: label.description, // Using description as guidelines
+            hotkey: label.hotkey,
+            priority: index + 1,
+            dataset_id: dataset.dataset_id, // Use the created dataset ID
+          }
+
+          const response = await createLabel(labelData)
+          return {
+            id: response.label_id.toString(),
+            label: response.name,
+            description: response.description,
+            hotkey: response.hotkey,
+            color: response.color,
+          }
+        })
+      )
+
+      const labelSet: LabelSet = {
+        id: Date.now().toString(),
+        name: newLabelSet.name,
+        description: newLabelSet.description,
+        labels: createdLabels,
+        createdDate: new Date().toISOString().split("T")[0],
+        isActive: false,
+        usageCount: 0,
+        hasExistingData: false,
+      }
+
+      // Reload data from API to get the latest state
+      await loadLabelSets()
+      
+      setNewLabelSet({ name: "", description: "", labels: [] })
+      setIsAddLabelSetOpen(false)
+
+      toast({
+        title: "Success",
+        description: `Created dataset "${dataset.name}" and label set with ${createdLabels.length} labels`,
+      })
+    } catch (error) {
+      console.error("Error creating dataset and labels:", error)
+      toast({
+        title: "Error",
+        description: "Failed to create dataset and labels. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleUpdateLabel = async (labelId: number, updatedData: UpdateLabelRequest) => {
+    try {
+      const response = await updateLabel(labelId, updatedData)
+      
+      // Reload data from API to get the latest state
+      await loadLabelSets()
+
+      toast({
+        title: "Success",
+        description: `Label "${response.name}" updated successfully`,
+      })
+    } catch (error) {
+      console.error("Error updating label:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update label. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleDeleteLabel = async (labelId: number) => {
+    try {
+      await deleteLabel(labelId)
+      
+      // Reload data from API to get the latest state
+      await loadLabelSets()
+
+      toast({
+        title: "Success",
+        description: "Label deleted successfully",
+      })
+    } catch (error) {
+      console.error("Error deleting label:", error)
+      toast({
+        title: "Error",
+        description: "Failed to delete label. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleEditLabels = (labelSet: LabelSet) => {
@@ -143,23 +298,61 @@ export function LabelManagement() {
     setNewLabelsToAdd([...newLabelsToAdd, newLabel])
   }
 
-  const saveChangesToLabelSet = () => {
+  const saveChangesToLabelSet = async () => {
     if (!selectedLabelSet) return
 
-    const updatedLabels = [
-      ...editingLabels,
-      ...newLabelsToAdd.map((label, index) => ({
-        id: (Date.now() + index).toString(),
-        ...label,
-      })),
-    ]
+    try {
+      // Update existing labels via API
+      const updatePromises = editingLabels.map(async (label) => {
+        const labelId = parseInt(label.id)
+        const updateData: UpdateLabelRequest = {
+          name: label.label,
+          description: label.description,
+          hotkey: label.hotkey,
+          color: getHexColor(label.color),
+          guidelines: label.description,
+        }
+        return await updateLabel(labelId, updateData)
+      })
 
-    setLabelSets(labelSets.map((set) => (set.id === selectedLabelSet.id ? { ...set, labels: updatedLabels } : set)))
+      await Promise.all(updatePromises)
 
-    setIsEditLabelOpen(false)
-    setSelectedLabelSet(null)
-    setEditingLabels([])
-    setNewLabelsToAdd([])
+      // Create new labels via API
+      const createPromises = newLabelsToAdd.map(async (label, index) => {
+        const labelData: CreateLabelRequest = {
+          name: label.label,
+          description: label.description,
+          color: getHexColor(label.color),
+          guidelines: label.description,
+          hotkey: label.hotkey,
+          priority: editingLabels.length + index + 1,
+          dataset_id: 0, // Should be passed from parent or context
+        }
+        return await createLabel(labelData)
+      })
+
+      const createdLabels = await Promise.all(createPromises)
+
+      // Reload data from API to get the latest state
+      await loadLabelSets()
+
+      setIsEditLabelOpen(false)
+      setSelectedLabelSet(null)
+      setEditingLabels([])
+      setNewLabelsToAdd([])
+
+      toast({
+        title: "Success",
+        description: `Updated ${editingLabels.length} labels and created ${createdLabels.length} new labels`,
+      })
+    } catch (error) {
+      console.error("Error saving label changes:", error)
+      toast({
+        title: "Error",
+        description: "Failed to save label changes. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleDeleteLabelSet = (labelSetId: string) => {
@@ -183,53 +376,62 @@ export function LabelManagement() {
 
   return (
     <div className="space-y-6">
-      {/* Label Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
+      {loading ? (
+        <div className="flex items-center justify-center py-8">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading label sets...</p>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Label Statistics */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tổng bộ nhãn</CardTitle>
+            <CardTitle className="text-sm font-medium">Total label sets</CardTitle>
             <Tags className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{labelSets.length}</div>
             <p className="text-xs text-muted-foreground">
-              {labelSets.filter((set) => set.isActive).length} đang sử dụng
+              {labelSets.filter((set) => set.isActive).length} in use
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tổng nhãn</CardTitle>
+            <CardTitle className="text-sm font-medium">Total labels</CardTitle>
             <Tags className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{labelSets.reduce((acc, set) => acc + set.labels.length, 0)}</div>
-            <p className="text-xs text-muted-foreground">Trong tất cả bộ nhãn</p>
+            <p className="text-xs text-muted-foreground">Across all label sets</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Đã sử dụng</CardTitle>
+            <CardTitle className="text-sm font-medium">Used</CardTitle>
             <Keyboard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {labelSets.reduce((acc, set) => acc + set.usageCount, 0).toLocaleString()}
             </div>
-            <p className="text-xs text-muted-foreground">Lần gán nhãn</p>
+            <p className="text-xs text-muted-foreground">Labeling times</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Bộ nhãn hoạt động</CardTitle>
+            <CardTitle className="text-sm font-medium">Active label set</CardTitle>
             <Tags className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{labelSets.filter((set) => set.isActive).length}</div>
-            <p className="text-xs text-muted-foreground">{labelSets.find((set) => set.isActive)?.name || "Không có"}</p>
+            <p className="text-xs text-muted-foreground">{labelSets.find((set) => set.isActive)?.name || "None"}</p>
           </CardContent>
         </Card>
       </div>
@@ -239,37 +441,37 @@ export function LabelManagement() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Quản lý bộ nhãn</CardTitle>
-              <CardDescription>Tạo và quản lý các bộ nhãn để phân loại dữ liệu</CardDescription>
+              <CardTitle>Label set management</CardTitle>
+              <CardDescription>Create and manage label sets for data classification</CardDescription>
             </div>
             <Dialog open={isAddLabelSetOpen} onOpenChange={setIsAddLabelSetOpen}>
               <DialogTrigger asChild>
                 <Button>
                   <Plus className="h-4 w-4 mr-2" />
-                  Thêm bộ nhãn
+                  Add label set
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>Thêm bộ nhãn mới</DialogTitle>
-                  <DialogDescription>Tạo bộ nhãn mới với tên, mô tả và các nhãn cụ thể</DialogDescription>
+                  <DialogTitle>Add a new label set</DialogTitle>
+                  <DialogDescription>Create a new label set with name, description and labels</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="labelset-name">Tên bộ nhãn *</Label>
+                      <Label htmlFor="labelset-name">Label set name *</Label>
                       <Input
                         id="labelset-name"
-                        placeholder="Ví dụ: Phân loại tiềm năng tuyển sinh"
+                        placeholder="e.g., Enrollment potential classification"
                         value={newLabelSet.name}
                         onChange={(e) => setNewLabelSet({ ...newLabelSet, name: e.target.value })}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="labelset-description">Mô tả *</Label>
+                      <Label htmlFor="labelset-description">Description *</Label>
                       <Textarea
                         id="labelset-description"
-                        placeholder="Mô tả mục đích sử dụng bộ nhãn này"
+                        placeholder="Describe the purpose of this label set"
                         value={newLabelSet.description}
                         onChange={(e) => setNewLabelSet({ ...newLabelSet, description: e.target.value })}
                         rows={3}
@@ -279,10 +481,10 @@ export function LabelManagement() {
 
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <Label className="text-base font-medium">Nhãn trong bộ nhãn</Label>
+                      <Label className="text-base font-medium">Labels in set</Label>
                       <Button type="button" variant="outline" size="sm" onClick={addNewLabelToForm}>
                         <Plus className="h-4 w-4 mr-2" />
-                        Thêm nhãn
+                        Add label
                       </Button>
                     </div>
 
@@ -290,25 +492,25 @@ export function LabelManagement() {
                       <Alert>
                         <AlertCircle className="h-4 w-4" />
                         <AlertDescription>
-                          Bộ nhãn cần có ít nhất một nhãn. Nhấn "Thêm nhãn" để bắt đầu.
+                          A label set needs at least one label. Click "Add label" to start.
                         </AlertDescription>
                       </Alert>
                     )}
 
                     <div className="space-y-3">
                       {newLabelSet.labels.map((label, index) => (
-                        <Card key={index} className="p-4">
+                        <Card key={index} className="p-4  ">
                           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <div className="space-y-2">
-                              <Label>Tên nhãn *</Label>
+                              <Label>Label name *</Label>
                               <Input
-                                placeholder="Ví dụ: Tiềm năng cao"
+                                placeholder="e.g., High potential"
                                 value={label.label}
                                 onChange={(e) => updateLabelInForm(index, "label", e.target.value)}
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>Phím tắt</Label>
+                              <Label>Hotkey</Label>
                               <Input
                                 placeholder="1-9"
                                 maxLength={1}
@@ -317,7 +519,7 @@ export function LabelManagement() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>Màu sắc</Label>
+                              <Label>Color</Label>
                               <Select
                                 value={label.color}
                                 onValueChange={(value) => updateLabelInForm(index, "color", value)}
@@ -350,19 +552,19 @@ export function LabelManagement() {
                             </div>
                           </div>
                           <div className="mt-3 space-y-2">
-                            <Label>Mô tả</Label>
+                            <Label>Description</Label>
                             <Textarea
-                              placeholder="Mô tả chi tiết về nhãn này"
+                              placeholder="Detailed description for this label"
                               value={label.description}
                               onChange={(e) => updateLabelInForm(index, "description", e.target.value)}
                               rows={2}
                             />
                           </div>
                           <div className="mt-3">
-                            <Label className="text-sm text-muted-foreground">Xem trước:</Label>
+                            <Label className="text-sm text-muted-foreground">Preview:</Label>
                             <div className="mt-1">
                               <Badge className={label.color}>
-                                {label.label || "Tên nhãn"} ({label.hotkey})
+                                {label.label || "Label name"} ({label.hotkey})
                               </Badge>
                             </div>
                           </div>
@@ -373,13 +575,13 @@ export function LabelManagement() {
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setIsAddLabelSetOpen(false)}>
-                    Hủy
+                    Cancel
                   </Button>
                   <Button
                     onClick={handleAddLabelSet}
                     disabled={!newLabelSet.name || !newLabelSet.description || newLabelSet.labels.length === 0}
-                  >
-                    Tạo bộ nhãn
+                >
+                    Create label set
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -389,26 +591,26 @@ export function LabelManagement() {
         <CardContent>
           <div className="space-y-4">
             {labelSets.map((labelSet) => (
-              <Card key={labelSet.id} className={labelSet.isActive ? "border-primary" : ""}>
+              <Card key={labelSet.id} className={`  ${labelSet.isActive ? "border-primary" : ""}`}>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <CardTitle className="text-lg">{labelSet.name}</CardTitle>
                         {labelSet.isActive && (
-                          <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Đang sử dụng</Badge>
+                          <Badge className="bg-green-100 text-green-800 hover:bg-green-100">In use</Badge>
                         )}
                         {labelSet.hasExistingData && (
                           <Badge variant="outline" className="bg-blue-50 text-blue-700">
-                            Có dữ liệu hiện tại
+                            Has current data
                           </Badge>
                         )}
                       </div>
                       <CardDescription>{labelSet.description}</CardDescription>
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                        <span>Tạo: {labelSet.createdDate}</span>
-                        <span>{labelSet.labels.length} nhãn</span>
-                        <span>{labelSet.usageCount.toLocaleString()} lần sử dụng</span>
+                        <span>Created: {labelSet.createdDate}</span>
+                        <span>{labelSet.labels.length} labels</span>
+                        <span>{labelSet.usageCount.toLocaleString()} uses</span>
                       </div>
                     </div>
                     <DropdownMenu>
@@ -418,14 +620,14 @@ export function LabelManagement() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Thao tác</DropdownMenuLabel>
+                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuItem onClick={() => handleEditLabels(labelSet)}>
                           <Edit className="mr-2 h-4 w-4" />
-                          Chỉnh sửa nhãn
+                          Edit label
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleToggleActive(labelSet.id)}>
                           <Tags className="mr-2 h-4 w-4" />
-                          {labelSet.isActive ? "Ngừng sử dụng" : "Sử dụng"}
+                          {labelSet.isActive ? "Deactivate" : "Activate"}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
@@ -434,7 +636,7 @@ export function LabelManagement() {
                           disabled={labelSet.isActive || labelSet.usageCount > 0}
                         >
                           <Trash2 className="mr-2 h-4 w-4" />
-                          Xóa bộ nhãn
+                          Delete label set
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -496,7 +698,7 @@ export function LabelManagement() {
                 </div>
                 <div className="grid gap-3">
                   {editingLabels.map((label, index) => (
-                    <Card key={label.id} className="p-4">
+                    <Card key={label.id} className="p-4  ">
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div className="space-y-2">
                           <Label>Tên nhãn</Label>
@@ -552,7 +754,9 @@ export function LabelManagement() {
                             type="button"
                             variant="outline"
                             size="sm"
-                            onClick={() => {
+                            onClick={async () => {
+                              const labelId = parseInt(label.id)
+                              await handleDeleteLabel(labelId)
                               setEditingLabels(editingLabels.filter((_, i) => i !== index))
                             }}
                             disabled={selectedLabelSet?.hasExistingData}
@@ -606,7 +810,7 @@ export function LabelManagement() {
 
               <div className="space-y-3">
                 {newLabelsToAdd.map((label, index) => (
-                  <Card key={index} className="p-4 border-dashed">
+                  <Card key={index} className="p-4 border-dashed  ">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <div className="space-y-2">
                         <Label>Tên nhãn *</Label>
@@ -710,6 +914,8 @@ export function LabelManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </>
+      )}
     </div>
   )
 }

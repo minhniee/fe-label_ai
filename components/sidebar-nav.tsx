@@ -31,7 +31,7 @@ export function SidebarNav({ items, collapsed = false }: { items: NavItem[]; col
                           <Link
                             href={item.href}
                             className={cn(
-                              "group flex items-center rounded-md p-2 text-sm leading-6 font-semibold transition-colors justify-center",
+                              "sidebar-item group flex items-center rounded-md p-2 text-sm leading-6 font-semibold transition-colors justify-center",
                               isActive
                                 ? "bg-sidebar-primary text-sidebar-primary-foreground"
                                 : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
@@ -50,7 +50,7 @@ export function SidebarNav({ items, collapsed = false }: { items: NavItem[]; col
                     <Link
                       href={item.href}
                       className={cn(
-                        "group flex items-center rounded-md p-2 text-sm leading-6 font-semibold transition-colors gap-x-3",
+                        "sidebar-item group flex items-center rounded-md p-2 text-sm leading-6 font-semibold transition-colors gap-x-3",
                         isActive
                           ? "bg-sidebar-primary text-sidebar-primary-foreground"
                           : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"

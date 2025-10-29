@@ -6,16 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { Search, ChevronLeft, ChevronRight, Trash2, Database, RefreshCw } from "lucide-react"
-import { getDatasets, deleteDataset, type Dataset } from "@/api/datasets"
+import { getDatasets, deleteDataset, type Dataset } from "@/app/api/datasets"
+import { useToast } from "@/hooks/use-toast"
 
 interface DatasetRecord extends Dataset {
   created_by_username: string
@@ -24,13 +17,12 @@ interface DatasetRecord extends Dataset {
 }
 
 export function DataExplorer() {
+  const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
   const [datasets, setDatasets] = useState<DatasetRecord[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
-  const [deletingDataset, setDeletingDataset] = useState<DatasetRecord | null>(null)
 
   const itemsPerPage = 10
   const totalPages = Math.ceil(datasets.length / itemsPerPage)
@@ -47,27 +39,11 @@ export function DataExplorer() {
       const data = await getDatasets()
       setDatasets(data as DatasetRecord[])
     } catch (err: any) {
-      setError(err?.message || "Failed to load datasets")
+      const errorMsg = err?.message || "Failed to load datasets"
+      setError(errorMsg)
+      toast({ title: "Failed to load datasets", variant: "destructive" })
     } finally {
       setLoading(false)
-    }
-  }
-
-  const handleDeleteClick = (dataset: DatasetRecord) => {
-    setDeletingDataset(dataset)
-    setIsDeleteOpen(true)
-  }
-
-  const handleDeleteConfirm = async () => {
-    if (!deletingDataset) return
-
-    try {
-      await deleteDataset(deletingDataset.dataset_id)
-      setDatasets(datasets.filter(d => d.dataset_id !== deletingDataset.dataset_id))
-      setIsDeleteOpen(false)
-      setDeletingDataset(null)
-    } catch (err: any) {
-      setError(err?.message || "Failed to delete dataset")
     }
   }
 
@@ -107,9 +83,6 @@ export function DataExplorer() {
                 />
               </div>
             </div>
-            <Button variant="outline" onClick={loadDatasets}>
-              <RefreshCw />
-            </Button>
           </div>
           {error && (
             <div className="mt-4 text-sm text-destructive bg-destructive/10 p-2 rounded">
@@ -119,14 +92,11 @@ export function DataExplorer() {
 
 
       {/* Data Table */}
-      <Card>
+        <Card className=" ">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>Datasets</CardTitle>
-              <CardDescription>
-                Showing {filteredData.length} datasets (page {currentPage} / {totalPages})
-              </CardDescription>
             </div>
           </div>
         </CardHeader>
@@ -146,7 +116,6 @@ export function DataExplorer() {
                     <TableHead>Versions</TableHead>
                     <TableHead>Created at</TableHead>
                     <TableHead>Updated at</TableHead>
-                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -167,16 +136,6 @@ export function DataExplorer() {
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {formatDate(dataset.updated_at)}
-                      </TableCell>
-                      <TableCell>
-                            <Badge 
-                              variant="outline"
-                              className="text-red-600"
-                              onClick={() => handleDeleteClick(dataset)}
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete dataset
-                            </Badge>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -228,27 +187,6 @@ export function DataExplorer() {
           )}
         </CardContent>
       </Card>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirm dataset deletion</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete dataset "{deletingDataset?.name}"?
-              This action cannot be undone and will remove all related data.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleDeleteConfirm}>
-              Delete dataset
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
