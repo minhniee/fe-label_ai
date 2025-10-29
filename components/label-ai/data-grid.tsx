@@ -1,15 +1,16 @@
 "use client"
 
 import { useState } from "react"
-import { Check, ChevronLeft, ChevronRight, Download, X, CheckCheck, Send, Trash2, Info } from "lucide-react"
+import { Check, ChevronLeft, ChevronRight, Download, X, CheckCheck, Send, Trash2, Info, CheckCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import type { RowData } from "@/app/page"
+import type { RowData } from "@/app/(navigation)/labelai/page"
 import { useToast } from "@/hooks/use-toast"
+import { submitDataset } from "@/app/api/labelai"
 
 interface DataGridProps {
   data: RowData[]
@@ -52,8 +53,7 @@ export function DataGrid({
   const confirmedCount = manualMode
     ? allData.filter((row) => row[resultColumn] && row[resultColumn].toString().trim() !== "").length
     : allData.filter((row) => row._confirmed).length
-  const validatedCount = allData.filter((row) => row._validation_status).length
-  const pendingOnPage = data.filter((row) => row._validation_status && !row._confirmed).length
+  const pendingOnPage = data.filter((row) => row._ai_suggestion && !row._confirmed).length
   const allConfirmed = confirmedCount === allData.length && allData.length > 0
 
   const generateVersionName = () => {
@@ -68,87 +68,151 @@ export function DataGrid({
   }
 
   const handleCellEdit = (rowId: string, field: string, value: string) => {
-    const updatedData = data.map((row) => (row._id === rowId ? { ...row, [field]: value } : row))
+    const updatedData = data.map((row) => 
+      row._id === rowId 
+        ? { ...row, [field]: value }
+        : row
+    )
+    // Update allData as well to keep it in sync
+    const updatedAllData = allData.map((row) =>
+      row._id === rowId
+        ? { ...row, [field]: value }
+        : row
+    )
     onDataUpdate(updatedData)
+    // Also update parent's allData through onDataUpdate with all rows
+    if (updatedAllData.length > 0) {
+      onDataUpdate(updatedAllData.filter((row) => data.some((d) => d._id === row._id)))
+    }
   }
 
   const handleConfirm = (rowId: string) => {
-    const row = data.find((r) => r._id === rowId)
-    const updatedData = data.map((r) =>
+    const row = allData.find((r) => r._id === rowId) || data.find((r) => r._id === rowId)
+    if (!row) return
+    
+    // Update allData to keep consistency across all pages
+    const updatedAllData = allData.map((r) =>
       r._id === rowId
         ? {
             ...r,
-            [resultColumn]: row?._corrected_value || row?.[resultColumn],
+            [resultColumn]: row._corrected_value || r[resultColumn] || "",
             _confirmed: true,
           }
         : r,
     )
-    onDataUpdate(updatedData)
+    
+    // Update current page data
+    const updatedData = data.map((r) =>
+      r._id === rowId
+        ? {
+            ...r,
+            [resultColumn]: row._corrected_value || r[resultColumn] || "",
+            _confirmed: true,
+          }
+        : r,
+    )
+    
+    // Notify parent with all updated rows
+    onDataUpdate(updatedAllData)
+    toast({
+      title: "Confirmed",
+      description: `Applied correct answer to result column`,
+    })
   }
 
   const handleReject = (rowId: string) => {
+    // Update allData to keep consistency across all pages
+    const updatedAllData = allData.map((r) =>
+      r._id === rowId
+        ? {
+            ...r,
+            _ai_suggestion: "",
+            _ai_reasoning: "",
+            _confirmed: false,
+          }
+        : r,
+    )
+    
+    // Update current page data
     const updatedData = data.map((r) =>
       r._id === rowId
         ? {
             ...r,
-            _validation_status: "",
-            _corrected_value: "",
-            _confirmed: true,
+            _ai_suggestion: "",
+            _ai_reasoning: "",
+            _confirmed: false,
           }
         : r,
     )
-    onDataUpdate(updatedData)
+    
+    // Notify parent with all updated rows
+    onDataUpdate(updatedAllData)
+    toast({
+      title: "Rejected",
+      description: `AI suggestion has been rejected`,
+    })
   }
 
   const handleClearAllSuggestions = () => {
     const updatedData = allData.map((row) => ({
       ...row,
-      _validation_status: "",
-      _corrected_value: "",
+      _ai_suggestion: "",
       _ai_reasoning: "",
       _confirmed: false,
     }))
     onDataUpdate(updatedData)
     toast({
-      title: "Validation cleared",
-      description: "All data validation has been removed. You can generate new validation.",
+      title: "Suggestions cleared",
+      description: "All AI suggestions have been removed. You can generate new suggestions.",
     })
   }
 
   const handleConfirmAll = () => {
-    const updatedData = data.map((row) =>
-      row._validation_status && !row._confirmed
+    // Get all row IDs on current page that need confirmation
+    const rowIdsToConfirm = data
+      .filter((row) => row._ai_suggestion && !row._confirmed)
+      .map((row) => row._id)
+    
+    // Update allData for all rows
+    const updatedAllData = allData.map((row) =>
+      rowIdsToConfirm.includes(row._id)
         ? {
             ...row,
-            [resultColumn]: row._corrected_value || row[resultColumn],
+            [resultColumn]: row._corrected_value || row[resultColumn] || "",
             _confirmed: true,
           }
         : row,
     )
-    onDataUpdate(updatedData)
+    
+    onDataUpdate(updatedAllData)
     toast({
-      title: "Confirmed all validations",
-      description: `Confirmed ${
-        updatedData.filter((r) => r._confirmed).length - data.filter((r) => r._confirmed).length
-      } validations on this page.`,
+      title: "Confirmed all suggestions",
+      description: `Confirmed ${rowIdsToConfirm.length} AI suggestions on this page.`,
     })
   }
 
   const handleRejectAll = () => {
-    const updatedData = data.map((row) =>
-      row._validation_status && !row._confirmed
+    // Get all row IDs on current page that need rejection
+    const rowIdsToReject = data
+      .filter((row) => row._ai_suggestion && !row._confirmed)
+      .map((row) => row._id)
+    
+    // Update allData for all rows
+    const updatedAllData = allData.map((row) =>
+      rowIdsToReject.includes(row._id)
         ? {
             ...row,
-            _validation_status: "",
-            _corrected_value: "",
-            _confirmed: true,
+            _ai_suggestion: "",
+            _ai_reasoning: "",
+            _confirmed: false,
           }
         : row,
     )
-    onDataUpdate(updatedData)
+    
+    onDataUpdate(updatedAllData)
     toast({
-      title: "Rejected all validations",
-      description: `Rejected ${pendingOnPage} validations on this page.`,
+      title: "Rejected all suggestions",
+      description: `Rejected ${rowIdsToReject.length} AI suggestions on this page.`,
     })
   }
 
@@ -173,25 +237,17 @@ export function DataGrid({
         return cleanRow
       })
 
-      const response = await fetch("/api/datasets/submit", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const result = await submitDataset({
+        versionName: versionName.trim(),
+        data: submissionData,
+        columns,
+        metadata: {
+          totalRows: allData.length,
+          confirmedRows: confirmedCount,
+          contextColumn,
+          resultColumn,
         },
-        body: JSON.stringify({
-          versionName: versionName.trim(),
-          data: submissionData,
-          columns,
-          metadata: {
-            totalRows: allData.length,
-            confirmedRows: confirmedCount,
-            contextColumn,
-            resultColumn,
-          },
-        }),
       })
-
-      const result = await response.json()
 
       if (result.success) {
         toast({
@@ -246,8 +302,10 @@ export function DataGrid({
     })
   }
 
+  // Show all columns except internal metadata columns, but include contextColumn and resultColumn
+  const internalColumns = ["_id", "_ai_suggestion", "_ai_reasoning", "_confirmed", "_validation_status", "_corrected_value", "_is_new"]
   const displayColumns = (visibleColumns.length > 0 ? visibleColumns : columns).filter(
-    (col) => col !== contextColumn && col !== resultColumn,
+    (col) => !internalColumns.includes(col)
   )
 
   const getCellColor = (status: string) => {
@@ -347,17 +405,6 @@ export function DataGrid({
 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            {!manualMode && (
-              <>
-                <div>
-                  <p className="text-sm text-muted-foreground">Validated</p>
-                  <p className="font-mono text-sm font-medium text-primary">
-                    {validatedCount} / {allData.length}
-                  </p>
-                </div>
-                <div className="h-8 w-px bg-border" />
-              </>
-            )}
             <div>
               <p className="text-sm text-muted-foreground">{manualMode ? "Labeled" : "Confirmed"}</p>
               <p className="font-mono text-sm font-medium text-success">
@@ -369,13 +416,15 @@ export function DataGrid({
                 <div className="h-8 w-px bg-border" />
                 <div>
                   <p className="text-sm text-muted-foreground">Pending Review</p>
-                  <p className="font-mono text-sm font-medium text-warning">{validatedCount - confirmedCount}</p>
+                  <p className="font-mono text-sm font-medium text-warning">
+                    {allData.filter((row) => row._ai_suggestion && !row._confirmed).length}
+                  </p>
                 </div>
               </>
             )}
           </div>
           <div className="flex items-center gap-2">
-            {!manualMode && validatedCount > 0 && (
+            {!manualMode && allData.some((row) => row._ai_suggestion) && (
               <>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -385,10 +434,10 @@ export function DataGrid({
                       className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10 bg-transparent"
                     >
                       <Trash2 className="h-4 w-4" />
-                      Clear Validation
+                      Clear All
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Remove all data validation and start over</TooltipContent>
+                  <TooltipContent>Remove all AI suggestions and start over</TooltipContent>
                 </Tooltip>
               </>
             )}
@@ -427,22 +476,27 @@ export function DataGrid({
                   <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-12">
                     #
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider min-w-[300px]">
-                    {contextColumn || "Context"}
-                  </th>
+                  {contextColumn && (
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider min-w-[300px]">
+                      {contextColumn}
+                    </th>
+                  )}
                   {displayColumns.map((col) => (
                     <th
                       key={col}
-                      className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider min-w-[250px]"
+                      className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider min-w-[200px]"
                     >
                       {col}
                     </th>
                   ))}
-                  {!manualMode && (
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-40">
-                      Status
+                  {resultColumn && (
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider min-w-[200px]">
+                      AI Suggest
                     </th>
                   )}
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-24">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -460,11 +514,13 @@ export function DataGrid({
                       <td className="px-4 py-3 text-sm text-muted-foreground font-mono">
                         {currentPage * 50 + index + 1}
                       </td>
-                      <td className="px-4 py-3 text-sm">
-                        <div className="max-w-md truncate" title={row[contextColumn]}>
-                          {row[contextColumn]}
-                        </div>
-                      </td>
+                      {contextColumn && (
+                        <td className="px-4 py-3 text-sm">
+                          <div className="max-w-md truncate" title={row[contextColumn]}>
+                            {row[contextColumn] || "-"}
+                          </div>
+                        </td>
+                      )}
                       {displayColumns.map((col) => (
                         <td
                           key={col}
@@ -502,7 +558,7 @@ export function DataGrid({
                             )}
                           </div>
 
-                          {hoveredCell?.rowId === row._id &&
+                          {/* {hoveredCell?.rowId === row._id &&
                             hoveredCell?.field === col &&
                             row._validation_status &&
                             row._validation_status !== "correct" && (
@@ -546,19 +602,140 @@ export function DataGrid({
                                   </div>
                                 </div>
                               </div>
-                            )}
+                            )} */}
                         </td>
                       ))}
-                      {!manualMode && (
-                        <td className="px-4 py-3 text-sm">
-                          {row._validation_status ? (
-                            <div className="flex items-center gap-2">
-                              {getStatusBadge(row._validation_status)}
-                              {row._confirmed && <span className="text-xs text-success font-medium">✓ Confirmed</span>}
+                      {resultColumn && (
+                        <td
+                          className="px-4 py-3 text-sm relative group"
+                          onMouseEnter={() => setHoveredCell({ rowId: row._id, field: resultColumn })}
+                          onMouseLeave={() => setHoveredCell(null)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={cn(
+                                "flex-1 rounded px-3 py-2 font-mono text-sm border transition-all",
+                                manualMode && "cursor-pointer hover:shadow-md",
+                                (row._corrected_value || row._ai_suggestion) && "bg-green-50 dark:bg-green-950/30 border-green-500",
+                              )}
+                              onClick={() => {
+                                if (manualMode) {
+                                  setEditingCell({ rowId: row._id, field: resultColumn })
+                                }
+                              }}
+                            >
+                              {editingCell?.rowId === row._id && editingCell?.field === resultColumn ? (
+                                <Input
+                                  autoFocus
+                                  value={row[resultColumn] || ""}
+                                  onChange={(e) => handleCellEdit(row._id, resultColumn, e.target.value)}
+                                  onBlur={() => setEditingCell(null)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      setEditingCell(null)
+                                    }
+                                  }}
+                                  className="h-6 font-mono text-sm p-1"
+                                />
+                              ) : (
+                                <span>{row._corrected_value || row._ai_suggestion || row[resultColumn] || "-"}</span>
+                              )}
                             </div>
-                          ) : null}
+                            {/* Only show Info icon if there's AI suggestion/reasoning and not yet confirmed */}
+                            {(row._ai_suggestion || row._ai_reasoning) && !row._confirmed && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="relative">
+                                    <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help" />
+                                    <span className="absolute -top-1 -right-1 h-2 w-2 bg-blue-500 rounded-full"></span>
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-sm bg-card border border-border shadow-md">
+                                  <div className="space-y-2">
+                                    {row._ai_suggestion && (
+                                      <div>
+                                        <p className="text-xs font-semibold text-muted-foreground mb-1">AI Suggestion:</p>
+                                        <div className={cn(
+                                          "inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium",
+                                          row._ai_suggestion === "true" && "bg-green-200 text-green-900 dark:bg-green-300 dark:text-green-950",
+                                          row._ai_suggestion === "false" && "bg-red-200 text-red-900 dark:bg-red-300 dark:text-red-950",
+                                          !["true", "false"].includes(row._ai_suggestion) && "bg-blue-200 text-blue-900 dark:bg-blue-300 dark:text-blue-950"
+                                        )}>
+                                          {row._ai_suggestion}
+                                        </div>
+                                      </div>
+                                    )}
+                                    {row._ai_reasoning && (
+                                      <div>
+                                        <p className="text-xs font-semibold text-muted-foreground mb-1">AI Reasoning:</p>
+                                        <p className="text-sm text-foreground">{row._ai_reasoning}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                          </div>
+
+                          {/* Single tooltip retained via Info icon above; removed duplicate hover panel for Result column */}
                         </td>
                       )}
+                      <td className="px-4 py-3 text-sm">
+                        {/* Only show buttons if there's AI suggestion, not yet confirmed, and Result != AI Suggest */}
+                        {row._ai_suggestion &&
+                          !row._confirmed &&
+                          ((row[resultColumn] || "") !== (row._corrected_value || row._ai_suggestion || row[resultColumn] || "")) && (
+                          <div className="flex items-center gap-2">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleConfirm(row._id)}
+                                  className="h-7 w-7 p-0 bg-green-50 hover:bg-green-100 dark:bg-green-950/30 dark:hover:bg-green-950/50 border-green-500 text-green-700 dark:text-green-300"
+                                >
+                                  <Check className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Confirm AI suggestion</p>
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleReject(row._id)}
+                                  className="h-7 w-7 p-0 bg-red-50 hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-950/50 border-red-500 text-red-700 dark:text-red-300"
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Reject AI suggestion</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                        )}
+                        {/* Show confirmed icon if confirmed */}
+                        {row._confirmed && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-flex items-center text-green-600 dark:text-green-400 cursor-help">
+                                <CheckCircle2 className="h-4 w-4" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Confirmed</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                        {/* Empty state */}
+                        {!row._ai_suggestion && !row._confirmed && (
+                          <span className="text-muted-foreground text-xs">-</span>
+                        )}
+                      </td>
                     </tr>
                   )
                 })}

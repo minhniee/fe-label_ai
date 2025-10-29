@@ -7,6 +7,7 @@ import { FileText, Loader2, X, CheckCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
+import { parseReference } from "@/app/api/labelai"
 
 interface ReferenceFile {
   name: string
@@ -33,15 +34,7 @@ export function ReferenceUploader({ onReferenceUpdate }: ReferenceUploaderProps)
       const newFiles: ReferenceFile[] = []
 
       for (const file of Array.from(uploadedFiles)) {
-        const formData = new FormData()
-        formData.append("file", file)
-
-        const response = await fetch("/api/parse-reference", {
-          method: "POST",
-          body: formData,
-        })
-
-        const result = await response.json()
+        const result = await parseReference(file)
 
         if (result.success) {
           newFiles.push({

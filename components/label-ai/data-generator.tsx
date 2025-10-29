@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Sparkles, Loader2 } from "lucide-react"
 import { ReferenceUploader } from "@/components/label-ai/reference-uploader"
 import { useToast } from "@/hooks/use-toast"
+import { generateData } from "@/app/api/labelai"
 
 interface DataGeneratorProps {
   onDataGenerated: (data: any[], columns: string[], datasetName: string) => void
@@ -45,24 +46,16 @@ export function DataGenerator({ onDataGenerated }: DataGeneratorProps) {
     try {
       setGenerating(true)
 
-      const response = await fetch("/api/generate-data", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          topic: topic.trim(),
-          rowCount: Number.parseInt(rowCount) || 20,
-          columns: columns
-            .split(",")
-            .map((c) => c.trim())
-            .filter(Boolean),
-          instructions: instructions.trim(),
-          apiKey: apiKey.trim(),
-        }),
+      const result = await generateData({
+        topic: topic.trim(),
+        rowCount: Number.parseInt(rowCount) || 20,
+        columns: columns
+          .split(",")
+          .map((c) => c.trim())
+          .filter(Boolean),
+        instructions: instructions.trim(),
+        apiKey: apiKey.trim(),
       })
-
-      const result = await response.json()
 
       if (result.success) {
         // Parse the CSV data

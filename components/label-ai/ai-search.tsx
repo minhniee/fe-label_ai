@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
+import { aiSearch } from "@/app/api/labelai"
 
 interface AISearchProps {
   onSearchResults?: (results: any[]) => void
@@ -30,17 +31,7 @@ export function AISearch({ onSearchResults }: AISearchProps) {
     setIsSearching(true)
 
     try {
-      const response = await fetch("/api/ai-search", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          query: searchQuery,
-        }),
-      })
-
-      const result = await response.json()
+      const result = await aiSearch(searchQuery)
 
       if (result.success) {
         setResults(result.data)

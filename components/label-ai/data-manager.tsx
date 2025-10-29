@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import type { RowData } from "@/app/page"
+import { generateMoreData } from "@/app/api/labelai"
 
 interface DataManagerProps {
   data: RowData[]
@@ -109,23 +110,15 @@ export function DataManager({
     setIsGenerating(true)
 
     try {
-      const response = await fetch("/api/generate-more-data", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          existingData: data.slice(0, 10),
-          columns,
-          count: Number.parseInt(generateCount),
-          prompt: generatePrompt,
-          apiKey,
-          model,
-          contextColumn,
-        }),
+      const result = await generateMoreData({
+        existingData: data.slice(0, 10),
+        columns,
+        count: Number.parseInt(generateCount),
+        prompt: generatePrompt,
+        apiKey,
+        model,
+        contextColumn,
       })
-
-      const result = await response.json()
 
       if (result.success) {
         const newRows = result.data.map((row: any, index: number) => ({

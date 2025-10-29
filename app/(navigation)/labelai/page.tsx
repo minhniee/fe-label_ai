@@ -17,6 +17,8 @@ import { SearchFilter } from "@/components/label-ai/search-filter"
 import { ColumnVisibility } from "@/components/label-ai/column-visibility"
 import { DataManager } from "@/components/label-ai/data-manager"
 import { AISearch } from "@/components/label-ai/ai-search"
+import { ColumnManager } from "@/components/label-ai/column-manager"
+import { getDatasetVersionData } from "@/app/api/labelai"
 
 export type RowData = {
   _id: string
@@ -46,8 +48,7 @@ export default function Home() {
   const handleVersionSelect = async (datasetId: string, versionId: string) => {
     try {
       setLoading(true)
-      const response = await fetch(`/api/datasets/${datasetId}/versions/${versionId}`)
-      const result = await response.json()
+      const result = await getDatasetVersionData(datasetId, versionId)
 
       if (result.success) {
         const datasetData = result.data
@@ -104,9 +105,10 @@ export default function Home() {
       }
     } catch (error) {
       console.error("Error loading dataset:", error)
+      const errorMessage = error instanceof Error ? error.message : "Failed to load dataset"
       toast({
         title: "Error",
-        description: "Failed to load dataset",
+        description: errorMessage,
         variant: "destructive",
       })
     } finally {
@@ -225,6 +227,15 @@ export default function Home() {
     setData(updatedData)
   }
 
+  const handleColumnsUpdate = (newColumns: string[]) => {
+    setColumns(newColumns)
+    // Update visibleColumns to include new columns and remove deleted ones
+    const updatedVisibleColumns = visibleColumns.filter((col) => newColumns.includes(col))
+    // Add new columns to visible columns by default
+    const newCols = newColumns.filter((col) => !visibleColumns.includes(col))
+    setVisibleColumns([...updatedVisibleColumns, ...newCols])
+  }
+
   const handleGenerateMore = (newRows: RowData[]) => {
     setData([...data, ...newRows])
   }
@@ -301,6 +312,16 @@ export default function Home() {
 
             <div className="flex items-center gap-4">
               <SearchFilter onSearchChange={setSearchQuery} />
+              <ColumnManager
+                columns={columns}
+                data={data}
+                contextColumn={contextColumn}
+                resultColumn={resultColumn}
+                onColumnsUpdateAction={handleColumnsUpdate}
+                onDataUpdateAction={setData}
+                onContextColumnChange={setContextColumn}
+                onResultColumnChange={setResultColumn}
+              />
               <ColumnVisibility
                 columns={columns}
                 visibleColumns={visibleColumns}
@@ -369,14 +390,17 @@ export default function Home() {
               contextColumn={contextColumn}
               resultColumn={resultColumn}
               onDataUpdate={(updatedRows) => {
-                const newData = [...data]
-                updatedRows.forEach((updatedRow) => {
-                  const index = newData.findIndex((row) => row._id === updatedRow._id)
-                  if (index !== -1) {
-                    newData[index] = updatedRow
-                  }
-                })
-                setData(newData)
+                // If updatedRows length matches allData length, replace entire dataset
+                if (updatedRows.length === data.length && updatedRows.length > 0) {
+                  setData(updatedRows)
+                } else {
+                  // Update specific rows by matching IDs
+                  const newData = data.map((row) => {
+                    const updated = updatedRows.find((r) => r._id === row._id)
+                    return updated || row
+                  })
+                  setData(newData)
+                }
               }}
               currentPage={currentPage}
               totalPages={totalPages}

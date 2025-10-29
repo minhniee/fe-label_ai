@@ -5,10 +5,12 @@ import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Database, Calendar, Columns, Loader2, Sparkles, FileText, ArrowLeft, ChevronRight, Upload } from "lucide-react"
+import { Database, Calendar, Columns, Loader2, Sparkles, FileText, ArrowLeft, ChevronRight, Upload, Key, CheckCircle2, XCircle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { getAuthHeaders } from "@/app/api/auth"
 import Papa from "papaparse"
+import { getDatasets, getDatasetVersions, testApiKey } from "@/app/api/labelai"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
 interface Dataset {
   id: string
@@ -45,22 +47,30 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
   const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null)
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
+  const [apiKey, setApiKey] = useState("")
+  const [isTestingKey, setIsTestingKey] = useState(false)
+  const [apiKeyStatus, setApiKeyStatus] = useState<"idle" | "valid" | "invalid">("idle")
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
 
   useEffect(() => {
     fetchDatasets()
+    // Load API key from localStorage if available
+    try {
+      const savedApiKey = localStorage.getItem("gemini_api_key")
+      if (savedApiKey) {
+        setApiKey(savedApiKey)
+      }
+    } catch (error) {
+      // Ignore localStorage errors
+    }
   }, [])
 
   const fetchDatasets = async () => {
     try {
       setLoading(true)
       
-      const response = await fetch("/api/datasets", {
-        method: 'GET',
-        headers: getAuthHeaders(),
-      })
-      const result = await response.json()
+      const result = await getDatasets()
 
       if (result.success) {
         setDatasets(result.datasets)
@@ -84,11 +94,23 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
         }
       }
     } catch (error) {
-      toast({
-        title: "Error fetching datasets",
-        description: error instanceof Error ? error.message : "An unexpected error occurred",
-        variant: "destructive",
-      })
+      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred"
+      if (errorMessage.includes("403") || errorMessage.includes("Forbidden") || errorMessage.includes("Unauthorized")) {
+        toast({
+          title: "Authentication Required",
+          description: "Please log in to access datasets. Redirecting to login page...",
+          variant: "destructive",
+        })
+        setTimeout(() => {
+          window.location.href = "/"
+        }, 2000)
+      } else {
+        toast({
+          title: "Error fetching datasets",
+          description: errorMessage,
+          variant: "destructive",
+        })
+      }
     } finally {
       setLoading(false)
     }
@@ -98,11 +120,7 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
     try {
       setLoadingVersions(true)
       
-      const response = await fetch(`/api/datasets/${datasetId}/versions`, {
-        method: 'GET',
-        headers: getAuthHeaders(),
-      })
-      const result = await response.json()
+      const result = await getDatasetVersions(datasetId)
 
       if (result.success) {
         setVersions(result.versions)
@@ -114,11 +132,20 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
         })
       }
     } catch (error) {
-      toast({
-        title: "Error fetching versions",
-        description: error instanceof Error ? error.message : "An unexpected error occurred",
-        variant: "destructive",
-      })
+      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred"
+      if (errorMessage.includes("403") || errorMessage.includes("Forbidden") || errorMessage.includes("Unauthorized")) {
+        toast({
+          title: "Authentication Required",
+          description: "Please log in to access datasets.",
+          variant: "destructive",
+        })
+      } else {
+        toast({
+          title: "Error fetching versions",
+          description: errorMessage,
+          variant: "destructive",
+        })
+      }
     } finally {
       setLoadingVersions(false)
     }
@@ -154,6 +181,55 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
       hour: "2-digit",
       minute: "2-digit",
     })
+  }
+
+  const handleTestApiKey = async () => {
+    if (!apiKey.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter an API key",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsTestingKey(true)
+    setApiKeyStatus("idle")
+
+    try {
+      const result = await testApiKey(apiKey.trim(), "gemini-flash-2.5")
+
+      if (result.success) {
+        setApiKeyStatus("valid")
+        // Save API key to localStorage
+        try {
+          localStorage.setItem("gemini_api_key", apiKey.trim())
+        } catch (error) {
+          // Ignore localStorage errors
+        }
+        toast({
+          title: "API Key Valid",
+          description: result.message || "API key is valid and ready to use",
+        })
+      } else {
+        setApiKeyStatus("invalid")
+        toast({
+          title: "API Key Invalid",
+          description: result.error || "Please check your API key and try again",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      setApiKeyStatus("invalid")
+      const errorMessage = error instanceof Error ? error.message : "Failed to test API key"
+      toast({
+        title: "Test Failed",
+        description: errorMessage,
+        variant: "destructive",
+      })
+    } finally {
+      setIsTestingKey(false)
+    }
   }
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -392,6 +468,64 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
           </Button>
         </div>
       </div>
+
+      {/* API Key Configuration */}
+      <Card className="p-4">
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Key className="h-5 w-5 text-primary" />
+            <h3 className="text-lg font-semibold">API Key Configuration</h3>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Enter your Gemini API key to use AI features like search and data generation
+          </p>
+          <div className="flex items-end gap-2">
+            <div className="flex-1 space-y-2">
+              <Label htmlFor="api-key">Gemini API Key</Label>
+              <div className="relative">
+                <Input
+                  id="api-key"
+                  type="password"
+                  placeholder="Enter your Gemini API key"
+                  value={apiKey}
+                  onChange={(e) => {
+                    setApiKey(e.target.value)
+                    setApiKeyStatus("idle")
+                  }}
+                  className="pr-10"
+                />
+                {apiKeyStatus === "valid" && (
+                  <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-500" />
+                )}
+                {apiKeyStatus === "invalid" && (
+                  <XCircle className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500" />
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Your API key is stored locally in your browser and not sent to our servers
+              </p>
+            </div>
+            <Button
+              onClick={handleTestApiKey}
+              disabled={isTestingKey || !apiKey.trim()}
+              variant="outline"
+              className="gap-2"
+            >
+              {isTestingKey ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Testing...
+                </>
+              ) : (
+                <>
+                  <Key className="h-4 w-4" />
+                  Test Key
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </Card>
 
       <input ref={fileInputRef} type="file" accept=".csv" onChange={handleFileUpload} className="hidden" />
 

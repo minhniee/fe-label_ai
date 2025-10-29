@@ -1,14 +1,16 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Sparkles, Loader2 } from "lucide-react"
+import { Sparkles, Loader2, CheckCircle2, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import type { RowData } from "@/app/(navigation)/labeling/page"
+import type { RowData } from "@/app/(navigation)/labelai/page"
 import { useToast } from "@/hooks/use-toast"
 import { MultiColumnConfig } from "@/components/label-ai/multi-column-config"
+import { testApiKey, labelData } from "@/app/api/labelai"
 
 interface ModelSelectorProps {
   data: RowData[]
@@ -16,17 +18,7 @@ interface ModelSelectorProps {
   resultColumn: string
   referenceContext: string
   columns: string[]
-  apiKey?: string
-  selectedModel?: string
   onDataUpdate: (data: RowData[]) => void
-  onLabel?: (
-    rows: RowData[],
-    model: string,
-    apiKey: string,
-    contextColumn: string,
-    referenceContext: string
-  ) => Promise<RowData[]>
-  onTestKey?: (apiKey: string, model: string) => Promise<boolean>
 }
 
 export function ModelSelector({
@@ -35,54 +27,65 @@ export function ModelSelector({
   resultColumn,
   referenceContext,
   columns,
-  apiKey = "",
-  selectedModel = "gemini-flash-2.5",
   onDataUpdate,
-  onLabel,
-  onTestKey,
 }: ModelSelectorProps) {
-  const [model, setModel] = useState(selectedModel)
+  const [model, setModel] = useState("gemini-flash-2.5")
+  const [apiKey, setApiKey] = useState("")
   const [isLabeling, setIsLabeling] = useState(false)
   const [isTestingKey, setIsTestingKey] = useState(false)
+  const [keyStatus, setKeyStatus] = useState<"idle" | "valid" | "invalid">("idle")
   const [multiColumnConfig, setMultiColumnConfig] = useState<any[]>([])
   const { toast } = useToast()
 
-  // Update local model state when selectedModel prop changes
+  // Load API key from localStorage on mount
   useEffect(() => {
-    if (selectedModel) {
-      setModel(selectedModel)
+    try {
+      const savedApiKey = localStorage.getItem("llm_api_key") || localStorage.getItem("gemini_api_key")
+      if (savedApiKey) {
+        setApiKey(savedApiKey)
+      }
+    } catch (error) {
+      // Ignore localStorage errors
     }
-  }, [selectedModel])
+  }, [])
 
   const handleTestKey = async () => {
-    if (!onTestKey || !apiKey) {
+    if (!apiKey.trim()) {
       toast({
-        title: "Error",
-        description: "API key is required to test",
+        title: "No API key provided",
+        description: "Please enter an API key to test.",
         variant: "destructive",
       })
       return
     }
 
     setIsTestingKey(true)
+    setKeyStatus("idle")
+
     try {
-      const isValid = await onTestKey(apiKey, model)
-      if (isValid) {
+      const result = await testApiKey(apiKey.trim(), model)
+
+      if (result.success) {
+        setKeyStatus("valid")
+        // Save API key to localStorage
+        try {
+          localStorage.setItem("llm_api_key", apiKey.trim())
+        } catch (error) {
+          // Ignore localStorage errors
+        }
         toast({
           title: "API Key Valid",
-          description: `Successfully connected to ${model}`,
+          description: result.message || "Your API key is valid and ready to use.",
         })
       } else {
-        toast({
-          title: "API Key Invalid",
-          description: "Please check your API key and try again",
-          variant: "destructive",
-        })
+        setKeyStatus("invalid")
+        throw new Error(result.error)
       }
     } catch (error) {
+      setKeyStatus("invalid")
       toast({
-        title: "Test Failed",
-        description: error instanceof Error ? error.message : "Failed to test API key",
+        title: "Invalid API key",
+        description: error instanceof Error ? error.message : "The API key could not be verified.",
         variant: "destructive",
       })
     } finally {
@@ -109,10 +112,10 @@ export function ModelSelector({
       return
     }
 
-    if (!apiKey) {
+    if (!apiKey.trim()) {
       toast({
-        title: "API Key Required",
-        description: "Please enter your API key in the AI Configuration section above.",
+        title: "API key required",
+        description: "Please enter your Gemini API key to use AI labeling.",
         variant: "destructive",
       })
       return
@@ -121,42 +124,24 @@ export function ModelSelector({
     setIsLabeling(true)
 
     try {
-      if (onLabel) {
-        // Use the onLabel prop if provided (new way)
-        const labeledData = await onLabel(data, model, apiKey, contextColumn, referenceContext)
-        onDataUpdate(labeledData)
+      const result = await labelData({
+        rows: data,
+        model,
+        apiKey: apiKey.trim(),
+        contextColumn,
+        resultColumn,
+        referenceContext,
+        multiColumnConfig,
+      })
+
+      if (result.success) {
+        onDataUpdate(result.data)
         toast({
           title: "Labeling complete",
-          description: `Successfully labeled ${labeledData.length} rows with ${model}`,
+          description: `Successfully labeled ${result.data.length} rows with ${model}`,
         })
       } else {
-        // Fallback to old way (direct API call)
-        const response = await fetch("/api/label", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            rows: data,
-            model,
-            contextColumn,
-            resultColumn,
-            referenceContext,
-            multiColumnConfig,
-          }),
-        })
-
-        const result = await response.json()
-
-        if (result.success) {
-          onDataUpdate(result.data)
-          toast({
-            title: "Labeling complete",
-            description: `Successfully labeled ${result.data.length} rows with ${model}`,
-          })
-        } else {
-          throw new Error(result.error)
-        }
+        throw new Error(result.error)
       }
     } catch (error) {
       console.error("Error labeling data:", error)
@@ -165,7 +150,7 @@ export function ModelSelector({
         description:
           error instanceof Error
             ? error.message
-            : "An error occurred while labeling the data. Please check your API key configuration and try again.",
+            : "An error occurred while labeling the data. Please check your API key and try again.",
         variant: "destructive",
       })
     } finally {
@@ -186,7 +171,7 @@ export function ModelSelector({
         <div className="flex items-end gap-4">
           <div className="flex-1 space-y-2">
             <Label htmlFor="model">AI Model</Label>
-            <Select value={selectedModel || model} onValueChange={setModel}>
+            <Select value={model} onValueChange={setModel}>
               <SelectTrigger id="model">
                 <SelectValue />
               </SelectTrigger>
@@ -198,36 +183,55 @@ export function ModelSelector({
                 <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
                 <SelectItem value="gpt-4-turbo">GPT-4 Turbo</SelectItem>
                 <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
-                <SelectItem value="deepseek-chat">DeepSeek Chat</SelectItem>
-                <SelectItem value="deepseek-coder">DeepSeek Coder</SelectItem>
                 <SelectItem value="qwen-turbo">Qwen Turbo</SelectItem>
                 <SelectItem value="qwen-plus">Qwen Plus</SelectItem>
                 <SelectItem value="qwen-max">Qwen Max</SelectItem>
-                <SelectItem value="claude-3-5-sonnet">Claude 3.5 Sonnet</SelectItem>
-                <SelectItem value="claude-3-5-haiku">Claude 3.5 Haiku</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          {onTestKey && (
-            <Button
-              onClick={handleTestKey}
-              disabled={isTestingKey || !apiKey}
-              variant="outline"
-              className="gap-2"
-            >
-              {isTestingKey ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Testing...
-                </>
-              ) : (
-                "Test Key"
-              )}
-            </Button>
-          )}
+          <div className="flex-1 space-y-2">
+            <Label htmlFor="api-key">
+              API Key <span className="text-muted-foreground">(provider key)</span>
+            </Label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Input
+                  id="api-key"
+                  type="password"
+                  placeholder="Enter your API key"
+                  value={apiKey}
+                  onChange={(e) => {
+                    setApiKey(e.target.value)
+                    setKeyStatus("idle")
+                  }}
+                />
+                {keyStatus === "valid" && (
+                  <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-500" />
+                )}
+                {keyStatus === "invalid" && (
+                  <XCircle className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500" />
+                )}
+              </div>
+              <Button
+                variant="outline"
+                onClick={handleTestKey}
+                disabled={isTestingKey || !apiKey}
+                className="gap-2 bg-transparent"
+              >
+                {isTestingKey ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Testing...
+                  </>
+                ) : (
+                  "Test Key"
+                )}
+              </Button>
+            </div>
+          </div>
 
-          <Button onClick={handleLabel} disabled={isLabeling || !apiKey} className="gap-2" size="lg">
+          <Button onClick={handleLabel} disabled={isLabeling} className="gap-2" size="lg">
             {isLabeling ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
