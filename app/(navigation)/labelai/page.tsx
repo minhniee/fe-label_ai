@@ -15,7 +15,7 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { SearchFilter } from "@/components/label-ai/search-filter"
 import { ColumnVisibility } from "@/components/label-ai/column-visibility"
-import { getVersionData, getFileData, getVersionFiles } from "@/app/api/datasets"
+import { getVersionData, getFileData, getVersionFiles } from "@/app/api/dataset"
 
 export type RowData = {
   _id: string

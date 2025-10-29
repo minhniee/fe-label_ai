@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Database, Calendar, Columns, Loader2, Sparkles, FileText, ArrowLeft, ChevronRight, Upload } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import * as dataset from "@/app/api/datasets"
+import * as dataset from "@/app/api/dataset"
 import Papa from "papaparse"
 
 

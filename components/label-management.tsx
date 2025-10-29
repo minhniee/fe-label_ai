@@ -28,7 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tags, Plus, MoreHorizontal, Edit, Trash2, Keyboard, Save, X, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { createLabel, getLabel, updateLabel, deleteLabel, getAllLabels, type CreateLabelRequest, type UpdateLabelRequest } from "@/app/api/label"
-import { getDatasets } from "@/app/api/datasets"
+import { getDatasets } from "@/app/api/dataset"
 import { useToast } from "@/hooks/use-toast"
 
 interface LabelSet {

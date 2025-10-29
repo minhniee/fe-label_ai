@@ -187,7 +187,7 @@ export const queryPrefetch = {
     await queryClient.prefetchQuery({
       queryKey: QUERY_KEYS.DATASETS,
       queryFn: async () => {
-        const { getDatasets } = await import('../app/api/datasets')
+        const { getDatasets } = await import('../app/api/dataset')
         return getDatasets()
       },
       staleTime: 5 * 60 * 1000,
@@ -199,7 +199,7 @@ export const queryPrefetch = {
     await queryClient.prefetchQuery({
       queryKey: QUERY_KEYS.DATASET_VERSIONS(datasetId),
       queryFn: async () => {
-        const { getDatasetVersions } = await import('../app/api/datasets')
+        const { getDatasetVersions } = await import('../app/api/dataset')
         return getDatasetVersions(datasetId)
       },
       staleTime: 5 * 60 * 1000,
