@@ -3,7 +3,7 @@
 import type React from "react"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { getMe } from "@/app/api/auth"
+import { getMe, logout as apiLogout } from "@/app/api/auth"
 
 interface BackendUser {
   user_id: number
@@ -80,11 +80,8 @@ export function AuthGuard({ children, allowedRoleIds }: AuthGuardProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          <p className="text-gray-600 text-sm">Đang xác thực...</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     )
   }
@@ -113,13 +110,7 @@ export function useAuth() {
     if (typeof window === 'undefined') return
     
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/auth/logout`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      })
+      await apiLogout()
     } catch (error) {
       console.error('Logout error:', error)
     } finally {

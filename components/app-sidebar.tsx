@@ -189,7 +189,7 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <div className="px-2 py-1.5">
+        <div className="px-2 py-1.5 pr-2.5 flex items-center justify-center">
           <FPTLogo size="sm" showText={true} />
         </div>
       </SidebarHeader>
