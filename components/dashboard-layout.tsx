@@ -14,6 +14,10 @@ import {
 import { cn } from "@/lib/utils"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Button } from "@/components/ui/button"
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "./ui/empty"
+import { Bell } from "lucide-react"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -34,12 +38,13 @@ const ROUTE_TITLES: Record<string, string> = {
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname()
+  const [notifications, setNotifications] = React.useState<any[]>([])
 
   const handleLogout = async () => {
     try {
       const { logout } = await import("@/app/api/auth")
       await logout()
-      window.location.href = "/"
+      window.location.href = "/login"
     } catch (error) {
       console.error("Logout failed:", error)
     }
@@ -74,7 +79,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       <AppSidebar onLogout={handleLogout} />
       <SidebarInset>
         <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
-          <div className="flex items-center gap-2 px-4">
+          <div className="flex items-center gap-2 px-4 w-full">
             <SidebarTrigger className="-ml-1 cursor-pointer" />
             <Separator 
               orientation="vertical" 
@@ -85,6 +90,35 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 {generateBreadcrumbs()}
               </BreadcrumbList>
             </Breadcrumb>
+
+            <div className="ml-auto">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="icon" aria-label="Notifications">
+                    <Bell className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-80 p-0">
+                  {notifications.length === 0 ? (
+                    <Empty className="from-muted/50 to-background h-full bg-gradient-to-b from-30%">
+                      <EmptyHeader>
+                        <EmptyMedia variant="icon">
+                          <Bell />
+                        </EmptyMedia>
+                        <EmptyTitle>No Notifications</EmptyTitle>
+                        <EmptyDescription>
+                          You&apos;re all caught up. New notifications will appear here.
+                        </EmptyDescription>
+                      </EmptyHeader>
+                    </Empty>
+                  ) : (
+                    <div className="p-3">
+                      {/* Render notifications list here */}
+                    </div>
+                  )}
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
         </header>
         <div className={cn("flex-1 p-4 pt-0")}>

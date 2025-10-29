@@ -28,7 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tags, Plus, MoreHorizontal, Edit, Trash2, Keyboard, Save, X, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { createLabel, getLabel, updateLabel, deleteLabel, getAllLabels, type CreateLabelRequest, type UpdateLabelRequest } from "@/app/api/label"
-import { createDataset, getDatasets } from "@/app/api/datasets"
+import { getDatasets } from "@/app/api/dataset"
 import { useToast } from "@/hooks/use-toast"
 
 interface LabelSet {
@@ -61,6 +61,8 @@ export function LabelManagement() {
   const [labelSets, setLabelSets] = useState<LabelSet[]>([])
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
+  const [datasets, setDatasets] = useState<Array<{ dataset_id: number; name: string; description?: string; created_at: string }>>([])
+  const [selectedDatasetId, setSelectedDatasetId] = useState<number | null>(null)
 
   const [isAddLabelSetOpen, setIsAddLabelSetOpen] = useState(false)
   const [isEditLabelOpen, setIsEditLabelOpen] = useState(false)
@@ -100,6 +102,11 @@ export function LabelManagement() {
         getDatasets(),
         getAllLabels()
       ])
+
+      setDatasets(datasets)
+      if (datasets.length > 0 && selectedDatasetId === null) {
+        setSelectedDatasetId(datasets[0].dataset_id)
+      }
 
       // Group labels by dataset_id
       const labelsByDataset = labels.reduce((acc, label) => {
@@ -175,26 +182,20 @@ export function LabelManagement() {
   }
 
   const handleAddLabelSet = async () => {
-    if (!newLabelSet.name || !newLabelSet.description || newLabelSet.labels.length === 0) return
+    if (!newLabelSet.labels.length || selectedDatasetId === null) return
 
     try {
-      // Create dataset first
-      const dataset = await createDataset(
-        newLabelSet.name,
-        newLabelSet.description
-      )
-
-      // Create labels via API
+      // Create labels in the selected dataset
       const createdLabels = await Promise.all(
         newLabelSet.labels.map(async (label, index) => {
           const labelData: CreateLabelRequest = {
             name: label.label,
             description: label.description,
             color: getHexColor(label.color),
-            guidelines: label.description, // Using description as guidelines
+            guidelines: label.description,
             hotkey: label.hotkey,
             priority: index + 1,
-            dataset_id: dataset.dataset_id, // Use the created dataset ID
+            dataset_id: selectedDatasetId,
           }
 
           const response = await createLabel(labelData)
@@ -208,32 +209,22 @@ export function LabelManagement() {
         })
       )
 
-      const labelSet: LabelSet = {
-        id: Date.now().toString(),
-        name: newLabelSet.name,
-        description: newLabelSet.description,
-        labels: createdLabels,
-        createdDate: new Date().toISOString().split("T")[0],
-        isActive: false,
-        usageCount: 0,
-        hasExistingData: false,
-      }
-
       // Reload data from API to get the latest state
       await loadLabelSets()
       
       setNewLabelSet({ name: "", description: "", labels: [] })
       setIsAddLabelSetOpen(false)
 
+      const datasetName = datasets.find(d => d.dataset_id === selectedDatasetId)?.name || "dataset"
       toast({
         title: "Success",
-        description: `Created dataset "${dataset.name}" and label set with ${createdLabels.length} labels`,
+        description: `Created ${createdLabels.length} labels in ${datasetName}`,
       })
     } catch (error) {
-      console.error("Error creating dataset and labels:", error)
+      console.error("Error creating labels:", error)
       toast({
         title: "Error",
-        description: "Failed to create dataset and labels. Please try again.",
+        description: "Failed to create labels. Please try again.",
         variant: "destructive",
       })
     }
@@ -326,7 +317,7 @@ export function LabelManagement() {
           guidelines: label.description,
           hotkey: label.hotkey,
           priority: editingLabels.length + index + 1,
-          dataset_id: 0, // Should be passed from parent or context
+          dataset_id: parseInt(selectedLabelSet.id),
         }
         return await createLabel(labelData)
       })
@@ -385,6 +376,35 @@ export function LabelManagement() {
         </div>
       ) : (
         <>
+          {/* Dataset selector */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Select dataset</CardTitle>
+                  <CardDescription>Choose an existing dataset to manage its labels</CardDescription>
+                </div>
+                <div className="min-w-[240px]">
+                  <Select
+                    value={selectedDatasetId !== null ? String(selectedDatasetId) : undefined}
+                    onValueChange={(value) => setSelectedDatasetId(parseInt(value))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select dataset" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {datasets.map((ds) => (
+                        <SelectItem key={ds.dataset_id} value={String(ds.dataset_id)}>
+                          {ds.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardHeader>
+          </Card>
+
           {/* Label Statistics */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className=" ">
@@ -590,7 +610,7 @@ export function LabelManagement() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {labelSets.map((labelSet) => (
+            {(selectedDatasetId ? labelSets.filter((s) => s.id === String(selectedDatasetId)) : labelSets).map((labelSet) => (
               <Card key={labelSet.id} className={`  ${labelSet.isActive ? "border-primary" : ""}`}>
                 <CardHeader>
                   <div className="flex items-center justify-between">

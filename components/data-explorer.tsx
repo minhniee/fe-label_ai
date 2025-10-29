@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Search, ChevronLeft, ChevronRight, Trash2, Database, RefreshCw } from "lucide-react"
-import { getDatasets, deleteDataset, type Dataset } from "@/app/api/datasets"
+import { getDatasets, deleteDataset, type Dataset } from "@/app/api/dataset"
 import { useToast } from "@/hooks/use-toast"
 
 interface DatasetRecord extends Dataset {

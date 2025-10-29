@@ -3,7 +3,7 @@
 import type React from "react"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { getMe } from "@/app/api/auth"
+import { getMe, logout as apiLogout } from "@/app/api/auth"
 
 interface BackendUser {
   user_id: number
@@ -35,44 +35,40 @@ export function AuthGuard({ children, allowedRoleIds }: AuthGuardProps) {
 
     const verify = async () => {
       try {
-        // Prefer cached user if available
-        const cached = localStorage.getItem("user")
-        if (cached) {
-          try {
-            const parsed = JSON.parse(cached) as BackendUser
-            if (!cancelled) setUser(parsed)
-          } catch {}
-        }
-
-        // If we have a token, confirm with backend (fixes intermittent missing cached user)
-        const token = localStorage.getItem("access_token")
+        // With HTTP-only cookies, we can't check localStorage for tokens
+        // Instead, we try to get user info from backend using cookies
         let me: BackendUser | null = null
-        if (token) {
-          try {
-            const resp = await getMe()
-            me = resp as unknown as BackendUser
-            try { localStorage.setItem("user", JSON.stringify(me)) } catch {}
-          } catch {
-            me = null
-          }
+        
+        try {
+          const resp = await getMe()
+          me = resp as unknown as BackendUser
+          // Cache user data in localStorage for UI purposes
+          try { 
+            localStorage.setItem("user", JSON.stringify(me)) 
+          } catch {}
+        } catch (error) {
+          console.log("Authentication failed:", error)
+          me = null
         }
 
-        const effective = (me ?? (cached ? (JSON.parse(cached) as BackendUser) : null))
-
-        if (!effective) {
-          if (!cancelled) router.push("/")
+        if (!me) {
+          if (!cancelled) {
+            // Clear any cached user data
+            try { localStorage.removeItem("user") } catch {}
+            router.push("/login")
+          }
           return
         }
 
         if (allowedRoleIds && allowedRoleIds.length > 0) {
-          const isAllowed = allowedRoleIds.includes(effective.role_id)
+          const isAllowed = allowedRoleIds.includes(me.role_id)
           if (!isAllowed) {
             if (!cancelled) router.push("/dashboard")
             return
           }
         }
 
-        if (!cancelled) setUser(effective)
+        if (!cancelled) setUser(me)
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -84,11 +80,8 @@ export function AuthGuard({ children, allowedRoleIds }: AuthGuardProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          <p className="text-gray-600 text-sm">Đang xác thực...</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     )
   }
@@ -113,10 +106,25 @@ export function useAuth() {
     if (userStr) setUser(JSON.parse(userStr))
   }, [mounted])
 
-  const logout = () => {
+  const logout = async () => {
     if (typeof window === 'undefined') return
-    localStorage.removeItem("user")
-    window.location.href = "/"
+    
+    try {
+      await apiLogout()
+    } catch (error) {
+      console.error('Logout error:', error)
+    } finally {
+      // Clear local user data
+      try { 
+        localStorage.removeItem("user")
+        localStorage.removeItem("user_picture")
+        localStorage.removeItem("user_name")
+        localStorage.removeItem("user_email")
+      } catch {}
+      
+      // Redirect to login
+      window.location.href = "/login"
+    }
   }
 
   return { user, logout }

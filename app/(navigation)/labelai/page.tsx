@@ -19,6 +19,7 @@ import { DataManager } from "@/components/label-ai/data-manager"
 import { AISearch } from "@/components/label-ai/ai-search"
 import { ColumnManager } from "@/components/label-ai/column-manager"
 import { getDatasetVersionData } from "@/app/api/labelai"
+import { getVersionData, getFileData, getVersionFiles } from "@/app/api/dataset"
 
 export type RowData = {
   _id: string

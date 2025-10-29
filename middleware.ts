@@ -1,18 +1,15 @@
-/**
- * Next.js Middleware - Cache disabled
- * Disable all caching for development and testing
- */
-
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export function middleware(request: NextRequest) {
-  const response = NextResponse.next()
+  const { pathname } = request.nextUrl
 
-  // Disable cache for all routes
-  response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate')
-  response.headers.set('Pragma', 'no-cache')
-  response.headers.set('Expires', '0')
+  // If user is already authenticated, prevent accessing /login and send to /dashboard
+  if ((pathname === '/login' || pathname === '/') && request.cookies.get('access_token')) {
+    return NextResponse.redirect(new URL('/dashboard', request.url))
+  }
+
+  const response = NextResponse.next()
 
   // Add security headers
   response.headers.set('X-Frame-Options', 'DENY')

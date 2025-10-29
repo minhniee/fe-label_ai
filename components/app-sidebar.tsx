@@ -10,6 +10,7 @@ import {
   CheckSquare,
   Sparkles,
   GitCompare,
+  FileCode,
   type LucideIcon,
 } from "lucide-react";
 
@@ -81,6 +82,19 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
         const { getMe } = await import("@/app/api/auth");
         const data = await getMe();
         setMe(data);
+        // Also hydrate visible user info from backend (Google name/email/image if provided)
+        try {
+          setUser((prev) => ({
+            name: (data as any).username || (data as any).name || prev.name || "User",
+            email: (data as any).email || prev.email || "",
+            avatar:
+              // prefer picture from backend if available
+              (data as any).picture ||
+              (typeof window !== "undefined" ? localStorage.getItem("user_picture") : null) ||
+              prev.avatar ||
+              "/avatars/default.jpg",
+          }));
+        } catch {}
       } catch (error) {
         console.warn("Failed to load user role:", error);
       }
@@ -108,6 +122,12 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
         url: "/data",
         icon: Database,
         isActive: pathname === "/data",
+      },
+      {
+        title: "Schema",
+        url: "/schema",
+        icon: FileCode,
+        isActive: pathname === "/schema",
       },
       {
         title: "Labeling",
@@ -182,7 +202,7 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <div className="px-2 py-1.5">
+        <div className="px-2 py-1.5 pr-2.5 flex items-center justify-center">
           <FPTLogo size="sm" showText={true} />
         </div>
       </SidebarHeader>
