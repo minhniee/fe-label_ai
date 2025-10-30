@@ -20,6 +20,8 @@ interface DataManagerProps {
   contextColumn: string
   apiKey?: string
   model?: string
+  // (NEW) Reference CSV file content, required for Generate More (enforced by UI)
+  referenceFileContent?: string
 }
 
 export function DataManager({
@@ -31,6 +33,7 @@ export function DataManager({
   contextColumn,
   apiKey,
   model = "gemini-flash-2.5",
+  referenceFileContent = "" // default empty
 }: DataManagerProps) {
   const [showAddRow, setShowAddRow] = useState(false)
   const [showAddColumn, setShowAddColumn] = useState(false)
@@ -97,21 +100,18 @@ export function DataManager({
       })
       return
     }
-
-    if (data.length === 0) {
+    if (!referenceFileContent) {
       toast({
-        title: "No data to reference",
-        description: "Please load or create some data first",
+        title: "Reference file required",
+        description: "Please upload a reference file before generating data",
         variant: "destructive",
       })
       return
     }
-
     setIsGenerating(true)
-
     try {
       const result = await generateMoreData({
-        existingData: data.slice(0, 10),
+        referenceFileContent,
         columns,
         count: Number.parseInt(generateCount),
         prompt: generatePrompt,
@@ -119,8 +119,8 @@ export function DataManager({
         model,
         contextColumn,
       })
-
       if (result.success) {
+        // result.data now expected to be array of new row dicts
         const newRows = result.data.map((row: any, index: number) => ({
           _id: `row-generated-${Date.now()}-${index}`,
           _is_new: true,
@@ -129,12 +129,10 @@ export function DataManager({
           _confirmed: false,
           ...row,
         }))
-
         onGenerateMore(newRows)
         setGenerateCount("5")
         setGeneratePrompt("")
         setShowGenerateMore(false)
-
         toast({
           title: "Data generated",
           description: `Successfully generated ${newRows.length} new rows`,
@@ -250,7 +248,17 @@ export function DataManager({
               <Sparkles className="h-4 w-4" />
               <h3 className="font-semibold">Generate More</h3>
             </div>
-            {showGenerateMore ? (
+            {!referenceFileContent ? (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  <b>Upload a reference file</b> to enable AI-powered row generation.<br />
+                  The Generate More feature is disabled until a valid CSV or reference file is provided.
+                </p>
+                <Button size="sm" variant="outline" className="w-full h-8 text-xs" disabled>
+                  Generate More Data
+                </Button>
+              </div>
+            ) : showGenerateMore ? (
               <div className="space-y-3">
                 <div>
                   <Label className="text-xs">Number of Rows</Label>
@@ -304,7 +312,7 @@ export function DataManager({
                 variant="outline"
                 onClick={() => setShowGenerateMore(true)}
                 className="w-full h-8 text-xs"
-                disabled={!apiKey}
+                disabled={!apiKey || !referenceFileContent}
               >
                 Generate More Data
               </Button>

@@ -55,16 +55,17 @@ export function DataGenerator({ onDataGenerated }: DataGeneratorProps) {
           .map((c) => c.trim())
           .filter(Boolean),
         instructions: instructions.trim(),
+        referenceContext: referenceContext,
         apiKey: apiKey.trim(),
         referenceContext: referenceContext.trim(),
       })
 
       if (result.success) {
-        // Parse the CSV data
+        // Parse the CSV data (backend uses pipe delimiter |)
         const lines = result.csv.trim().split("\n")
-        const headers = lines[0].split(",").map((h: string) => h.trim())
+        const headers = lines[0].split("|").map((h: string) => h.trim())
         const rows = lines.slice(1).map((line: string) => {
-          const values = line.split(",").map((v: string) => v.trim())
+          const values = line.split("|").map((v: string) => v.trim())
           const row: any = {}
           headers.forEach((header: string, index: number) => {
             row[header] = values[index] || ""
