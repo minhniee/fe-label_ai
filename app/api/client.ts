@@ -1,175 +1,59 @@
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
+import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 
-export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE"
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 
-export interface RequestOptions {
-  method?: HttpMethod
-  headers?: Record<string, string>
-  body?: unknown
-}
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
-
-// Create Axios instance
-const axiosInstance: AxiosInstance = axios.create({
+// Create a single, configured axios instance
+const api: AxiosInstance = axios.create({
   baseURL: API_BASE,
-  timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true, // Enable cookies for all requests
-})
+});
 
-// Request interceptor - no longer needed for auth tokens since they're in cookies
-axiosInstance.interceptors.request.use(
+// Add a request interceptor to attach the JWT token to every request
+api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // Cookies are automatically included with withCredentials: true
-    return config
+    // Check if running on the client side
+    if (typeof window !== 'undefined') {
+      try {
+        const token = localStorage.getItem('access_token');
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+      } catch (error) {
+        console.error("Could not get access token from localStorage", error);
+      }
+    }
+    return config;
   },
   (error) => {
-    return Promise.reject(error)
+    // Do something with request error
+    return Promise.reject(error);
   }
-)
+);
 
-// Response interceptor for success and error handling
-axiosInstance.interceptors.response.use(
-  (response: AxiosResponse) => {
-    // Handle success responses (optional)
-    if (typeof window !== "undefined") {
-      // Show success toast for certain operations
-      const method = response.config.method?.toUpperCase()
-      const url = response.config.url || ''
-      
-      // Only show success toast for POST, PUT, DELETE operations
-      if (method && ['POST', 'PUT', 'DELETE'].includes(method)) {
-        // Don't show toast for auth endpoints to avoid spam
-        if (!url.includes('/auth/')) {
-          // Import toast dynamically
-          import("@/hooks/use-toast").then(({ toast }) => {
-            const action = method === 'POST' ? 'created' : 
-                          method === 'PUT' ? 'updated' : 'deleted'
-            
-            toast({
-              title: "Success: Operation completed successfully",
-              variant: "default"
-            })
-          })
-        }
-      }
-    }
-    
-    return response
+// Optional: Add a response interceptor for global error handling
+api.interceptors.response.use(
+  (response) => {
+    // Any status code that lie within the range of 2xx cause this function to trigger
+    return response;
   },
-  async (error) => {
-    // Handle errors with unified toast (client-side only)
-    if (typeof window !== "undefined") {
-      const { toast } = await import("@/hooks/use-toast")
-      
-      // Extract error details
-      const status = error.response?.status
-      const errorData = error.response?.data
-      const errorMessage = errorData?.detail || errorData?.message || error.message
-      
-      // Handle different status codes
-      switch (status) {
-        case 400:
-          toast({ 
-            title: `Bad Request: ${errorMessage || "Invalid request data"}`,
-            variant: "destructive" 
-          })
-          break
-          
-        case 401:
-          toast({ 
-            title: `Unauthorized: ${errorMessage || "Please login again"}`,
-            variant: "destructive" 
-          })
-          // Optional: Redirect to login page
-          // window.location.href = '/login'
-          break
-          
-        case 403:
-          toast({ 
-            title: `Forbidden: ${errorMessage || "You don't have permission to perform this action"}`,
-            variant: "destructive" 
-          })
-          break
-          
-        case 404:
-          toast({ 
-            title: `Not Found: ${errorMessage || "Resource not found"}`,
-            variant: "destructive" 
-          })
-          break
-          
-        case 422:
-          toast({ 
-            title: `Validation Error: ${errorMessage || "Please check your input data"}`,
-            variant: "destructive" 
-          })
-          break
-          
-        case 429:
-          toast({ 
-            title: `Too Many Requests: ${errorMessage || "Please try again later"}`,
-            variant: "destructive" 
-          })
-          break
-          
-        case 500:
-          toast({ 
-            title: `Server Error: ${errorMessage || "Something went wrong on our end"}`,
-            variant: "destructive" 
-          })
-          break
-          
-        case 502:
-        case 503:
-        case 504:
-          toast({ 
-            title: `Service Unavailable: ${errorMessage || "Service is temporarily unavailable"}`,
-            variant: "destructive" 
-          })
-          break
-          
-        default:
-          // Network errors or other issues
-          if (!status) {
-            toast({ 
-              title: "Network Error: Please check your internet connection",
-              variant: "destructive" 
-            })
-          } else {
-            toast({ 
-              title: `Error: ${errorMessage || `Request failed with status ${status}`}`,
-              variant: "destructive" 
-            })
-          }
+  (error) => {
+    // Any status codes that falls outside the range of 2xx cause this function to trigger
+    if (error.response?.status === 401) {
+      // Handle unauthorized errors, e.g., by redirecting to the login page
+      if (typeof window !== 'undefined') {
+        console.error("Unauthorized access - redirecting to login.");
+        // To prevent circular dependencies, we don't call logout() here.
+        // Instead, we just clear the token and redirect.
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user');
+        // window.location.href = '/login'; // This can be aggressive, AuthGuard is better
       }
     }
-    return Promise.reject(error)
+    return Promise.reject(error);
   }
-)
+);
 
-export async function apiRequest<T = any>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = "GET", headers = {}, body } = options
-
-  const config: any = {
-    method: method.toLowerCase(),
-    url: path,
-    headers,
-    data: body,
-    withCredentials: true, // Ensure cookies are sent
-  }
-
-  try {
-    const response = await axiosInstance(config)
-    return response.data
-  } catch (error: any) {
-    // Re-throw with consistent error format
-    const errorMessage = error.response?.data?.detail || error.message || `Request failed: ${error.response?.status}`
-    throw new Error(errorMessage)
-  }
-}
-
-
+export default api;

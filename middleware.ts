@@ -4,11 +4,6 @@ import type { NextRequest } from 'next/server'
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // If user is already authenticated, prevent accessing /login and send to /dashboard
-  if ((pathname === '/login' || pathname === '/') && request.cookies.get('access_token')) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
-  }
-
   const response = NextResponse.next()
 
   // Add security headers
