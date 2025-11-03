@@ -11,7 +11,6 @@ import { DatasetSelector } from "@/components/label-ai/dataset-selector"
 import { DataGenerator } from "@/components/label-ai/data-generator"
 import { Loader2, ArrowLeft } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { getAuthHeaders } from "@/app/api/auth"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -44,7 +43,6 @@ export default function Home() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...getAuthHeaders(),
       },
       body: JSON.stringify({
         rows,
@@ -70,7 +68,6 @@ export default function Home() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...getAuthHeaders(),
         },
         body: JSON.stringify({ apiKey, model }),
       })
@@ -106,7 +103,6 @@ export default function Home() {
       
       const response = await fetch(`/api/datasets/${datasetId}/versions/${versionId}?page=0&limit=50`, {
         method: 'GET',
-        headers: getAuthHeaders(),
       })
       const result = await response.json()
 
@@ -118,28 +114,28 @@ export default function Home() {
         setColumns(datasetColumns)
         setVisibleColumns(datasetColumns)
 
-        const detectedContextCol =
-          datasetColumns.find((col) => col.toLowerCase().includes("context")) ||
-          datasetColumns.find((col) => col.toLowerCase().includes("text")) ||
-          datasetColumns.find((col) => col.toLowerCase().includes("description")) ||
-          datasetColumns.find((col) => col.toLowerCase().includes("body")) ||
-          datasetColumns.find((col) => col.toLowerCase().includes("feedback")) ||
-          datasetColumns.find((col) => col.toLowerCase().includes("input")) ||
-          datasetColumns[0] ||
-          ""
+        // const detectedContextCol =
+        //   datasetColumns.find((col) => col.toLowerCase().includes("context")) ||
+        //   datasetColumns.find((col) => col.toLowerCase().includes("text")) ||
+        //   datasetColumns.find((col) => col.toLowerCase().includes("description")) ||
+        //   datasetColumns.find((col) => col.toLowerCase().includes("body")) ||
+        //   datasetColumns.find((col) => col.toLowerCase().includes("feedback")) ||
+        //   datasetColumns.find((col) => col.toLowerCase().includes("input")) ||
+        //   datasetColumns[0] ||
+        //   ""
 
-        const detectedResultCol =
-          datasetColumns.find((col) => col.toLowerCase().includes("result")) ||
-          datasetColumns.find((col) => col.toLowerCase().includes("label")) ||
-          datasetColumns.find((col) => col.toLowerCase().includes("category")) ||
-          datasetColumns.find((col) => col.toLowerCase().includes("sentiment")) ||
-          datasetColumns.find((col) => col.toLowerCase().includes("priority")) ||
-          datasetColumns.find((col) => col.toLowerCase().includes("output")) ||
-          datasetColumns[1] ||
-          ""
+        // const detectedResultCol =
+        //   datasetColumns.find((col) => col.toLowerCase().includes("result")) ||
+        //   datasetColumns.find((col) => col.toLowerCase().includes("label")) ||
+        //   datasetColumns.find((col) => col.toLowerCase().includes("category")) ||
+        //   datasetColumns.find((col) => col.toLowerCase().includes("sentiment")) ||
+        //   datasetColumns.find((col) => col.toLowerCase().includes("priority")) ||
+        //   datasetColumns.find((col) => col.toLowerCase().includes("output")) ||
+        //   datasetColumns[1] ||
+        //   ""
 
-        setContextColumn(detectedContextCol)
-        setResultColumn(detectedResultCol)
+        // setContextColumn(detectedContextCol)
+        // setResultColumn(detectedResultCol)
 
         const transformedData: RowData[] = datasetData.map((row: any, index: number) => ({
           _id: `row-${index}`,

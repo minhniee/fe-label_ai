@@ -19,6 +19,16 @@ interface ModelSelectorProps {
   referenceContext: string
   columns: string[]
   onDataUpdate: (data: RowData[]) => void
+  apiKey?: string
+  selectedModel?: string
+  onLabel?: (
+    rows: RowData[],
+    model: string,
+    apiKey: string,
+    contextColumn: string,
+    referenceContext: string
+  ) => Promise<RowData[]>
+  onTestKey?: (apiKey: string, model: string) => Promise<boolean>
 }
 
 export function ModelSelector({
@@ -28,6 +38,10 @@ export function ModelSelector({
   referenceContext,
   columns,
   onDataUpdate,
+  apiKey: providedApiKey,
+  selectedModel: providedModel,
+  onLabel,
+  onTestKey,
 }: ModelSelectorProps) {
   const [model, setModel] = useState("gemini-flash-2.5")
   const [apiKey, setApiKey] = useState("")
@@ -49,8 +63,11 @@ export function ModelSelector({
     }
   }, [])
 
+  const effectiveModel = providedModel ?? model
+  const effectiveApiKey = providedApiKey ?? apiKey
+
   const handleTestKey = async () => {
-    if (!apiKey.trim()) {
+    if (!effectiveApiKey.trim()) {
       toast({
         title: "No API key provided",
         description: "Please enter an API key to test.",
@@ -63,23 +80,36 @@ export function ModelSelector({
     setKeyStatus("idle")
 
     try {
-      const result = await testApiKey(apiKey.trim(), model)
-
-      if (result.success) {
-        setKeyStatus("valid")
-        // Save API key to localStorage
-        try {
-          localStorage.setItem("llm_api_key", apiKey.trim())
-        } catch (error) {
-          // Ignore localStorage errors
+      if (onTestKey) {
+        const ok = await onTestKey(effectiveApiKey.trim(), effectiveModel)
+        if (ok) {
+          setKeyStatus("valid")
+          try {
+            localStorage.setItem("llm_api_key", effectiveApiKey.trim())
+          } catch (error) {}
+          toast({
+            title: "API Key Valid",
+            description: "Your API key is valid and ready to use.",
+          })
+        } else {
+          setKeyStatus("invalid")
+          throw new Error("API key validation failed")
         }
-        toast({
-          title: "API Key Valid",
-          description: result.message || "Your API key is valid and ready to use.",
-        })
       } else {
-        setKeyStatus("invalid")
-        throw new Error(result.error)
+        const result = await testApiKey(effectiveApiKey.trim(), effectiveModel)
+        if (result.success) {
+          setKeyStatus("valid")
+          try {
+            localStorage.setItem("llm_api_key", effectiveApiKey.trim())
+          } catch (error) {}
+          toast({
+            title: "API Key Valid",
+            description: result.message || "Your API key is valid and ready to use.",
+          })
+        } else {
+          setKeyStatus("invalid")
+          throw new Error(result.error)
+        }
       }
     } catch (error) {
       setKeyStatus("invalid")
@@ -112,7 +142,7 @@ export function ModelSelector({
       return
     }
 
-    if (!apiKey.trim()) {
+    if (!effectiveApiKey.trim()) {
       toast({
         title: "API key required",
         description: "Please enter your Gemini API key to use AI labeling.",
@@ -124,24 +154,39 @@ export function ModelSelector({
     setIsLabeling(true)
 
     try {
-      const result = await labelData({
-        rows: data,
-        model,
-        apiKey: apiKey.trim(),
-        contextColumn,
-        resultColumn,
-        referenceContext,
-        multiColumnConfig,
-      })
-
-      if (result.success) {
-        onDataUpdate(result.data)
+      if (onLabel) {
+        const labeled = await onLabel(
+          data,
+          effectiveModel,
+          effectiveApiKey.trim(),
+          contextColumn,
+          referenceContext
+        )
+        onDataUpdate(labeled)
         toast({
           title: "Labeling complete",
-          description: `Successfully labeled ${result.data.length} rows with ${model}`,
+          description: `Successfully labeled ${labeled.length} rows with ${effectiveModel}`,
         })
       } else {
-        throw new Error(result.error)
+        const result = await labelData({
+          rows: data,
+          model: effectiveModel,
+          apiKey: effectiveApiKey.trim(),
+          contextColumn,
+          resultColumn,
+          referenceContext,
+          multiColumnConfig,
+        })
+
+        if (result.success) {
+          onDataUpdate(result.data)
+          toast({
+            title: "Labeling complete",
+            description: `Successfully labeled ${result.data.length} rows with ${effectiveModel}`,
+          })
+        } else {
+          throw new Error(result.error)
+        }
       }
     } catch (error) {
       console.error("Error labeling data:", error)
@@ -171,7 +216,7 @@ export function ModelSelector({
         <div className="flex items-end gap-4">
           <div className="flex-1 space-y-2">
             <Label htmlFor="model">AI Model</Label>
-            <Select value={model} onValueChange={setModel}>
+            <Select value={effectiveModel} onValueChange={providedModel ? () => {} : setModel} disabled={!!providedModel}>
               <SelectTrigger id="model">
                 <SelectValue />
               </SelectTrigger>
@@ -200,11 +245,14 @@ export function ModelSelector({
                   id="api-key"
                   type="password"
                   placeholder="Enter your API key"
-                  value={apiKey}
+                  value={effectiveApiKey}
                   onChange={(e) => {
-                    setApiKey(e.target.value)
+                    if (!providedApiKey) {
+                      setApiKey(e.target.value)
+                    }
                     setKeyStatus("idle")
                   }}
+                  disabled={!!providedApiKey}
                 />
                 {keyStatus === "valid" && (
                   <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-500" />
@@ -216,7 +264,7 @@ export function ModelSelector({
               <Button
                 variant="outline"
                 onClick={handleTestKey}
-                disabled={isTestingKey || !apiKey}
+                disabled={isTestingKey || !effectiveApiKey}
                 className="gap-2 bg-transparent"
               >
                 {isTestingKey ? (
