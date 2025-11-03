@@ -147,12 +147,7 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
         icon: Brain,
         isActive: pathname === "/models",
       },
-      {
-        title: "AI Suggest",
-        url: "/aisuggest",
-        icon: Sparkles,
-        isActive: pathname === "/aisuggest",
-      },
+
       {
         title: "Admin",
         url: "/admin",

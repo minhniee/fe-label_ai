@@ -491,7 +491,6 @@ export async function getVersionFilesByDataset(datasetId: number, versionId: num
     throw new Error(errorMessage)
   }
 }
-
 // GET /datasets/{dataset_id}/versions/{version_id}/complete
 export async function getVersionCompleteInfo(datasetId: number, versionId: number): Promise<VersionCompleteResponse> {
   try {

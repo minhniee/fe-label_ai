@@ -22,36 +22,40 @@ export default function AuthCallback() {
   useEffect(() => {
     if (!hydrated || typeof window === 'undefined') return; // tránh chạy trên server
 
-    const handleAuthCallback = async () => {
+    const handleAuthCallback = () => {
       try {
-        const url = window.location.href;
-        console.log("📍 URL hiện tại:", url);
-
         const params = new URLSearchParams(window.location.search);
-        const errorParam = params.get("error");
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+        const errorParam = params.get('error');
 
-        // Check for OAuth errors first
         if (errorParam) {
-          setError("Có lỗi xảy ra trong quá trình xác thực với Google. Vui lòng thử lại.");
+          setError('Có lỗi xảy ra trong quá trình xác thực với Google. Vui lòng thử lại.');
           setStatus('error');
           return;
         }
 
-        // With HTTP-only cookies, we don't need to check for tokens in URL params
-        // The backend has already set the cookies, so we can proceed directly
-        
-        setStatus('success');
-        
-        // Redirect after a short delay to show success state
-        setTimeout(() => {
-          const redirectPath = localStorage.getItem('redirect_after_login') || '/dashboard';
-          localStorage.removeItem('redirect_after_login');
-          router.replace(redirectPath);
-        }, 1500);
+        if (accessToken) {
+          localStorage.setItem('access_token', accessToken);
+          if (refreshToken) {
+            localStorage.setItem('refresh_token', refreshToken);
+          }
+          
+          setStatus('success');
 
+          // Redirect after a short delay
+          setTimeout(() => {
+            const redirectPath = localStorage.getItem('redirect_after_login') || '/dashboard';
+            localStorage.removeItem('redirect_after_login');
+            router.replace(redirectPath);
+          }, 1500);
+        } else {
+          setError('Không tìm thấy thông tin xác thực. Vui lòng thử đăng nhập lại.');
+          setStatus('error');
+        }
       } catch (err) {
         console.error('Auth callback error:', err);
-        setError("Có lỗi xảy ra trong quá trình đăng nhập.");
+        setError('Có lỗi xảy ra trong quá trình đăng nhập.');
         setStatus('error');
       }
     };
