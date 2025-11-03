@@ -28,8 +28,6 @@ export default function AuthCallback() {
         console.log("📍 URL hiện tại:", url);
 
         const params = new URLSearchParams(window.location.search);
-        let accessToken = params.get("access_token");
-        let refreshToken = params.get("refresh_token");
         const errorParam = params.get("error");
 
         // Check for OAuth errors first
@@ -39,33 +37,9 @@ export default function AuthCallback() {
           return;
         }
 
-        if (!accessToken) {
-          accessToken = localStorage.getItem("access_token");
-        }
-
-        if (!accessToken) {
-          setError("Thiếu mã xác thực từ server.");
-          setStatus('error');
-          return;
-        }
-
-        // Store tokens
-        localStorage.setItem("access_token", accessToken);
-        if (refreshToken) localStorage.setItem("refresh_token", refreshToken);
-
-        // Verify user with backend to get user info
-        try {
-          const { getMe } = await import("@/app/api/auth");
-          const userInfo = await getMe();
-          localStorage.setItem("user", JSON.stringify(userInfo));
-          console.log("✅ User info saved:", userInfo);
-        } catch (error) {
-          console.error("❌ Failed to get user info:", error);
-          setError("Không thể lấy thông tin người dùng. Vui lòng thử lại.");
-          setStatus('error');
-          return;
-        }
-
+        // With HTTP-only cookies, we don't need to check for tokens in URL params
+        // The backend has already set the cookies, so we can proceed directly
+        
         setStatus('success');
         
         // Redirect after a short delay to show success state
@@ -152,7 +126,7 @@ export default function AuthCallback() {
                   asChild
                   className="flex-1"
                 >
-                  <Link href="/">
+                  <Link href="/login">
                     <ArrowLeft className="w-4 h-4 mr-2" />
                     Về trang chủ
                   </Link>
