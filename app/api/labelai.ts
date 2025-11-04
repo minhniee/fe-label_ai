@@ -4,13 +4,24 @@ import api from "./client"
  * Centralized API management for LabelAI functionality
  * All functions include authentication headers automatically
  */
-
+const getAuthHeaders = () => {
+  const headers: Record<string, string> = {}
+  try {
+    const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`
+    }
+  } catch {}
+  return headers
+}
 /**
  * Get dataset version data
  */
 export async function getDatasetVersionData(datasetId: string, versionId: string) {
   try {
-    const response = await api.get(`/datasets/${datasetId}/versions/${versionId}`)
+    const response = await api.get(`/datasets/${datasetId}/versions/${versionId}`,{
+      headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
+    })
     return response.data
   } catch (error: any) {
     const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || error.message || "Failed to get dataset version data"
@@ -23,7 +34,9 @@ export async function getDatasetVersionData(datasetId: string, versionId: string
  */
 export async function getDatasets() {
   try {
-    const response = await api.get(`/datasets`)
+    const response = await api.get(`/datasets`,{
+      headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
+    })
     const datasets = response.data
     
     // Transform backend format to frontend format
@@ -55,7 +68,9 @@ export async function getDatasets() {
  */
 export async function getDatasetVersions(datasetId: string) {
   try {
-    const response = await api.get(`/datasets/${datasetId}/versions`)
+    const response = await api.get(`/datasets/${datasetId}/versions`,{
+      headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
+    })
     const versions = response.data
     
     // Get files for each version to populate data
@@ -68,7 +83,9 @@ export async function getDatasetVersions(datasetId: string) {
         
         try {
           // Get files for this version
-          const filesResponse = await api.get(`/datasets/versions/${v.version_id}/files`)
+          const filesResponse = await api.get(`/datasets/versions/${v.version_id}/files`,{
+            headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
+          })
           const files = filesResponse.data
           if (Array.isArray(files) && files.length > 0) {
             const file = files[0]
@@ -143,7 +160,9 @@ export async function labelData(data: {
  */
 export async function aiSearch(query: string) {
   try {
-    const response = await api.post(`/ai-search`, { query })
+    const response = await api.post(`/ai-search`, { query },{
+      headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
+    })
     return response.data
   } catch (error: any) {
     const errorMessage = error?.response?.data?.error || error.message || "Failed to search"
@@ -169,6 +188,8 @@ export async function generateData(data: {
       columns: data.columns.join(", "),
       instructions: data.instructions || "",
       reference_context: data.referenceContext || "",
+    },{
+      headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
     })
 
     return response.data
@@ -199,6 +220,8 @@ export async function generateMoreData(data: {
       context_column: data.contextColumn,
       api_key: data.apiKey,
       model: data.model,
+    },{
+      headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
     });
     return response.data;
   } catch (error: any) {
@@ -212,7 +235,9 @@ export async function generateMoreData(data: {
  */
 export async function submitDataset(data: any) {
   try {
-    const response = await api.post(`/datasets/submit`, data)
+    const response = await api.post(`/datasets/submit`, data,{
+      headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
+    })
     return response.data
   } catch (error: any) {
     const errorMessage = error?.response?.data?.error || error.message || "Failed to submit dataset"
@@ -228,7 +253,12 @@ export async function parseReference(file: File) {
     const formData = new FormData()
     formData.append("file", file)
 
-    const response = await api.post(`/gen-ai/parse-reference`, formData)
+    const response = await api.post(`/gen-ai/parse-reference`, formData,{
+      headers: {
+        ...getAuthHeaders(),
+        'Content-Type': 'multipart/form-data',
+      },
+    })
     return response.data
   } catch (error: any) {
     const errorMessage = error?.response?.data?.error || error.message || "Failed to parse reference file"
@@ -244,6 +274,8 @@ export async function testApiKey(apiKey: string, model: string = "gemini-flash-2
     const response = await api.post(`/ai-labeling/test-key`, {
       apiKey,
       model,
+    },{
+      headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
     })
     return response.data
   } catch (error: any) {

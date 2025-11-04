@@ -66,6 +66,36 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
       // Ignore localStorage errors
     }
   }, [])
+  // Detect delimiter by reading the first chunk of the file and counting common delimiters
+  const detectDelimiter = async (file: File): Promise<string | undefined> => {
+    try {
+      const blob = file.slice(0, 4096)
+      const text = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "")
+        reader.onerror = () => reject(reader.error)
+        reader.readAsText(blob)
+      })
+
+      const firstNonEmptyLine = (text || "").split(/\r?\n/).find((l) => l.trim().length > 0) || ""
+      const header = firstNonEmptyLine.replace(/^\uFEFF/, "")
+      const candidates = [",", ";", "|", "\t"]
+
+      let best = { d: ",", count: -1 }
+      for (const d of candidates) {
+        const pattern = d === "|" ? /\|/g : d === "\t" ? /\t/g : new RegExp(`\\${d}`, "g")
+        const count = (header.match(pattern) || []).length
+        if (count > best.count) {
+          best = { d, count }
+        }
+      }
+
+      return best.count > 0 ? best.d : undefined
+    } catch {
+      return undefined
+    }
+  }
+
 
   const fetchDatasets = async () => {
     try {
@@ -233,7 +263,7 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
     }
   }
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
 
@@ -248,9 +278,14 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
 
     setIsUploading(true)
 
+    const detectedDelimiter = await detectDelimiter(file)
+
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
+      // Normalize headers: trim and strip BOM to prevent merged/misaligned columns
+      transformHeader: (h) => (h || "").replace(/^\uFEFF/, "").trim(),
+      delimiter: detectedDelimiter,
       complete: (results) => {
         try {
           if (results.errors.length > 0) {
@@ -258,7 +293,7 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
           }
 
           const data = results.data as any[]
-          const columns = results.meta.fields || []
+          const columns = (results.meta.fields || []).map((c) => (c || "").replace(/^\uFEFF/, "").trim()).filter((c) => c)
 
           if (data.length === 0) {
             throw new Error("CSV file is empty")
