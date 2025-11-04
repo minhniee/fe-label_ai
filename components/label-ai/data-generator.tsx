@@ -25,6 +25,23 @@ export function DataGenerator({ onDataGenerated }: DataGeneratorProps) {
   const [generating, setGenerating] = useState(false)
   const { toast } = useToast()
 
+  // Detect delimiter by analyzing the first line
+  const detectDelimiter = (firstLine: string): string => {
+    const header = firstLine.replace(/^\uFEFF/, "") // Remove BOM if present
+    const candidates = [",", ";", "|", "\t"]
+    
+    let best = { d: ",", count: -1 }
+    for (const d of candidates) {
+      const pattern = d === "|" ? /\|/g : d === "\t" ? /\t/g : new RegExp(`\\${d}`, "g")
+      const count = (header.match(pattern) || []).length
+      if (count > best.count) {
+        best = { d, count }
+      }
+    }
+    
+    return best.count > 0 ? best.d : ","
+  }
+
   const handleGenerate = async () => {
     if (!topic.trim()) {
       toast({
@@ -55,17 +72,18 @@ export function DataGenerator({ onDataGenerated }: DataGeneratorProps) {
           .map((c) => c.trim())
           .filter(Boolean),
         instructions: instructions.trim(),
-        referenceContext: referenceContext,
-        apiKey: apiKey.trim(),
         referenceContext: referenceContext.trim(),
+        apiKey: apiKey.trim(),
       })
 
       if (result.success) {
-        // Parse the CSV data (backend uses pipe delimiter |)
+        // Parse the CSV data with auto-detected delimiter
         const lines = result.csv.trim().split("\n")
-        const headers = lines[0].split("|").map((h: string) => h.trim())
+        const firstLine = lines[0] || ""
+        const delimiter = detectDelimiter(firstLine)
+        const headers = firstLine.split(delimiter).map((h: string) => h.trim())
         const rows = lines.slice(1).map((line: string) => {
-          const values = line.split("|").map((v: string) => v.trim())
+          const values = line.split(delimiter).map((v: string) => v.trim())
           const row: any = {}
           headers.forEach((header: string, index: number) => {
             row[header] = values[index] || ""
