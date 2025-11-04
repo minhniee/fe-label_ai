@@ -1,11 +1,16 @@
-import { getAuthHeaders } from "./auth"
-
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
 
-/**
- * Centralized API management for LabelAI functionality
- * All functions include authentication headers automatically
- */
+// Helper function to get auth headers (keeping for backward compatibility)
+const getAuthHeaders = () => {
+  const headers: Record<string, string> = {}
+  try {
+    const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`
+    }
+  } catch {}
+  return headers
+}
 
 /**
  * Get dataset version data

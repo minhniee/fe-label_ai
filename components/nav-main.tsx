@@ -21,6 +21,7 @@ import {
 
 export function NavMain({
   items,
+  groupTitle,
 }: {
   items: {
     title: string
@@ -32,9 +33,13 @@ export function NavMain({
       url: string
     }[]
   }[]
+  groupTitle?: string
 }) {
   return (
     <SidebarGroup>
+      {groupTitle ? (
+        <SidebarGroupLabel>{groupTitle}</SidebarGroupLabel>
+      ) : null}
       <SidebarMenu>
         {items.map((item) => (
           <Collapsible
