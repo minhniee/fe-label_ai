@@ -286,3 +286,61 @@ export async function testApiKey(apiKey: string, model: string = "gemini-flash-2
     throw new Error(errorMessage)
   }
 }
+
+/**
+ * Semantic Search API functions
+ */
+
+/**
+ * Index a CSV file for semantic search
+ */
+export async function indexFileForSemanticSearch(fileId: number, textColumns?: string[], forceReindex: boolean = false) {
+  try {
+    const response = await api.post(`/api/semantic-search/index`, {
+      file_id: fileId,
+      text_columns: textColumns,
+      force_reindex: forceReindex,
+    }, {
+      headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
+    })
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || error.message || "Failed to index file"
+    throw new Error(errorMessage)
+  }
+}
+
+/**
+ * Perform semantic search on an indexed file
+ */
+export async function semanticSearch(fileId: number, query: string, topK: number = 10, minScore: number = 0.3) {
+  try {
+    const response = await api.post(`/api/semantic-search/search`, {
+      file_id: fileId,
+      query: query,
+      top_k: topK,
+      min_score: minScore,
+    }, {
+      headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
+    })
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || error.message || "Failed to search"
+    throw new Error(errorMessage)
+  }
+}
+
+/**
+ * Check if a file is indexed
+ */
+export async function getSemanticSearchIndexStatus(fileId: number) {
+  try {
+    const response = await api.get(`/api/semantic-search/index-status/${fileId}`, {
+      headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
+    })
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || error.message || "Failed to get index status"
+    throw new Error(errorMessage)
+  }
+}

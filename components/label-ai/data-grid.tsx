@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import type { RowData } from "@/app/(navigation)/labelai/page"
 import { useToast } from "@/hooks/use-toast"
@@ -50,6 +51,8 @@ export function DataGrid({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [hoveredCell, setHoveredCell] = useState<{ rowId: string; field: string } | null>(null)
   const [compareRow, setCompareRow] = useState<RowData | null>(null)
+  const [showExportDialog, setShowExportDialog] = useState(false)
+  const [exportDelimiter, setExportDelimiter] = useState<string>(",")
   const { toast } = useToast()
 
   const confirmedCount = manualMode
@@ -57,6 +60,66 @@ export function DataGrid({
     : allData.filter((row) => row._confirmed).length
   const pendingOnPage = data.filter((row) => row._ai_suggestion && !row._confirmed).length
   const allConfirmed = confirmedCount === allData.length && allData.length > 0
+
+  // Detect best delimiter based on data content
+  const detectBestDelimiter = (): string => {
+    if (allData.length === 0) return ","
+    
+    const candidates = [
+      { char: ",", name: "Comma (,)" },
+      { char: ";", name: "Semicolon (;)" },
+      { char: "|", name: "Pipe (|)" },
+      { char: "\t", name: "Tab" },
+    ]
+    
+    // Sample first few rows to check for delimiter conflicts
+    const sampleRows = allData.slice(0, Math.min(10, allData.length))
+    const exportColumns = [...columns, "_validation_status", "_corrected_value"]
+    
+    // Count occurrences of each delimiter in data
+    const delimiterScores = candidates.map((candidate) => {
+      let conflictCount = 0
+      let totalOccurrences = 0
+      
+      sampleRows.forEach((row) => {
+        exportColumns.forEach((col) => {
+          const value = String(col === "_corrected_value" ? row._corrected_value || "" : row[col] || "")
+          // Handle tab character specially in regex
+          let pattern: RegExp
+          if (candidate.char === "\t") {
+            pattern = /\t/g
+          } else if (candidate.char === "|") {
+            pattern = /\|/g
+          } else {
+            pattern = new RegExp(`\\${candidate.char}`, "g")
+          }
+          const occurrences = (value.match(pattern) || []).length
+          totalOccurrences += occurrences
+          if (occurrences > 0) conflictCount++
+        })
+      })
+      
+      return {
+        char: candidate.char,
+        name: candidate.name,
+        conflicts: conflictCount,
+        occurrences: totalOccurrences,
+        score: conflictCount * 1000 + totalOccurrences, // Lower is better
+      }
+    })
+    
+    // Find delimiter with least conflicts
+    const best = delimiterScores.reduce((prev, curr) => 
+      curr.score < prev.score ? curr : prev
+    )
+    
+    // If comma has no or minimal conflicts, use it (most common)
+    const commaScore = delimiterScores.find((d) => d.char === ",")
+    if (commaScore && commaScore.conflicts === 0) return ","
+    
+    // Otherwise use the best delimiter
+    return best.char
+  }
 
   const generateVersionName = () => {
     const baseTitle = datasetName.split(" - v")[0] || datasetName
@@ -315,32 +378,67 @@ export function DataGrid({
     }
   }
 
-  const handleExport = () => {
+  const handleExportClick = () => {
+    // Auto-detect best delimiter and set it as default
+    const detectedDelimiter = detectBestDelimiter()
+    setExportDelimiter(detectedDelimiter)
+    setShowExportDialog(true)
+  }
+
+  const handleExport = (delimiter?: string) => {
+    const selectedDelimiter = delimiter || exportDelimiter
     const exportColumns = [...columns, "_validation_status", "_corrected_value"]
     const csv = [
-      exportColumns.join(","),
+      exportColumns.join(selectedDelimiter),
       ...allData.map((row) =>
         exportColumns
           .map((col) => {
             const value = col === "_corrected_value" ? row._corrected_value || "" : row[col] || ""
-            return `"${String(value).replace(/"/g, '""')}"`
+            // Escape quotes and wrap in quotes if value contains delimiter, newline, or quote
+            const stringValue = String(value)
+            const needsQuotes = stringValue.includes(selectedDelimiter) || 
+                               stringValue.includes("\n") || 
+                               stringValue.includes("\r") || 
+                               stringValue.includes('"')
+            if (needsQuotes) {
+              return `"${stringValue.replace(/"/g, '""')}"`
+            }
+            return stringValue
           })
-          .join(","),
+          .join(selectedDelimiter),
       ),
     ].join("\n")
 
-    const blob = new Blob([csv], { type: "text/csv" })
+    const fileExtension = selectedDelimiter === "\t" ? "tsv" : "csv"
+    const blob = new Blob([csv], { type: selectedDelimiter === "\t" ? "text/tab-separated-values" : "text/csv" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = "validated-data.csv"
+    a.download = `validated-data.${fileExtension}`
     a.click()
     URL.revokeObjectURL(url)
 
     toast({
       title: "Export successful",
-      description: `Exported ${allData.length} rows to validated-data.csv`,
+      description: `Exported ${allData.length} rows to validated-data.${fileExtension}`,
     })
+    
+    setShowExportDialog(false)
+  }
+
+  const getDelimiterName = (delimiter: string): string => {
+    switch (delimiter) {
+      case ",":
+        return "Comma (,)"
+      case ";":
+        return "Semicolon (;)"
+      case "|":
+        return "Pipe (|)"
+      case "\t":
+        return "Tab"
+      default:
+        return `Custom (${delimiter})`
+    }
   }
 
   // Show only context and result by default: exclude internal/meta and also remove context/result from generic list
@@ -528,7 +626,7 @@ export function DataGrid({
                 </Button>
               </>
             )}
-            <Button onClick={handleExport} className="gap-2">
+            <Button onClick={handleExportClick} className="gap-2">
               <Download className="h-4 w-4" />
               Export CSV
             </Button>
@@ -952,6 +1050,47 @@ export function DataGrid({
                 </Button>
               </div>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Export CSV</DialogTitle>
+            <DialogDescription>
+              Choose the delimiter for your CSV export. The best delimiter has been automatically detected based on your data.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="delimiter">Delimiter</Label>
+              <Select value={exportDelimiter} onValueChange={setExportDelimiter}>
+                <SelectTrigger id="delimiter">
+                  <SelectValue placeholder="Select delimiter" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value=",">Comma (,)</SelectItem>
+                  <SelectItem value=";">Semicolon (;)</SelectItem>
+                  <SelectItem value="|">Pipe (|)</SelectItem>
+                  <SelectItem value="\t">Tab</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Selected: {getDelimiterName(exportDelimiter)}
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowExportDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => handleExport(exportDelimiter)} className="gap-2">
+              <Download className="h-4 w-4" />
+              Export
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

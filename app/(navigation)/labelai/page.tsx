@@ -14,11 +14,13 @@ import { useToast } from "@/hooks/use-toast"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { SearchFilter } from "@/components/label-ai/search-filter"
+import { SemanticSearchFilter } from "@/components/label-ai/semantic-search-filter"
 import { ColumnVisibility } from "@/components/label-ai/column-visibility"
 import { DataManager } from "@/components/label-ai/data-manager"
 // import { AISearch } from "@/components/label-ai/ai-search"
 import { ColumnManager } from "@/components/label-ai/column-manager"
 import { getDatasetVersionData } from "@/app/api/labelai"
+import { getVersionFiles } from "@/app/api/dataset"
 
 export type RowData = {
   _id: string
@@ -42,6 +44,8 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("")
   const [visibleColumns, setVisibleColumns] = useState<string[]>([])
   const [searchResults, setSearchResults] = useState<any[]>([])
+  const [semanticSearchResults, setSemanticSearchResults] = useState<any[]>([])
+  const [currentFileId, setCurrentFileId] = useState<number | null>(null)
   const { toast } = useToast()
   const rowsPerPage = 50
 
@@ -52,6 +56,19 @@ export default function Home() {
 
       if (result.success) {
         const datasetData = result.data
+
+        // Get file_id for semantic search
+        try {
+          const files = await getVersionFiles(parseInt(versionId))
+          if (files && files.length > 0 && files[0].file_id) {
+            setCurrentFileId(files[0].file_id)
+          } else {
+            setCurrentFileId(null)
+          }
+        } catch (error) {
+          console.error("Error getting file_id:", error)
+          setCurrentFileId(null)
+        }
 
         const datasetColumns = Object.keys(datasetData[0] || {})
         setColumns(datasetColumns)
@@ -91,6 +108,7 @@ export default function Home() {
         setData(transformedData)
         setDatasetName(`${datasetId} - v${versionId}`)
         setCurrentPage(0)
+        setSemanticSearchResults([]) // Reset semantic search results
 
         toast({
           title: "Dataset loaded",
@@ -162,6 +180,9 @@ export default function Home() {
     setContextColumn("")
     setResultColumn("")
     setView("select")
+    setCurrentFileId(null)
+    setSemanticSearchResults([])
+    setSearchQuery("")
   }
 
   const handleFileUpload = (uploadedData: any[], uploadedColumns: string[], fileName: string) => {
@@ -205,6 +226,16 @@ export default function Home() {
   }
 
   const filteredData = data.filter((row) => {
+    // First apply semantic search filter if there are results
+    if (semanticSearchResults.length > 0) {
+      const rowIndex = parseInt(row._id.replace("row-", ""))
+      const isInSemanticResults = semanticSearchResults.some(
+        (result) => result.row_index === rowIndex
+      )
+      if (!isInSemanticResults) return false
+    }
+    
+    // Then apply text search filter
     if (!searchQuery.trim()) return true
     const query = searchQuery.toLowerCase()
     return Object.values(row).some((value) => String(value).toLowerCase().includes(query))
@@ -306,8 +337,13 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
-              <SearchFilter onSearchChange={setSearchQuery} />
+            <div className="flex items-center gap-4 flex-wrap">
+              <SearchFilter onSearchChange={setSearchQuery} placeholder="Text search..." />
+              <SemanticSearchFilter 
+                fileId={currentFileId}
+                onSearchResults={setSemanticSearchResults}
+                placeholder="Semantic search (e.g., thiên nhiên)..."
+              />
               <ColumnManager
                 columns={columns}
                 data={data}
