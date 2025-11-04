@@ -4,6 +4,9 @@ import api from "./client"
  * Centralized API management for LabelAI functionality
  * All functions include authentication headers automatically
  */
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
+
+// Helper function to get auth headers (keeping for backward compatibility)
 const getAuthHeaders = () => {
   const headers: Record<string, string> = {}
   try {

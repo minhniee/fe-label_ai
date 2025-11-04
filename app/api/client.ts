@@ -41,15 +41,27 @@ api.interceptors.response.use(
   (error) => {
     // Any status codes that falls outside the range of 2xx cause this function to trigger
     if (error.response?.status === 401) {
-      // Handle unauthorized errors, e.g., by redirecting to the login page
+      // Handle unauthorized errors by redirecting to the login page with a callback URL
       if (typeof window !== 'undefined') {
         console.error("Unauthorized access - redirecting to login.");
-        // To prevent circular dependencies, we don't call logout() here.
-        // Instead, we just clear the token and redirect.
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        localStorage.removeItem('user');
-        // window.location.href = '/login'; // This can be aggressive, AuthGuard is better
+
+        // 1. Save the current location to redirect back to after login
+        const callbackUrl = window.location.href;
+        const encodedCallbackUrl = encodeURIComponent(callbackUrl);
+
+        // 2. Clear expired tokens and user data
+        try {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            localStorage.removeItem('user');
+            localStorage.removeItem('picture');
+            localStorage.removeItem('user_picture');
+        } catch (e) {
+            console.error("Failed to clear auth tokens from storage:", e);
+        }
+
+        // 3. Redirect to login page with the callback_url
+        window.location.href = `/login?callback_url=${encodedCallbackUrl}`;
       }
     }
     return Promise.reject(error);

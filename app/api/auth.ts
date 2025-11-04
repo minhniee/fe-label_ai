@@ -86,8 +86,44 @@ export async function logout() {
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('user');
+      localStorage.removeItem('picture');
+      localStorage.removeItem('user_picture');
+      localStorage.removeItem('user_name');
+      localStorage.removeItem('user_email');
     } catch (error) {
       console.error("Failed to clear auth tokens from storage:", error);
     }
+  }
+}
+
+/**
+ * Check if user is authenticated by verifying token with backend
+ * @returns true if authenticated, false otherwise
+ */
+export async function isAuthenticated(): Promise<boolean> {
+  try {
+    const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+    
+    if (!token) {
+      return false;
+    }
+    
+    // Verify token is valid by calling /auth/me
+    await getMe();
+    return true;
+  } catch (error) {
+    // Token is invalid or expired
+    console.log("Authentication check failed:", error);
+    
+    // Clear invalid tokens
+    try {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("refresh_token");
+        localStorage.removeItem("user");
+      }
+    } catch {}
+    
+    return false;
   }
 }

@@ -242,14 +242,10 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card">
-        <div className="container mx-auto px-6 py-4">
-          <h1 className="text-2xl font-bold text-foreground">Semi-AI Labeler</h1>
+          <h1 className="text-3xl font-bold text-foreground">Semi-AI Labeler</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Select dataset, review AI suggestions, and export labeled data
           </p>
-        </div>
-      </header>
 
       <main className="container mx-auto px-6 py-8">
         {loading ? (
