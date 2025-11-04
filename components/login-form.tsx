@@ -24,10 +24,15 @@ import { useToast } from "@/hooks/use-toast"
 import GoogleLoginButton from "@/components/google-login"
 import Link from "next/link"
 
+interface LoginFormProps extends React.ComponentProps<"div"> {
+  callbackUrl?: string | null;
+}
+
 export function LoginForm({
   className,
+  callbackUrl,
   ...props
-}: React.ComponentProps<"div">) {
+}: LoginFormProps) {
   const { toast } = useToast()
   const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
@@ -50,14 +55,16 @@ export function LoginForm({
         description: "Welcome back!",
       })
 
-      // Redirect based on role
-      const roleId = token.user?.role_id
-      if (roleId === 1 || roleId === 2) {
-        window.location.href = "/dashboard"
-      } else if (roleId === 3) {
-        window.location.href = "/dashboard"
+      // Check for a callback_url in the query parameters
+      const searchParams = new URLSearchParams(window.location.search);
+      const callbackUrl = searchParams.get('callback_url');
+
+      if (callbackUrl) {
+        // If a callback_url is present, decode it and redirect there
+        window.location.href = decodeURIComponent(callbackUrl);
       } else {
-        window.location.href = "/dashboard"
+        // Otherwise, redirect to the default dashboard
+        window.location.href = "/dashboard";
       }
     } catch (error: any) {
       toast({
@@ -80,6 +87,7 @@ export function LoginForm({
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
+        
         <CardHeader>
           <CardTitle>Login to your account</CardTitle>
           <CardDescription>

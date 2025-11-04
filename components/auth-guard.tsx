@@ -122,8 +122,12 @@ export function useAuth() {
         localStorage.removeItem("user_email")
       } catch {}
       
-      // Redirect to login
-      window.location.href = "/login"
+      // 1. Save the current location to redirect back to after login
+      const callbackUrl = window.location.href;
+      const encodedCallbackUrl = encodeURIComponent(callbackUrl);
+      
+      // 2. Redirect to login with the callback_url
+      window.location.href = `/login?callback_url=${encodedCallbackUrl}`
     }
   }
 
