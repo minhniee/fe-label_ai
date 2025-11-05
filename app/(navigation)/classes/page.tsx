@@ -1,12 +1,14 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, Edit2, Upload, ListFilter, ChevronDown, Info } from "lucide-react"
+import { Plus, Edit2, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { HexColorPicker, HexColorInput } from "react-colorful"
 
 interface ClassItem {
   id: string
@@ -16,12 +18,12 @@ interface ClassItem {
   hotkey?: string
 }
 
-const COLORS = ["#FFA500", "#7C3AED", "#3B82F6", "#10B981", "#EF4444", "#F59E0B"]
+// Helper to generate a random hex color
+const getRandomColor = () => `#${Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0')}`;
 
 export default function ClassesPage() {
   const [classes, setClasses] = useState<ClassItem[]>([])
   const [inputValue, setInputValue] = useState("")
-  const [fixInvalid, setFixInvalid] = useState(false)
   const [searchValue, setSearchValue] = useState("")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isModifyDialogOpen, setIsModifyDialogOpen] = useState(false)
@@ -40,9 +42,9 @@ export default function ClassesPage() {
     const newClasses = newClassNames.map((name, index) => ({
       id: `${Date.now()}-${index}`,
       name,
-      color: COLORS[classes.length % COLORS.length],
+      color: getRandomColor(),
       count: 0,
-      hotkey: `${index + 1}`,
+      hotkey: `${classes.length + index + 1}`,
     }))
 
     setClasses([...classes, ...newClasses])
@@ -72,37 +74,40 @@ export default function ClassesPage() {
     setIsModifyDialogOpen(false)
   }
 
+  const handleColorChange = (classId: string, newColor: string) => {
+    setClasses(prevClasses => 
+      prevClasses.map(c => c.id === classId ? { ...c, color: newColor } : c)
+    );
+  };
+
   const filteredClasses = classes.filter((c) => c.name.toLowerCase().includes(searchValue.toLowerCase()))
 
   const isEmpty = classes.length === 0
 
   return (
-    <div className="min-h-screen bg-background ">
-      <div >
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold text-foreground">Classes</h1>
+      <p className="text-muted-foreground mt-1">
+        Add a comma-separated list of class names to get started.
+      </p>
+      <div>
         {isEmpty ? (
           // Empty State
-          <div className="space-y-8">
-            <div>
-              <h1 className="text-3xl font-bold text-foreground">
-                Classes
-              </h1>
-              <p className="text-muted-foreground mt-1">Add a comma separated list of class names</p>
-            </div>
-
-            <div className="space-y-4">
+          <div>
+            <div className="space-y-4 text-left">
               <Input
-                placeholder="cat, dog, ..."
+                placeholder="cat, dog, bird, ..."
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAddClasses()}
                 className="py-2"
               />
-
               <div className="flex gap-3 justify-end">
-                <Button variant="outline" className="gap-2 bg-transparent">
+                <Button variant="outline" className="gap-2">
                   <Upload className="w-4 h-4" />
                   Upload Classes CSV
                 </Button>
-                <Button className="bg-blue-600 hover:bg-blue-700 text-white gap-2" onClick={handleAddClasses}>
+                <Button className="gap-2" onClick={handleAddClasses}>
                   <Plus className="w-4 h-4" />
                   Add Classes
                 </Button>
@@ -112,76 +117,84 @@ export default function ClassesPage() {
         ) : (
           // Data Table View
           <div className="space-y-6">
-            <div>
-              <h1 className="text-2xl font-semibold text-foreground flex items-center gap-2 mb-6">
-                <ListFilter className="w-6 h-6" />
-                Classes & Tags
-              </h1>
-
-              <div className="space-y-4">
-                {/* Header Section */}
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex-1 max-w-xs">
-                    <Input
-                      placeholder="Search classes..."
-                      value={searchValue}
-                      onChange={(e) => setSearchValue(e.target.value)}
-                      className="w-full"
-                    />
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1">
-                      <Info className="w-4 h-4" />
-                      What is a class?
-                    </button>
-                    <Button variant="outline" size="sm" className="gap-2 bg-transparent" onClick={handleOpenAddDialog}>
-                      <Plus className="w-4 h-4" />
-                      Add
-                    </Button>
-                    <Button className="bg-blue-600 hover:bg-blue-700 text-white gap-2" onClick={handleOpenModifyDialog}>
-                      <Edit2 className="w-4 h-4" />
-                      Modify Classes
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="flex justify-end">
-                  <Button variant="outline" size="sm" className="gap-2 bg-transparent">
-                    <span>Sort By</span>
-                    <span className="text-muted-foreground">Class Ascending</span>
-                    <ChevronDown className="w-4 h-4" />
-                  </Button>
-                </div>
-
-                {/* Table */}
-                <div className="border rounded-lg">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted">
-                        <TableHead className="text-xs font-semibold text-muted-foreground uppercase">Color</TableHead>
-                        <TableHead className="text-xs font-semibold text-muted-foreground uppercase">
-                          Class Name
-                        </TableHead>
-                        <TableHead className="text-xs font-semibold text-muted-foreground uppercase">Hotkey</TableHead>
-                        <TableHead className="text-xs font-semibold text-muted-foreground uppercase">Count</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredClasses.map((classItem) => (
-                        <TableRow key={classItem.id} className="border-b last:border-b-0">
-                          <TableCell>
-                            <div className="w-4 h-4 rounded-full" style={{ backgroundColor: classItem.color }} />
-                          </TableCell>
-                          <TableCell className="text-foreground">{classItem.name}</TableCell>
-                          <TableCell className="text-muted-foreground">{classItem.hotkey}</TableCell>
-                          <TableCell className="text-muted-foreground">{classItem.count}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+            <div className="flex items-center justify-end ">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={handleOpenAddDialog}
+                >
+                  <Plus className="w-4 h-4" />
+                  Add
+                </Button>
+                <Button className="gap-2" onClick={handleOpenModifyDialog}>
+                  <Edit2 className="w-4 h-4" />
+                  Modify Classes
+                </Button>
               </div>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <Input
+                placeholder="Search classes..."
+                value={searchValue}
+                onChange={(e) => setSearchValue(e.target.value)}
+                className="max-w-xs"
+              />
+            </div>
+            {/* Table */}
+            <div className="border rounded-lg">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead >Color</TableHead>
+                    <TableHead >Class Name</TableHead>
+                    <TableHead >Hotkey</TableHead>
+                    <TableHead >Count</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredClasses.map((classItem) => (
+                    <TableRow key={classItem.id}>
+                      <TableCell>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button
+                              className="w-5 h-5 rounded-full border cursor-pointer"
+                              style={{ backgroundColor: classItem.color }}
+                            />
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-2 space-y-2 border-0 bg-card shadow-lg">
+                            <HexColorPicker
+                              color={classItem.color}
+                              onChange={(newColor) =>
+                                handleColorChange(classItem.id, newColor)
+                              }
+                            />
+                            <HexColorInput
+                              prefixed
+                              className="w-full p-1 border rounded text-center bg-input"
+                              color={classItem.color}
+                              onChange={(newColor) =>
+                                handleColorChange(classItem.id, newColor)
+                              }
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </TableCell>
+                      <TableCell className="font-medium text-foreground">
+                        {classItem.name}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {classItem.hotkey}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {classItem.count}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           </div>
         )}
@@ -196,22 +209,31 @@ export default function ClassesPage() {
               Add New Classes
             </DialogTitle>
           </DialogHeader>
-
-          <div className="space-y-4">
+          <div className="space-y-4 pt-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Add a comma separated list of class names</label>
-              <Input placeholder="cat, dog, ..." value={inputValue} onChange={(e) => setInputValue(e.target.value)} />
+              <label className="text-sm font-medium text-foreground">
+                Add a comma-separated list of class names
+              </label>
+              <Input
+                placeholder="cat, dog, ..."
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={(
+                  e
+                ) =>
+                  e.key === "Enter" &&
+                  (handleAddClasses(), setIsAddDialogOpen(false))
+                }
+              />
             </div>
-
             <div className="flex gap-3 justify-end">
-              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                Upload Classes CSV
+              <Button variant="ghost" onClick={() => setIsAddDialogOpen(false)}>
+                Cancel
               </Button>
               <Button
-                className="bg-blue-600 hover:bg-blue-700 text-white"
                 onClick={() => {
-                  handleAddClasses()
-                  setIsAddDialogOpen(false)
+                  handleAddClasses();
+                  setIsAddDialogOpen(false);
                 }}
               >
                 Add Classes
@@ -227,21 +249,28 @@ export default function ClassesPage() {
           <DialogHeader>
             <DialogTitle>Modify Classes</DialogTitle>
           </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="border rounded-lg overflow-hidden">
+          <div className="space-y-4 pt-4">
+            <div className="border rounded-lg overflow-hidden max-h-96 overflow-y-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-muted">
-                    <TableHead className="font-semibold text-foreground">Class Name</TableHead>
-                    <TableHead className="font-semibold text-foreground">Rename</TableHead>
-                    <TableHead className="font-semibold text-foreground">Delete</TableHead>
+                  <TableRow className="bg-muted/50 sticky top-0">
+                    <TableHead className="font-semibold text-foreground">
+                      Class Name
+                    </TableHead>
+                    <TableHead className="font-semibold text-foreground">
+                      Rename
+                    </TableHead>
+                    <TableHead className="font-semibold text-foreground">
+                      Delete
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {modifyData.map((classItem) => (
                     <TableRow key={classItem.id}>
-                      <TableCell className="text-foreground">{classItem.name}</TableCell>
+                      <TableCell className="text-foreground">
+                        {classItem.name}
+                      </TableCell>
                       <TableCell>
                         <Input
                           placeholder="New name"
@@ -259,13 +288,13 @@ export default function ClassesPage() {
                         <Checkbox
                           checked={deleteChecked.has(classItem.id)}
                           onCheckedChange={(checked) => {
-                            const newSet = new Set(deleteChecked)
+                            const newSet = new Set(deleteChecked);
                             if (checked) {
-                              newSet.add(classItem.id)
+                              newSet.add(classItem.id);
                             } else {
-                              newSet.delete(classItem.id)
+                              newSet.delete(classItem.id);
                             }
-                            setDeleteChecked(newSet)
+                            setDeleteChecked(newSet);
                           }}
                         />
                       </TableCell>
@@ -274,12 +303,14 @@ export default function ClassesPage() {
                 </TableBody>
               </Table>
             </div>
-
             <div className="flex gap-3 justify-end">
-              <Button variant="outline" onClick={() => setIsModifyDialogOpen(false)}>
+              <Button
+                variant="ghost"
+                onClick={() => setIsModifyDialogOpen(false)}
+              >
                 Cancel
               </Button>
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={handleModifyClasses}>
+              <Button onClick={handleModifyClasses}>
                 Continue
               </Button>
             </div>
@@ -287,5 +318,5 @@ export default function ClassesPage() {
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }

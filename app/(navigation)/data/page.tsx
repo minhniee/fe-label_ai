@@ -9,7 +9,6 @@ export default function DataManagementPage() {
       {/* Page Header */}
       <div>
         <h1 className="text-3xl font-bold text-foreground">Data Management</h1>
-        
       </div>
 
       {/* Tabs for Upload and Explorer */}
