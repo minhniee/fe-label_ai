@@ -49,7 +49,7 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
   const [user, setUser] = React.useState<User>({
     name: "User",
     email: "",
-    avatar: "/avatars/default.jpg",
+    avatar: "",
   });
   const [me, setMe] = React.useState<any>(null);
 
@@ -66,9 +66,11 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
         setUser({
           name: parsed.username || parsed.name || "User",
           email: parsed.email || "",
-          avatar: picture || parsed.picture || "/avatars/default.jpg",
+          // Prioritize the picture from localStorage, then the one in the user object, then default
+          avatar: picture || parsed.picture || "",
         });
       } else if (picture) {
+        // If there's a picture in localStorage but no user object, still use the picture
         setUser((u) => ({ ...u, avatar: picture }));
       }
     } catch (error) {
@@ -99,7 +101,7 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
                 ? localStorage.getItem("user_picture")
                 : null) ||
               prev.avatar ||
-              "/avatars/default.jpg",
+              "",
           }));
         } catch {}
       } catch (error) {

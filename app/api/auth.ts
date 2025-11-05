@@ -58,6 +58,10 @@ export function persistAuth(token: TokenResponse) {
     }
     if (token.user) {
       localStorage.setItem('user', JSON.stringify(token.user));
+      // If the user object contains a picture from Google, save it separately
+      if (token.user.picture) {
+        localStorage.setItem('user_picture', token.user.picture);
+      }
     }
   } catch (error) {
     console.error("Failed to persist auth tokens:", error);
