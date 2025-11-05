@@ -6,7 +6,6 @@ import { DataExplorer } from "@/components/data-explorer";
 export default function DataManagementPage() {
   return (
     <div className="space-y-6">
-      {/* Page Header */}
       <div>
         <h1 className="text-3xl font-bold text-foreground">Data Management</h1>
       </div>
