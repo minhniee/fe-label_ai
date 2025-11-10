@@ -20,8 +20,8 @@ export default function AdminPage() {
       <Tabs defaultValue="batches" className="space-y-6">
         <TabsList className="grid w-full grid-cols-6 lg:w-[900px]">
           <TabsTrigger value="batches">Batch Management</TabsTrigger>
-          {/* <TabsTrigger value="agreement">Inter-Annotator</TabsTrigger> */}
-          {/* <TabsTrigger value="export">Export data</TabsTrigger> */}
+           <TabsTrigger value="agreement">Inter-Annotator</TabsTrigger> 
+           <TabsTrigger value="export">Export data</TabsTrigger> 
           <TabsTrigger value="users">User Management</TabsTrigger>
           <TabsTrigger value="labels">Labels Management</TabsTrigger>
           <TabsTrigger value="statistics">Statistics</TabsTrigger>
@@ -31,13 +31,13 @@ export default function AdminPage() {
           <BatchManagement />
         </TabsContent>
 
-        {/* <TabsContent value="agreement" className="space-y-6">
+         <TabsContent value="agreement" className="space-y-6">
           <InterAnnotatorAgreement />
-        </TabsContent> */}
+        </TabsContent> 
 
-        {/* <TabsContent value="export" className="space-y-6">
+         <TabsContent value="export" className="space-y-6">
           <DataExport />
-        </TabsContent> */}
+        </TabsContent> 
 
         <TabsContent value="users" className="space-y-6">
           <UserManagement />
