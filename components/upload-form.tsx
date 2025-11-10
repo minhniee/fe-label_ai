@@ -1,227 +1,231 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Card } from "@/components/ui/card"
-import { Upload, FileUp, FolderOpen, X } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
+import { FileUp, FolderOpen, File as FileIcon, X, Upload, Image as ImageIcon, FileText, ExternalLink } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
-const SUPPORTED_FORMATS = {
-  csv: ".csv",
-  xlsx: ".xlsx",
-  json: ".json",
-  pdf: ".pdf",
-}
+// Define supported file formats
+const IMAGE_EXTENSIONS = [".jpg", ".png", ".bmp", ".webp", ".avif"];
+const PDF_EXTENSIONS = [".pdf"];
+const DATA_EXTENSIONS = [".xlsx", ".json", ".csv"];
+const ALL_SUPPORTED_EXTENSIONS = [...IMAGE_EXTENSIONS, ...PDF_EXTENSIONS, ...DATA_EXTENSIONS];
 
-const SUPPORTED_FORMAT_EXTENSIONS = [".csv", ".xlsx", ".json", ".pdf"]
+type Tab = "all" | "annotated" | "not-annotated"
 
 export function UploadForm() {
-  const [batchName, setBatchName] = useState("")
-  const [createBatchInstantly, setCreateBatchInstantly] = useState(true)
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
-  const [dragActive, setDragActive] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const folderInputRef = useRef<HTMLInputElement>(null)
-  const dragRef = useRef<HTMLDivElement>(null)
+  const { toast } = useToast();
+  const [batchName, setBatchName] = useState("");
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [dragActive, setDragActive] = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>("all");
+  const [filePreviewUrls, setFilePreviewUrls] = useState<{ [key: string]: string }>({});
+  const [annotatedFiles, setAnnotatedFiles] = useState<Set<string>>(new Set());
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
   // Set default batch name on mount
   useEffect(() => {
-    const now = new Date()
-    const formattedDate = `Uploaded on ${now.getDate().toString().padStart(2, "0")}/${(now.getMonth() + 1)
-      .toString()
-      .padStart(2, "0")}/${now.getFullYear().toString().slice(-2)} at ${now
-      .getHours()
-      .toString()
-      .padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")} ${now.getHours() >= 12 ? "pm" : "am"}`
-    setBatchName(formattedDate)
-  }, [])
+    const now = new Date();
+    const formattedDate = `Uploaded on ${now.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' })} at ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`;
+    setBatchName(formattedDate);
+  }, []);
+
+  // Generate or revoke preview URLs for images
+  useEffect(() => {
+    const newUrls: { [key: string]: string } = {};
+    selectedFiles.forEach((file) => {
+      if (IMAGE_EXTENSIONS.some((ext) => file.name.toLowerCase().endsWith(ext))) {
+        const url = URL.createObjectURL(file);
+        newUrls[file.name] = url;
+      }
+    });
+    setFilePreviewUrls(newUrls);
+
+    return () => {
+      Object.values(newUrls).forEach(url => URL.revokeObjectURL(url));
+    };
+  }, [selectedFiles]);
 
   const validateFiles = (files: File[]): File[] => {
     return files.filter((file) => {
-      const extension = `.${file.name.split(".").pop()?.toLowerCase()}`
-      return SUPPORTED_FORMAT_EXTENSIONS.includes(extension)
-    })
-  }
+      const extension = `.${file.name.split(".").pop()?.toLowerCase()}`;
+      return ALL_SUPPORTED_EXTENSIONS.includes(extension);
+    });
+  };
+
+  const addFiles = (newFiles: File[]) => {
+    const validFiles = validateFiles(newFiles);
+    const uniqueNewFiles = validFiles.filter(
+      (file) => !selectedFiles.some((existingFile) => existingFile.name === file.name && existingFile.size === file.size)
+    );
+    setSelectedFiles((prev) => [...prev, ...uniqueNewFiles]);
+  };
 
   const handleDrag = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
+    e.preventDefault();
+    e.stopPropagation();
     if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true)
+      setDragActive(true);
     } else if (e.type === "dragleave") {
-      setDragActive(false)
+      setDragActive(false);
     }
-  }
+  };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setDragActive(false)
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    addFiles(Array.from(e.dataTransfer.files));
+  };
 
-    const files = Array.from(e.dataTransfer.files)
-    const validFiles = validateFiles(files)
-    setSelectedFiles((prev) => [...prev, ...validFiles])
-  }
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    addFiles(Array.from(e.target.files || []));
+    if (e.target) e.target.value = '';
+  };
 
-  const handleSelectFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || [])
-    const validFiles = validateFiles(files)
-    setSelectedFiles((prev) => [...prev, ...validFiles])
-  }
+  const removeFile = (fileName: string) => {
+    setSelectedFiles((prev) => prev.filter((file) => file.name !== fileName));
+  };
 
-  const handleSelectFolder = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || [])
-    const validFiles = validateFiles(files)
-    setSelectedFiles((prev) => [...prev, ...validFiles])
-  }
+  const getFilteredFiles = () => {
+    if (activeTab === "all") return selectedFiles;
+    const imageFiles = selectedFiles.filter(file => IMAGE_EXTENSIONS.some(ext => file.name.toLowerCase().endsWith(ext)));
+    if (activeTab === "annotated") return imageFiles.filter((file) => annotatedFiles.has(file.name));
+    if (activeTab === "not-annotated") return imageFiles.filter((file) => !annotatedFiles.has(file.name));
+    return selectedFiles;
+  };
 
-  const removeFile = (index: number) => {
-    setSelectedFiles((prev) => prev.filter((_, i) => i !== index))
-  }
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (selectedFiles.length === 0) {
+        toast({ title: "No files selected", description: "Please select files to upload.", variant: "destructive" });
+        return;
+    }
+    console.log("Submitting upload with:", { batchName, files: selectedFiles });
+    toast({ title: "Upload Started", description: `Uploading ${selectedFiles.length} files...` });
+    // TODO: Add actual API upload logic here
+  };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    console.log("Submitting upload with:", {
-      batchName,
-      files: selectedFiles,
-      createBatchInstantly,
-    })
-    // TODO: Add API call to upload files
-  }
+  const filteredFiles = getFilteredFiles();
+  const imageFiles = selectedFiles.filter(file => IMAGE_EXTENSIONS.some(ext => file.name.toLowerCase().endsWith(ext)));
+  const annotatedCount = annotatedFiles.size;
+  const notAnnotatedCount = imageFiles.length - annotatedCount;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-2">
-        <Upload className="w-6 h-6" />
-        <h1 className="text-3xl font-bold">Upload</h1>
+    <form onSubmit={handleSubmit} className="space-y-6">
+
+      {/* Top Header Inputs */}
+      <div>
+          <label htmlFor="batch-name" className="text-sm font-medium">Batch Name:</label>
+          <Input id="batch-name" value={batchName} onChange={(e) => setBatchName(e.target.value)} placeholder="Enter batch name" />
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Batch Name Input */}
-        <div className="space-y-2">
-          <label htmlFor="batch-name" className="text-sm font-medium">
-            Batch Name:
-          </label>
-          <Input
-            id="batch-name"
-            value={batchName}
-            onChange={(e) => setBatchName(e.target.value)}
-            placeholder="Enter batch name"
-            className="w-full"
-          />
-        </div>
+      {/* Tabs - only show when files are selected */}
+      {selectedFiles.length > 0 && (
+          <div className="flex gap-6 border-b">
+              <button type="button" onClick={() => setActiveTab("all")} className={`pb-2 font-medium text-sm relative ${activeTab === 'all' ? 'text-primary border-b-2 border-primary -mb-px' : 'text-muted-foreground hover:text-foreground'}`}>
+                  All Images <span className="ml-1 text-xs bg-muted text-muted-foreground rounded-full px-2 py-0.5">{selectedFiles.length}</span>
+              </button>
+              <button type="button" onClick={() => setActiveTab("annotated")} className={`pb-2 font-medium text-sm relative ${activeTab === 'annotated' ? 'text-primary border-b-2 border-primary -mb-px' : 'text-muted-foreground hover:text-foreground'}`}>
+                  Annotated <span className="ml-1 text-xs bg-muted text-muted-foreground rounded-full px-2 py-0.5">{annotatedCount}</span>
+              </button>
+              <button type="button" onClick={() => setActiveTab("not-annotated")} className={`pb-2 font-medium text-sm relative ${activeTab === 'not-annotated' ? 'text-primary border-b-2 border-primary -mb-px' : 'text-muted-foreground hover:text-foreground'}`}>
+                  Not Annotated <span className="ml-1 text-xs bg-muted text-muted-foreground rounded-full px-2 py-0.5">{notAnnotatedCount}</span>
+              </button>
+          </div>
+      )}
 
-        {/* Create Batch Instantly Checkbox */}
-        <div className="flex items-center gap-2">
-          <Checkbox id="create-batch" checked={createBatchInstantly} onCheckedChange={setCreateBatchInstantly} />
-          <label htmlFor="create-batch" className="text-sm font-medium cursor-pointer">
-            Create batch instantly
-          </label>
-        </div>
-
-        {/* Drag and Drop Area */}
-        <Card
-          ref={dragRef}
-          onDragEnter={handleDrag}
-          onDragLeave={handleDrag}
-          onDragOver={handleDrag}
-          onDrop={handleDrop}
-          className={`border-2 border-dashed p-12 transition-colors ${
-            dragActive ? "border-primary bg-primary/5" : "border-border"
-          }`}
-        >
-          <div className="flex flex-col items-center justify-center gap-6">
-            {/* Upload Icon */}
-            <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
-              <Upload className="w-8 h-8 text-muted-foreground" />
-            </div>
-
-            {/* Main Text */}
-            <h2 className="text-xl font-semibold text-center">Drag and drop file(s) to upload, or:</h2>
-
-            {/* Buttons */}
-            <div className="flex gap-3">
-              <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} className="gap-2">
-                <FileUp className="w-4 h-4" />
-                Select File(s)
-              </Button>
-              <Button type="button" variant="outline" onClick={() => folderInputRef.current?.click()} className="gap-2">
-                <FolderOpen className="w-4 h-4" />
-                Select Folder
-              </Button>
-            </div>
-
-            {/* Supported Formats */}
-            <div className="w-full pt-6 border-t">
-              <div className="text-sm font-semibold text-muted-foreground mb-3">Supported Formats</div>
-              <div className="flex flex-wrap gap-4">
-                <div>
-                  <div className="flex items-center gap-2 font-medium text-sm mb-1">
-                    <FileUp className="w-4 h-4" />
-                    Data Files
-                  </div>
-                  <p className="text-sm text-muted-foreground">{Object.values(SUPPORTED_FORMATS).join(", ")}</p>
+      {/* Main Upload Area */}
+      <div onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}>
+        {selectedFiles.length === 0 ? (
+          // EMPTY STATE VIEW
+          <div className={`text-center space-y-4 border-2 border-dashed rounded-lg p-12 transition-colors ${dragActive ? "border-primary bg-primary/5" : "border-border"}`}>
+            <div className="flex justify-center">
+                <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+                    <Upload className="w-8 h-8 text-muted-foreground" />
                 </div>
-              </div>
+            </div>
+            <h2 className="text-xl font-semibold">Drag and drop file(s) to upload, or:</h2>
+            <div className="flex gap-3 justify-center">
+              <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} className="gap-2"><FileUp className="w-4 h-4" />Select File(s)</Button>
+              <Button type="button" variant="outline" onClick={() => folderInputRef.current?.click()} className="gap-2"><FolderOpen className="w-4 h-4" />Select Folder</Button>
+            </div>
+            <div className="pt-6">
+                <h3 className="text-sm font-semibold text-muted-foreground mb-4">Supported Formats</h3>
+                <Card className="p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
+                        <div className="space-y-1">
+                            <h4 className="font-medium flex items-center gap-2"><ImageIcon className="w-4 h-4" /> Images</h4>
+                            <p className="text-sm text-muted-foreground">{IMAGE_EXTENSIONS.join(", ")}</p>
+                        </div>
+                        <div className="space-y-1">
+                            <h4 className="font-medium flex items-center gap-2"><FileText className="w-4 h-4" /> Files</h4>
+                            <p className="text-sm text-muted-foreground">{DATA_EXTENSIONS.join(", ")}</p>
+                        </div>
+                        <div className="space-y-1">
+                            <h4 className="font-medium flex items-center gap-2"><FileIcon className="w-4 h-4" /> PDFs</h4>
+                            <p className="text-sm text-muted-foreground">{PDF_EXTENSIONS.join(", ")}</p>
+                        </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-4 text-left">*Max size of 20MB and 16,400 × 10,900 pixels.</p>
+                </Card>
             </div>
           </div>
-        </Card>
-
-        {/* Hidden File Inputs */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept={SUPPORTED_FORMAT_EXTENSIONS.join(",")}
-          onChange={handleSelectFiles}
-          className="hidden"
-        />
-        <input
-          ref={folderInputRef}
-          type="file"
-          multiple
-          webkitdirectory="true"
-          accept={SUPPORTED_FORMAT_EXTENSIONS.join(",")}
-          onChange={handleSelectFolder}
-          className="hidden"
-        />
-
-        {/* Selected Files List */}
-        {selectedFiles.length > 0 && (
-          <Card className="p-4">
-            <h3 className="font-semibold mb-3">Selected Files ({selectedFiles.length})</h3>
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {selectedFiles.map((file, index) => (
-                <div key={`${file.name}-${index}`} className="flex items-center justify-between p-2 bg-muted rounded">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <FileUp className="w-4 h-4 flex-shrink-0" />
-                    <span className="text-sm truncate">{file.name}</span>
-                    <span className="text-xs text-muted-foreground flex-shrink-0">
-                      ({(file.size / 1024).toFixed(2)} KB)
-                    </span>
+        ) : (
+          // POPULATED STATE VIEW
+          <Card className={`transition-colors ${dragActive ? "border-primary bg-primary/5" : "border-border"}`}>
+            <CardContent className="p-6 space-y-6">
+              <div className="flex justify-between items-center pb-6 border-b">
+                <div>
+                  <h3 className="text-lg font-semibold">Drag and drop images and files.</h3>
+                  <div className="text-sm text-muted-foreground mt-1 space-x-2 flex items-center">
+                    <span>{IMAGE_EXTENSIONS.slice(0, 3).join(", ")}...</span>
+                    <span>{DATA_EXTENSIONS.join(", ")}</span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => removeFile(index)}
-                    className="ml-2 p-1 hover:bg-destructive/10 rounded transition-colors"
-                  >
-                    <X className="w-4 h-4 text-destructive" />
-                  </button>
+                  <p className="text-xs text-muted-foreground mt-2">*Max size of 20MB and 16,400 × 10,900 pixels.</p>
                 </div>
-              ))}
-            </div>
+                <div className="flex items-center gap-2">
+                  <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} className="gap-2"><FileUp className="w-4 h-4" />Select Files</Button>
+                  <Button type="button" variant="outline" onClick={() => folderInputRef.current?.click()} className="gap-2"><FolderOpen className="w-4 h-4" />Select Folder</Button>
+                  <Button type="submit" className="gap-2">Save and Continue</Button>
+                </div>
+              </div>
+
+              {filteredFiles.length > 0 ? (
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 pt-6">
+                  {filteredFiles.map((file) => (
+                    <div key={file.name} className="relative group rounded-lg overflow-hidden bg-muted aspect-video flex items-center justify-center text-center">
+                      <button type="button" onClick={() => removeFile(file.name)} className="absolute top-1 right-1 z-10 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                        <X className="w-3 h-3" />
+                      </button>
+                      {IMAGE_EXTENSIONS.some(ext => file.name.toLowerCase().endsWith(ext)) ? (
+                        <img src={filePreviewUrls[file.name]} alt={file.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="flex flex-col items-center gap-2 p-2">
+                          <FileIcon className="w-8 h-8 text-muted-foreground" />
+                          <p className="text-xs text-muted-foreground break-all">{file.name}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  <p>No files match the current filter.</p>
+                </div>
+              )}
+            </CardContent>
           </Card>
         )}
+      </div>
 
-        {/* Submit Button */}
-        <Button type="submit" className="w-full" disabled={selectedFiles.length === 0}>
-          Upload Files
-        </Button>
-      </form>
-    </div>
+      <input ref={fileInputRef} type="file" multiple accept={ALL_SUPPORTED_EXTENSIONS.join(",")} onChange={handleFileChange} className="hidden" />
+      <input ref={folderInputRef} type="file" multiple onChange={handleFileChange} className="hidden" {...{ webkitdirectory: "true" }} />
+    </form>
   )
 }
