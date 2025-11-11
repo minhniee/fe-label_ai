@@ -4,7 +4,6 @@ import type React from "react"
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent } from "@/components/ui/card"
 import { FileUp, FolderOpen, File as FileIcon, X, Upload, Image as ImageIcon, FileText, ExternalLink } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
@@ -129,7 +128,7 @@ export function UploadForm() {
       {selectedFiles.length > 0 && (
           <div className="flex gap-6 border-b">
               <button type="button" onClick={() => setActiveTab("all")} className={`pb-2 font-medium text-sm relative ${activeTab === 'all' ? 'text-primary border-b-2 border-primary -mb-px' : 'text-muted-foreground hover:text-foreground'}`}>
-                  All Images <span className="ml-1 text-xs bg-muted text-muted-foreground rounded-full px-2 py-0.5">{selectedFiles.length}</span>
+                  All Files <span className="ml-1 text-xs bg-muted text-muted-foreground rounded-full px-2 py-0.5">{selectedFiles.length}</span>
               </button>
               <button type="button" onClick={() => setActiveTab("annotated")} className={`pb-2 font-medium text-sm relative ${activeTab === 'annotated' ? 'text-primary border-b-2 border-primary -mb-px' : 'text-muted-foreground hover:text-foreground'}`}>
                   Annotated <span className="ml-1 text-xs bg-muted text-muted-foreground rounded-full px-2 py-0.5">{annotatedCount}</span>
