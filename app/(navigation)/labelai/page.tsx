@@ -14,11 +14,13 @@ import { useToast } from "@/hooks/use-toast"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { SearchFilter } from "@/components/label-ai/search-filter"
+import { SemanticSearchFilter } from "@/components/label-ai/semantic-search-filter"
 import { ColumnVisibility } from "@/components/label-ai/column-visibility"
 import { DataManager } from "@/components/label-ai/data-manager"
-import { AISearch } from "@/components/label-ai/ai-search"
+// import { AISearch } from "@/components/label-ai/ai-search"
 import { ColumnManager } from "@/components/label-ai/column-manager"
 import { getDatasetVersionData } from "@/app/api/labelai"
+import { getVersionFiles } from "@/app/api/dataset"
 
 export type RowData = {
   _id: string
@@ -42,6 +44,8 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("")
   const [visibleColumns, setVisibleColumns] = useState<string[]>([])
   const [searchResults, setSearchResults] = useState<any[]>([])
+  const [semanticSearchResults, setSemanticSearchResults] = useState<any[]>([])
+  const [currentFileId, setCurrentFileId] = useState<number | null>(null)
   const { toast } = useToast()
   const rowsPerPage = 50
 
@@ -53,9 +57,21 @@ export default function Home() {
       if (result.success) {
         const datasetData = result.data
 
+        // Get file_id for semantic search
+        try {
+          const files = await getVersionFiles(parseInt(versionId))
+          if (files && files.length > 0 && files[0].file_id) {
+            setCurrentFileId(files[0].file_id)
+          } else {
+            setCurrentFileId(null)
+          }
+        } catch (error) {
+          console.error("Error getting file_id:", error)
+          setCurrentFileId(null)
+        }
+
         const datasetColumns = Object.keys(datasetData[0] || {})
         setColumns(datasetColumns)
-        setVisibleColumns(datasetColumns)
 
         const detectedContextCol =
           datasetColumns.find((col) => col.toLowerCase().includes("context")) ||
@@ -79,6 +95,7 @@ export default function Home() {
 
         setContextColumn(detectedContextCol)
         setResultColumn(detectedResultCol)
+        setVisibleColumns([detectedContextCol, detectedResultCol])
 
         const transformedData: RowData[] = datasetData.map((row: any, index: number) => ({
           _id: `row-${index}`,
@@ -91,6 +108,7 @@ export default function Home() {
         setData(transformedData)
         setDatasetName(`${datasetId} - v${versionId}`)
         setCurrentPage(0)
+        setSemanticSearchResults([]) // Reset semantic search results
 
         toast({
           title: "Dataset loaded",
@@ -118,7 +136,6 @@ export default function Home() {
 
   const handleDataGenerated = (generatedData: any[], generatedColumns: string[], name: string) => {
     setColumns(generatedColumns)
-    setVisibleColumns(generatedColumns)
 
     const detectedContextCol =
       generatedColumns.find((col) => col.toLowerCase().includes("context")) ||
@@ -139,6 +156,7 @@ export default function Home() {
 
     setContextColumn(detectedContextCol)
     setResultColumn(detectedResultCol)
+    setVisibleColumns([detectedContextCol, detectedResultCol])
 
     const transformedData: RowData[] = generatedData.map((row: any, index: number) => ({
       _id: `row-${index}`,
@@ -162,11 +180,13 @@ export default function Home() {
     setContextColumn("")
     setResultColumn("")
     setView("select")
+    setCurrentFileId(null)
+    setSemanticSearchResults([])
+    setSearchQuery("")
   }
 
   const handleFileUpload = (uploadedData: any[], uploadedColumns: string[], fileName: string) => {
     setColumns(uploadedColumns)
-    setVisibleColumns(uploadedColumns)
 
     const detectedContextCol =
       uploadedColumns.find((col) => col.toLowerCase().includes("context")) ||
@@ -190,6 +210,7 @@ export default function Home() {
 
     setContextColumn(detectedContextCol)
     setResultColumn(detectedResultCol)
+    setVisibleColumns([detectedContextCol, detectedResultCol])
 
     const transformedData: RowData[] = uploadedData.map((row: any, index: number) => ({
       _id: `row-${index}`,
@@ -205,6 +226,16 @@ export default function Home() {
   }
 
   const filteredData = data.filter((row) => {
+    // First apply semantic search filter if there are results
+    if (semanticSearchResults.length > 0) {
+      const rowIndex = parseInt(row._id.replace("row-", ""))
+      const isInSemanticResults = semanticSearchResults.some(
+        (result) => result.row_index === rowIndex
+      )
+      if (!isInSemanticResults) return false
+    }
+    
+    // Then apply text search filter
     if (!searchQuery.trim()) return true
     const query = searchQuery.toLowerCase()
     return Object.values(row).some((value) => String(value).toLowerCase().includes(query))
@@ -242,14 +273,10 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card">
-        <div className="container mx-auto px-6 py-4">
-          <h1 className="text-2xl font-bold text-foreground">Semi-AI Labeler</h1>
+          <h1 className="text-3xl font-bold text-foreground">Semi-AI Labeler</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Select dataset, review AI suggestions, and export labeled data
           </p>
-        </div>
-      </header>
 
       <main className="container mx-auto px-6 py-8">
         {loading ? (
@@ -262,7 +289,7 @@ export default function Home() {
         ) : data.length === 0 ? (
           view === "select" ? (
             <div className="space-y-6">
-              <AISearch onSearchResults={setSearchResults} />
+              {/* <AISearch onSearchResults={setSearchResults} /> */}
               <DatasetSelector
                 onVersionSelect={handleVersionSelect}
                 onGenerateClick={() => setView("generate")}
@@ -310,8 +337,13 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
-              <SearchFilter onSearchChange={setSearchQuery} />
+            <div className="flex items-center gap-4 flex-wrap">
+              <SearchFilter onSearchChange={setSearchQuery} placeholder="Text search..." />
+              <SemanticSearchFilter 
+                fileId={currentFileId}
+                onSearchResults={setSemanticSearchResults}
+                placeholder="Semantic search (e.g., thiên nhiên)..."
+              />
               <ColumnManager
                 columns={columns}
                 data={data}
@@ -352,14 +384,28 @@ export default function Home() {
                   referenceContext={referenceContext}
                   columns={columns}
                   onDataUpdate={(updatedRows) => {
-                    const newData = [...data]
-                    updatedRows.forEach((updatedRow) => {
-                      const index = newData.findIndex((row) => row._id === updatedRow._id)
-                      if (index !== -1) {
+                  const newData = [...data]
+                  updatedRows.forEach((updatedRow) => {
+                    const index = newData.findIndex((row) => row._id === updatedRow._id)
+                    if (index !== -1) {
+                      const existingRow = newData[index]
+                      const updatedIsTrue = String(updatedRow._ai_suggestion || "").toLowerCase() === "true"
+                      const existingIsTrue = String(existingRow._ai_suggestion || "").toLowerCase() === "true"
+                      if (updatedIsTrue || existingIsTrue) {
+                        // Merge only meta fields (keys starting with "_") to preserve user data
+                        const metaOnly: any = {}
+                        Object.keys(updatedRow).forEach((k) => {
+                          if (k.startsWith("_") && k !== "_id") {
+                            ;(metaOnly as any)[k] = (updatedRow as any)[k]
+                          }
+                        })
+                        newData[index] = { ...existingRow, ...metaOnly }
+                      } else {
                         newData[index] = updatedRow
                       }
-                    })
-                    setData(newData)
+                    }
+                  })
+                  setData(newData)
                   }}
                 />
               </>
@@ -392,12 +438,39 @@ export default function Home() {
               onDataUpdate={(updatedRows) => {
                 // If updatedRows length matches allData length, replace entire dataset
                 if (updatedRows.length === data.length && updatedRows.length > 0) {
-                  setData(updatedRows)
+                  const merged = updatedRows.map((newRow) => {
+                    const oldRow = data.find((d) => d._id === newRow._id) || newRow
+                    const oldIsTrue = String(oldRow._ai_suggestion || "").toLowerCase() === "true"
+                    const newIsTrue = String(newRow._ai_suggestion || "").toLowerCase() === "true"
+                    if (oldIsTrue || newIsTrue) {
+                      const metaOnly: any = {}
+                      Object.keys(newRow).forEach((k) => {
+                        if (k.startsWith("_") && k !== "_id") {
+                          ;(metaOnly as any)[k] = (newRow as any)[k]
+                        }
+                      })
+                      return { ...oldRow, ...metaOnly }
+                    }
+                    return newRow
+                  })
+                  setData(merged)
                 } else {
                   // Update specific rows by matching IDs
                   const newData = data.map((row) => {
                     const updated = updatedRows.find((r) => r._id === row._id)
-                    return updated || row
+                    if (!updated) return row
+                    const rowIsTrue = String(row._ai_suggestion || "").toLowerCase() === "true"
+                    const updatedIsTrue = String(updated._ai_suggestion || "").toLowerCase() === "true"
+                    if (rowIsTrue || updatedIsTrue) {
+                      const metaOnly: any = {}
+                      Object.keys(updated).forEach((k) => {
+                        if (k.startsWith("_") && k !== "_id") {
+                          ;(metaOnly as any)[k] = (updated as any)[k]
+                        }
+                      })
+                      return { ...row, ...metaOnly }
+                    }
+                    return updated
                   })
                   setData(newData)
                 }

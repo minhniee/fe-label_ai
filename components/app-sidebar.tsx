@@ -11,6 +11,7 @@ import {
   Sparkles,
   GitCompare,
   FileCode,
+  ListOrdered,
   type LucideIcon,
 } from "lucide-react";
 
@@ -48,7 +49,7 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
   const [user, setUser] = React.useState<User>({
     name: "User",
     email: "",
-    avatar: "/avatars/default.jpg",
+    avatar: "",
   });
   const [me, setMe] = React.useState<any>(null);
 
@@ -65,9 +66,11 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
         setUser({
           name: parsed.username || parsed.name || "User",
           email: parsed.email || "",
-          avatar: picture || parsed.picture || "/avatars/default.jpg",
+          // Prioritize the picture from localStorage, then the one in the user object, then default
+          avatar: picture || parsed.picture || "",
         });
       } else if (picture) {
+        // If there's a picture in localStorage but no user object, still use the picture
         setUser((u) => ({ ...u, avatar: picture }));
       }
     } catch (error) {
@@ -82,6 +85,25 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
         const { getMe } = await import("@/app/api/auth");
         const data = await getMe();
         setMe(data);
+        // Also hydrate visible user info from backend (Google name/email/image if provided)
+        try {
+          setUser((prev) => ({
+            name:
+              (data as any).username ||
+              (data as any).name ||
+              prev.name ||
+              "User",
+            email: (data as any).email || prev.email || "",
+            avatar:
+              // prefer picture from backend if available
+              (data as any).picture ||
+              (typeof window !== "undefined"
+                ? localStorage.getItem("user_picture")
+                : null) ||
+              prev.avatar ||
+              "",
+          }));
+        } catch {}
       } catch (error) {
         console.warn("Failed to load user role:", error);
       }
@@ -117,12 +139,6 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
         isActive: pathname === "/schema",
       },
       {
-        title: "Labeling",
-        url: "/labeling",
-        icon: Tag,
-        isActive: pathname === "/labeling",
-      },
-      {
         title: "Labeling with AI",
         url: "/labelai",
         icon: Tag,
@@ -135,10 +151,10 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
         isActive: pathname === "/models",
       },
       {
-        title: "AI Suggest",
-        url: "/aisuggest",
-        icon: Sparkles,
-        isActive: pathname === "/aisuggest",
+        title: "Classes",
+        url: "/classes",
+        icon: ListOrdered,
+        isActive: pathname === "/classes",
       },
       {
         title: "Admin",
@@ -157,7 +173,7 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
   );
 
   // Filter navigation items based on user role
-  const navMainItems = React.useMemo(() => {
+  const flatItems = React.useMemo(() => {
     if (!me) return allNavItems;
 
     // Manager (role_id=3) and Labeler (role_id=4) restrictions
@@ -171,30 +187,48 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
         items = items.filter((item) => item.title !== "Data Management");
       }
 
-      console.log(
-        `[Navigation for role_id=${me.role_id}]:`,
-        items.map((i) => i.title)
-      );
       return items;
     }
 
     // Admin/SuperAdmin - full access
-    console.log(
-      "[Navigation for Admin/SuperAdmin]:",
-      allNavItems.map((i) => i.title)
-    );
     return allNavItems;
   }, [me, allNavItems]);
+
+  // Group items: Data
+  const dataGroupTitles = new Set([
+    "Dashboard",
+    "Tasks",
+    "Data Management",
+    "Schema",
+    "Labeling with AI",
+    "Model Dashboard",
+    "Classes",
+  ]);
+
+  // Group items: Admin
+  const adminGroupTitles = new Set(["Admin"]);
+
+  // Group items: Tool
+  const toolGroupTitles = new Set(["Comparison Tool"]);
+
+  const dataItems = flatItems.filter((i) => dataGroupTitles.has(i.title));
+  const adminItems = flatItems.filter((i) => adminGroupTitles.has(i.title));
+  const toolItems = flatItems.filter((i) => toolGroupTitles.has(i.title));
 
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <div className="px-2 py-1.5">
+        <div className="px-2 py-1.5 pr-2.5 flex items-center justify-center">
           <FPTLogo size="sm" showText={true} />
         </div>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={navMainItems} />
+        {/* Data group  */}
+        <NavMain groupTitle="Data" items={dataItems} />
+        {/* Admin group  */}
+        <NavMain groupTitle="Admin" items={adminItems} />
+        {/* Platform group  */}
+        <NavMain groupTitle="Tool" items={toolItems} />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={user} onLogout={onLogout} />

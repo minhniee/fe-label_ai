@@ -7,14 +7,14 @@ interface FPTLogoProps {
   showText?: boolean;
   href?: string;
 }
-export const montserrat = Montserrat({
-  subsets: ["latin"],
-  weight: ["600", "700"],
-});
+// export const montserrat = Montserrat({
+//   subsets: ["latin"],
+//   weight: ["600", "700"],
+// });
 
 export function FPTLogo({
   size = "md",
-  showText = true,
+  // showText = true,
   href = "/dashboard",
 }: FPTLogoProps) {
   const dimension = {
@@ -23,11 +23,11 @@ export function FPTLogo({
     lg: 140,
   }[size];
 
-  const textSizeClasses = {
-    sm: "text-lg",
-    md: "text-xl",
-    lg: "text-3xl",
-  };
+  // const textSizeClasses = {
+  //   sm: "text-lg",
+  //   md: "text-xl",
+  //   lg: "text-3xl",
+  // };
 
   return (
     <Link

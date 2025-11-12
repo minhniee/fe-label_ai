@@ -62,7 +62,7 @@ export function ReferenceUploader({ onReferenceUpdate }: ReferenceUploaderProps)
       console.error("[v0] Error uploading reference files:", error)
       toast({
         title: "Upload failed",
-        description: error instanceof Error ? error.message : "Failed to process reference files",
+        description: error instanceof Error ? error.message : JSON.stringify(error),
         variant: "destructive",
       })
     } finally {
@@ -121,7 +121,7 @@ export function ReferenceUploader({ onReferenceUpdate }: ReferenceUploaderProps)
           <input
             id="reference-upload"
             type="file"
-            accept=".pdf,.docx,.txt"
+            accept="*/*" // ALLOW ALL FILES for backend testing
             multiple
             onChange={handleFileUpload}
             className="hidden"

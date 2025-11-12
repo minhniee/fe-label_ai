@@ -59,7 +59,7 @@ import {
   type BatchProgressResponse
 } from "@/app/api/batch"
 import { getUsers, type User as ApiUser } from "@/app/api/users"
-import { getDatasets, getDatasetVersions, type Dataset as ApiDataset, type DatasetVersion } from "@/app/api/datasets"
+import { getDatasets, getDatasetVersions, type Dataset as ApiDataset, type DatasetVersion } from "@/app/api/dataset"
 import { useToast } from "@/hooks/use-toast"
 
 interface Batch {

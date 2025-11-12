@@ -7,7 +7,7 @@ import {
   Moon,
   Sun,
 } from "lucide-react"
-import { useTheme } from "next-themes"
+
 
 import {
   Avatar,
@@ -42,7 +42,7 @@ export function NavUser({
   onLogout?: () => void
 }) {
   const { isMobile } = useSidebar()
-  const { theme, setTheme } = useTheme()
+
 
   return (
     <SidebarMenu>
@@ -87,17 +87,7 @@ export function NavUser({
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
-                {theme === "dark" ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
-                {theme === "dark" ? "Light mode" : "Dark mode"}
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Bell />
-                Notifications
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
+
             <DropdownMenuItem onClick={onLogout}>
               <LogOut />
               Log out
