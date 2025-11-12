@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import {
-  LayoutDashboard,
+  Shield,
   Database,
   Tag,
   Brain,
@@ -115,10 +115,10 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
   const allNavItems: NavItem[] = React.useMemo(
     () => [
       {
-        title: "Dashboard",
-        url: "/dashboard",
-        icon: LayoutDashboard,
-        isActive: pathname === "/dashboard",
+        title: "Administrator",
+        url: "/admin",
+        icon: Shield,
+        isActive: pathname.startsWith("/admin"),
       },
       {
         title: "Tasks",
@@ -144,24 +144,14 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
         icon: Tag,
         isActive: pathname === "/labelai",
       },
-      {
-        title: "Model Dashboard",
-        url: "/models",
-        icon: Brain,
-        isActive: pathname === "/models",
-      },
+
       {
         title: "Classes",
         url: "/classes",
         icon: ListOrdered,
         isActive: pathname === "/classes",
       },
-      {
-        title: "Admin",
-        url: "/admin",
-        icon: Settings,
-        isActive: pathname === "/admin",
-      },
+
       {
         title: "Comparison Tool",
         url: "/comparison-tool",
@@ -179,7 +169,7 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
     // Manager (role_id=3) and Labeler (role_id=4) restrictions
     if (me.role_id === 3 || me.role_id === 4) {
       let items = allNavItems.filter(
-        (item) => item.title !== "Model Dashboard" && item.title !== "Admin"
+        (item) => item.title !== "Administrator"
       );
 
       // Labeler (role_id=4) additional restrictions
@@ -196,17 +186,15 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
 
   // Group items: Data
   const dataGroupTitles = new Set([
-    "Dashboard",
     "Tasks",
     "Data Management",
     "Schema",
     "Labeling with AI",
-    "Model Dashboard",
     "Classes",
   ]);
 
   // Group items: Admin
-  const adminGroupTitles = new Set(["Admin"]);
+  const adminGroupTitles = new Set(["Administrator"]);
 
   // Group items: Tool
   const toolGroupTitles = new Set(["Comparison Tool"]);

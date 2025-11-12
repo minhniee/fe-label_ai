@@ -42,6 +42,11 @@ export default function UnassignedSection() {
     },
   ]
 
+  const handleBatchSelect = (batch: Batch) => {
+    const query = new URLSearchParams({ batchId: batch.id }).toString()
+    router.push(`/annotate/batch?${query}`)
+  }
+
   return (
     <div className="border border-input rounded-lg p-6 bg-card h-full flex flex-col">
       <div className="flex items-center justify-between mb-6">
@@ -68,13 +73,13 @@ export default function UnassignedSection() {
         </TooltipProvider>
       </div>
 
-      {/* Upload More Images Button */}
+      {/* Upload More Files Button */}
       <button
         onClick={() => router.push("/upload-file")}
         className="w-full flex items-center justify-center gap-2 mb-3 text-primary hover:text-primary/80 transition-colors py-2"
       >
         <Upload className="w-4 h-4" />
-        <span className="text-sm font-medium">Upload More Images</span>
+        <span className="text-sm font-medium">Upload More Files</span>
       </button>
 
       {/* Batches List */}
@@ -82,7 +87,16 @@ export default function UnassignedSection() {
         {batches.map((batch) => (
           <div
             key={batch.id}
-            className="border border-input rounded-md p-4 bg-background hover:bg-accent/50 transition-colors"
+            className="border border-input rounded-md p-4 bg-background hover:bg-accent/50 transition-colors cursor-pointer"
+            onClick={() => handleBatchSelect(batch)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault()
+                handleBatchSelect(batch)
+              }
+            }}
           >
             <div className="flex items-start justify-between mb-2">
               <div>
@@ -93,7 +107,14 @@ export default function UnassignedSection() {
                 <MoreVertical className="w-4 h-4" />
               </button>
             </div>
-            <button className="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors text-sm font-medium mt-3">
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation()
+                handleBatchSelect(batch)
+              }}
+              className="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors text-sm font-medium mt-3"
+            >
               <span>Annotate Images</span>
               <ArrowRight className="w-3 h-3" />
             </button>

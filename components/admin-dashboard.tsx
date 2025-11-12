@@ -4,9 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Database, Tag, Users, FileText, TrendingUp, Clock, CheckCircle, AlertCircle } from "lucide-react"
-import { useEffect, useState } from "react"
 
-export default function DashboardPage() {
+export default function AdminDashboard() {
   // Mock data for statistics
   const stats = {
     totalDatasets: 12,
