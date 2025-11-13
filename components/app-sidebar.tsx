@@ -12,12 +12,16 @@ import {
   GitCompare,
   FileCode,
   ListOrdered,
+  FileText,
+  Upload,
+  FolderOpen,
   type LucideIcon,
 } from "lucide-react";
 
 import { NavMain } from "@/components/nav-main";
 import { NavUser } from "@/components/nav-user";
 import { FPTLogo } from "@/components/fpt-logo";
+import { ProjectSwitcher } from "@/components/project-switcher";
 import {
   Sidebar,
   SidebarContent,
@@ -25,7 +29,9 @@ import {
   SidebarHeader,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { getSelectedProject, setSelectedProject, projectToSlug, type Project } from "@/types/project";
+import { viewAllProjects } from "@/app/api/project";
 
 interface User {
   name: string;
@@ -46,12 +52,15 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 
 export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const [user, setUser] = React.useState<User>({
     name: "User",
     email: "",
     avatar: "",
   });
   const [me, setMe] = React.useState<any>(null);
+  const [selectedProject, setSelectedProjectState] = React.useState<Project | null>(null);
+  const [projects, setProjects] = React.useState<Project[]>([]);
 
   // Load user profile data from localStorage
   React.useEffect(() => {
@@ -76,6 +85,42 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
     } catch (error) {
       console.warn("Failed to load user data from localStorage:", error);
     }
+  }, []);
+
+  // Load projects and selected project
+  React.useEffect(() => {
+    const loadProjects = async () => {
+      try {
+        const apiProjects = await viewAllProjects();
+        const convertedProjects: Project[] = apiProjects.map((p) => ({
+          id: p.project_id.toString(),
+          name: p.name,
+          description: p.description,
+          labeling_type: p.labeling_type,
+          status: p.status,
+          created_by: p.created_by,
+          created_at: p.created_at,
+          updated_at: p.updated_at,
+        }));
+        setProjects(convertedProjects);
+      } catch (error) {
+        console.warn("Failed to load projects from API:", error);
+        setProjects([]);
+      }
+    };
+
+    loadProjects();
+    setSelectedProjectState(getSelectedProject());
+
+    const handleProjectChange = () => {
+      setSelectedProjectState(getSelectedProject());
+      // Reload projects when project changes
+      loadProjects();
+    };
+
+    window.addEventListener("project-changed", handleProjectChange);
+    return () => window.removeEventListener("project-changed", handleProjectChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Load user role for navigation filtering
@@ -111,55 +156,77 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
     loadUserRole();
   }, []);
 
-  // Define all navigation items
+  const handleProjectSelect = (project: Project) => {
+    setSelectedProject(project);
+    setSelectedProjectState(project);
+    const slug = projectToSlug(project);
+    router.push(`/${slug}/upload-file`);
+  };
+
+  const handleBackToProjects = () => {
+    setSelectedProject(null);
+    setSelectedProjectState(null);
+    router.push("/projects");
+  };
+
+  // Define all navigation items (shown when a project is selected)
   const allNavItems: NavItem[] = React.useMemo(
-    () => [
-      {
-        title: "Administrator",
-        url: "/admin",
-        icon: Shield,
-        isActive: pathname.startsWith("/admin"),
-      },
-      {
-        title: "Tasks",
-        url: "/tasks",
-        icon: CheckSquare,
-        isActive: pathname === "/tasks",
-      },
-      {
-        title: "Data Management",
-        url: "/data",
-        icon: Database,
-        isActive: pathname === "/data",
-      },
-      {
-        title: "Schema",
-        url: "/schema",
-        icon: FileCode,
-        isActive: pathname === "/schema",
-      },
-      {
-        title: "Labeling with AI",
-        url: "/labelai",
-        icon: Tag,
-        isActive: pathname === "/labelai",
-      },
+    () => {
+      const projectPrefix = selectedProject ? `/${projectToSlug(selectedProject)}` : "";
+      
+      return [
+        {
+          title: "Upload Data",
+          url: `${projectPrefix}/upload-file`,
+          icon: Upload,
+          isActive: pathname === `${projectPrefix}/upload-file`,
+        },
+        {
+          title: "Annotate",
+          url: `${projectPrefix}/annotate`,
+          icon: Tag,
+          isActive: pathname.startsWith(`${projectPrefix}/annotate`),
+        },
+        {
+          title: "Dataset",
+          url: `${projectPrefix}/dataset`,
+          icon: FileText,
+          isActive: pathname === `${projectPrefix}/dataset`,
+        },
+        {
+          title: "Schema",
+          url: `${projectPrefix}/schema`,
+          icon: FileCode,
+          isActive: pathname === `${projectPrefix}/schema`,
+        },
+        {
+          title: "Labeling with AI",
+          url: `${projectPrefix}/labelai`,
+          icon: Tag,
+          isActive: pathname === `${projectPrefix}/labelai`,
+        },
 
-      {
-        title: "Classes",
-        url: "/classes",
-        icon: ListOrdered,
-        isActive: pathname === "/classes",
-      },
-
-      {
-        title: "Comparison Tool",
-        url: "/comparison-tool",
-        icon: GitCompare,
-        isActive: pathname === "/comparison-tool",
-      },
-    ],
-    [pathname]
+        {
+          title: "Classes",
+          url: `${projectPrefix}/classes`,
+          icon: ListOrdered,
+          isActive: pathname === `${projectPrefix}/classes`,
+        },
+        {
+          title: "Administrator",
+          url: "/admin",
+          icon: Shield,
+          isActive: pathname.startsWith("/admin"),
+        },
+        {
+          title: "Comparison Tool",
+          url: `${projectPrefix}/comparison-tool`,
+          icon: GitCompare,
+          isActive: pathname === `${projectPrefix}/comparison-tool`,
+        },
+      ];
+    },
+    [pathname, selectedProject]
   );
 
   // Filter navigation items based on user role
@@ -168,9 +235,7 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
 
     // Manager (role_id=3) and Labeler (role_id=4) restrictions
     if (me.role_id === 3 || me.role_id === 4) {
-      let items = allNavItems.filter(
-        (item) => item.title !== "Administrator"
-      );
+      let items = allNavItems.filter((item) => item.title !== "Administrator");
 
       // Labeler (role_id=4) additional restrictions
       if (me.role_id === 4) {
@@ -186,8 +251,9 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
 
   // Group items: Data
   const dataGroupTitles = new Set([
-    "Tasks",
-    "Data Management",
+    "Upload Data",
+    "Annotate",
+    "Dataset",
     "Schema",
     "Labeling with AI",
     "Classes",
@@ -206,17 +272,37 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <div className="px-2 py-1.5 pr-2.5 flex items-center justify-center">
-          <FPTLogo size="sm" showText={true} />
-        </div>
+        {/* Show FPT Logo when no project is selected */}
+        {!selectedProject ? (
+          <div className="px-2 py-1.5 pr-2.5 flex items-center justify-center">
+            <FPTLogo size="sm" showText={true} />
+          </div>
+        ) : (
+          /* Show Project Switcher when a project is selected */
+          <ProjectSwitcher
+            projects={projects}
+            activeProject={selectedProject}
+            onProjectSelect={handleProjectSelect}
+            onCreateProject={handleBackToProjects}
+          />
+        )}
       </SidebarHeader>
       <SidebarContent>
-        {/* Data group  */}
-        <NavMain groupTitle="Data" items={dataItems} />
-        {/* Admin group  */}
-        <NavMain groupTitle="Admin" items={adminItems} />
-        {/* Platform group  */}
-        <NavMain groupTitle="Tool" items={toolItems} />
+        {selectedProject ? (
+          <>
+            {/* Data group  */}
+            <NavMain groupTitle="Data" items={dataItems} />
+            {/* Admin group  */}
+            <NavMain groupTitle="Admin" items={adminItems} />
+            {/* Platform group  */}
+            <NavMain groupTitle="Tool" items={toolItems} />
+          </>
+        ) : (
+          <div className="flex flex-col items-center justify-center p-6 text-center text-muted-foreground text-sm">
+            <FolderOpen className="h-12 w-12 mb-3 opacity-20" />
+            <p>Select a project or create new project to view navigation</p>
+          </div>
+        )}
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={user} onLogout={onLogout} />

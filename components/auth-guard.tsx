@@ -75,7 +75,7 @@ export function AuthGuard({ children, allowedRoleIds }: AuthGuardProps) {
         if (allowedRoleIds && allowedRoleIds.length > 0 && me) {
           const isAllowed = allowedRoleIds.includes(me.role_id)
           if (!isAllowed) {
-            if (!cancelled) router.push("/dashboard")
+            if (!cancelled) router.push("/projects") 
             return
           }
         }

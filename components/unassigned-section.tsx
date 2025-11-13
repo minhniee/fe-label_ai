@@ -101,7 +101,7 @@ export default function UnassignedSection() {
             <div className="flex items-start justify-between mb-2">
               <div>
                 <p className="text-sm font-medium text-foreground">{batch.name}</p>
-                <p className="text-xs text-muted-foreground mt-1">{batch.unassignedCount} unassigned images</p>
+                <p className="text-xs text-muted-foreground mt-1">{batch.unassignedCount} unassigned files</p>
               </div>
               <button className="text-muted-foreground hover:text-foreground">
                 <MoreVertical className="w-4 h-4" />
@@ -115,7 +115,7 @@ export default function UnassignedSection() {
               }}
               className="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors text-sm font-medium mt-3"
             >
-              <span>Annotate Images</span>
+              <span>Annotate Files</span>
               <ArrowRight className="w-3 h-3" />
             </button>
           </div>
