@@ -206,7 +206,10 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
       editingUserId === currentUserId &&
       editForm.role_id < editOriginalRoleId
     ) {
-      toast({ title: "You cannot downgrade your own role.", variant: "destructive" });
+      toast({
+        title: "You cannot downgrade your own role.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -287,20 +290,19 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
 
   return (
     <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-foreground">User Management</h1>
+      </div>
       {/* User Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total Users
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{users.length}</div>
-            <p className="text-xs text-muted-foreground">
-              Users in system
-            </p>
+            <p className="text-xs text-muted-foreground">Users in system</p>
           </CardContent>
         </Card>
 
@@ -360,8 +362,8 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
             <AlertDialogDescription>
               {deleteTarget ? (
                 <span>
-                  Are you sure you want to delete <b>{deleteTarget.name}</b>? This action
-                  cannot be undone.
+                  Are you sure you want to delete <b>{deleteTarget.name}</b>?
+                  This action cannot be undone.
                 </span>
               ) : null}
             </AlertDialogDescription>
@@ -470,9 +472,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
         </CardHeader>
         <CardContent>
           {loading && (
-            <div className="text-sm text-muted-foreground mb-3">
-              Loading...
-            </div>
+            <div className="text-sm text-muted-foreground mb-3">Loading...</div>
           )}
           <Table>
             <TableHeader>

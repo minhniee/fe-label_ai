@@ -2,12 +2,17 @@
 
 import type React from "react"
 import { useState, useRef, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent } from "@/components/ui/card"
 import { FileUp, FolderOpen, File as FileIcon, X, Upload, Image as ImageIcon, FileText, ExternalLink } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { toast as sonnerToast } from "sonner"
+import { uploadFilesToProject, getProjectFiles } from "@/app/api/project"
+import { createProjectBatch } from "@/app/api/batch"
+import { useProjectFromSlug } from "@/hooks/use-project-from-slug"
+import { projectToSlug } from "@/types/project"
 
 // Define supported file formats
 const IMAGE_EXTENSIONS = [".jpg", ".png", ".bmp", ".webp", ".avif"];
@@ -18,13 +23,16 @@ const ALL_SUPPORTED_EXTENSIONS = [...IMAGE_EXTENSIONS, ...PDF_EXTENSIONS, ...DAT
 type Tab = "all" | "annotated" | "not-annotated"
 
 export function UploadForm() {
+  const router = useRouter();
   const { toast } = useToast();
+  const { project } = useProjectFromSlug();
   const [batchName, setBatchName] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("all");
   const [filePreviewUrls, setFilePreviewUrls] = useState<{ [key: string]: string }>({});
   const [annotatedFiles, setAnnotatedFiles] = useState<Set<string>>(new Set());
+  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
@@ -102,13 +110,85 @@ export function UploadForm() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    
     if (selectedFiles.length === 0) {
-        toast({ title: "No files selected", description: "Please select files to upload.", variant: "destructive" });
-        return;
+      toast({ 
+        title: "No files selected", 
+        description: "Please select files to upload.", 
+        variant: "destructive" 
+      });
+      return;
     }
-    console.log("Submitting upload with:", { batchName, files: selectedFiles });
-    toast({ title: "Upload Started", description: `Uploading ${selectedFiles.length} files...` });
-    // TODO: Add actual API upload logic here
+
+    if (!project) {
+      toast({ 
+        title: "No project selected", 
+        description: "Please select a project first.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    const toastId = sonnerToast.loading(`Uploading ${selectedFiles.length} files...`);
+
+    try {
+      // Step 1: Upload files to project
+      const uploadResponse = await uploadFilesToProject(
+        parseInt(project.id),
+        selectedFiles
+      );
+
+      console.log("Upload response:", uploadResponse);
+
+      // Step 2: Extract file_ids from the files array
+      const fileIds = uploadResponse?.files?.map(file => file.file_id) || [];
+      
+      console.log("Upload response:", uploadResponse);
+      console.log("Extracted file IDs:", fileIds);
+      
+      // Step 3: Create a batch with ONLY the newly uploaded files
+      if (uploadResponse?.success && fileIds.length > 0) {
+        sonnerToast.success("Files uploaded successfully!", { id: toastId });
+        
+        const batchResponse = await createProjectBatch({
+          project_id: parseInt(project.id),
+          name: batchName,
+          description: `Batch created with ${fileIds.length} files`,
+          file_ids: fileIds, // Use file_ids extracted from files array
+          batch_metadata: {
+            file_ids: fileIds // Explicitly store file_ids in metadata
+          }
+        });
+
+        console.log("Batch created response:", batchResponse);
+        console.log("Redirecting with file IDs:", fileIds);
+
+        sonnerToast.success("Batch created successfully!");
+
+        // Step 4: Redirect to batch page with file_ids in URL
+        const projectSlug = projectToSlug(project);
+        const fileIdsParam = encodeURIComponent(JSON.stringify(fileIds));
+        console.log("URL parameter fileIds:", fileIdsParam);
+        router.push(`/${projectSlug}/annotate/batch?batchId=${batchResponse.batch_id}&fileIds=${fileIdsParam}`);
+      } else {
+        console.error("No files in response:", uploadResponse);
+        sonnerToast.error("No files were uploaded successfully.", { id: toastId });
+      }
+    } catch (error: any) {
+      console.error("Upload error:", error);
+      sonnerToast.error(
+        error.message || "Failed to upload files. Please try again.",
+        { id: toastId }
+      );
+      toast({
+        title: "Upload Failed",
+        description: error.message || "An error occurred during upload.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const filteredFiles = getFilteredFiles();
@@ -129,7 +209,7 @@ export function UploadForm() {
       {selectedFiles.length > 0 && (
           <div className="flex gap-6 border-b">
               <button type="button" onClick={() => setActiveTab("all")} className={`pb-2 font-medium text-sm relative ${activeTab === 'all' ? 'text-primary border-b-2 border-primary -mb-px' : 'text-muted-foreground hover:text-foreground'}`}>
-                  All Images <span className="ml-1 text-xs bg-muted text-muted-foreground rounded-full px-2 py-0.5">{selectedFiles.length}</span>
+                  All Files <span className="ml-1 text-xs bg-muted text-muted-foreground rounded-full px-2 py-0.5">{selectedFiles.length}</span>
               </button>
               <button type="button" onClick={() => setActiveTab("annotated")} className={`pb-2 font-medium text-sm relative ${activeTab === 'annotated' ? 'text-primary border-b-2 border-primary -mb-px' : 'text-muted-foreground hover:text-foreground'}`}>
                   Annotated <span className="ml-1 text-xs bg-muted text-muted-foreground rounded-full px-2 py-0.5">{annotatedCount}</span>
@@ -190,9 +270,31 @@ export function UploadForm() {
                   <p className="text-xs text-muted-foreground mt-2">*Max size of 20MB and 16,400 × 10,900 pixels.</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} className="gap-2"><FileUp className="w-4 h-4" />Select Files</Button>
-                  <Button type="button" variant="outline" onClick={() => folderInputRef.current?.click()} className="gap-2"><FolderOpen className="w-4 h-4" />Select Folder</Button>
-                  <Button type="submit" className="gap-2">Save and Continue</Button>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => fileInputRef.current?.click()} 
+                    className="gap-2"
+                    disabled={isUploading}
+                  >
+                    <FileUp className="w-4 h-4" />Select Files
+                  </Button>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => folderInputRef.current?.click()} 
+                    className="gap-2"
+                    disabled={isUploading}
+                  >
+                    <FolderOpen className="w-4 h-4" />Select Folder
+                  </Button>
+                  <Button 
+                    type="submit" 
+                    className="gap-2"
+                    disabled={isUploading}
+                  >
+                    {isUploading ? "Uploading..." : "Save and Continue"}
+                  </Button>
                 </div>
               </div>
 

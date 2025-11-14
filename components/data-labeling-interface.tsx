@@ -61,7 +61,19 @@ import { useToast } from "@/hooks/use-toast";
 
 type GridRow = { id: string } & Record<string, any>;
 
-export function DataLabelingInterface() {
+interface DataLabelingInterfaceProps {
+  batchId?: number;
+  fileIds?: number[];
+  jobName?: string;
+  projectId?: number;
+}
+
+export default function DataLabelingInterface({ 
+  batchId, 
+  fileIds = [], 
+  jobName,
+  projectId 
+}: DataLabelingInterfaceProps) {
   const { toast } = useToast()
   const [selectedDataset, setSelectedDataset] = useState<string>("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -86,6 +98,9 @@ export function DataLabelingInterface() {
   const [selectedFile, setSelectedFile] = useState<string>("");
   const [loadingDatasets, setLoadingDatasets] = useState(false);
   const [error, setError] = useState("");
+  
+  // Batch mode state
+  const [batchFiles, setBatchFiles] = useState<any[]>([]);
 
   const hasGridData = columnDefs.length > 0 && rowData.length > 0;
 
@@ -93,10 +108,19 @@ export function DataLabelingInterface() {
   const [selectedCol, setSelectedCol] = useState<string>("");
   const [newHeader, setNewHeader] = useState<string>("");
 
-  // Load datasets on mount
+  // Load datasets on mount (only if not in batch mode)
   useEffect(() => {
-    loadDatasets();
-  }, []);
+    if (!batchId && !fileIds.length) {
+      loadDatasets();
+    }
+  }, [batchId, fileIds]);
+  
+  // Load batch files when in batch mode
+  useEffect(() => {
+    if (batchId && fileIds.length > 0 && projectId) {
+      loadBatchFiles();
+    }
+  }, [batchId, fileIds, projectId]);
 
   // Load versions when dataset changes
   useEffect(() => {
@@ -112,6 +136,135 @@ export function DataLabelingInterface() {
       setSelectedFile(""); // Reset file selection when version changes
     }
   }, [selectedVersion]);
+
+  const loadBatchFiles = async () => {
+    try {
+      setIsLoading(true);
+      setError("");
+      
+      // Import getProjectFiles
+      const { getProjectFiles } = await import("@/app/api/project");
+      
+      // Get all project files
+      const allFiles = await getProjectFiles(projectId!);
+      
+      // Filter files by fileIds from batch
+      const batchFileList = allFiles.filter(f => fileIds.includes(f.file_id));
+      
+      setBatchFiles(batchFileList);
+      
+      // If files are available, auto-load the first file
+      if (batchFileList.length > 0) {
+        await loadBatchFile(batchFileList[0]);
+      } else {
+        toast({
+          title: "No files found",
+          description: "No files available in this batch.",
+          variant: "destructive",
+        });
+      }
+    } catch (err: any) {
+      const errorMsg = err?.message || "Failed to load batch files";
+      setError(errorMsg);
+      toast({
+        title: "Error",
+        description: errorMsg,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const loadBatchFile = async (file: any) => {
+    setIsLoading(true);
+    try {
+      // Get file content/preview
+      const { getFilePreview } = await import("@/app/api/dataset");
+      
+      let headers: string[] = [];
+      let rows: any[] = [];
+      
+      try {
+        const preview = await getFilePreview(file.file_id);
+        headers = preview.headers || [];
+        rows = preview.rows || [];
+      } catch {
+        // If preview fails, try to parse file content if available
+        if (file.content) {
+          const parsed = parseCsv(file.content);
+          headers = parsed.headers;
+          rows = parsed.rows;
+        }
+      }
+
+      // Normalize rows if API returns array of objects
+      if (headers.length === 0 && Array.isArray(rows) && rows.length > 0 && typeof rows[0] === "object" && !Array.isArray(rows[0])) {
+        headers = Object.keys(rows[0] as Record<string, unknown>);
+        rows = (rows as Record<string, unknown>[]).map((r) => headers.map((h) => (r[h] ?? "") as string));
+      }
+
+      if (headers.length === 0 || !Array.isArray(rows) || rows.length === 0) {
+        toast({
+          title: "Empty file",
+          description: "No data found in file.",
+          variant: "destructive",
+        });
+        setColumnDefs([]);
+        setRowData([]);
+        return;
+      }
+
+      const uniqueHeaders: string[] = [];
+      const seen = new Set<string>();
+      headers.forEach((h, idx) => {
+        let key = h || `column_${idx + 1}`;
+        while (seen.has(key)) key = `${key}_dup`;
+        seen.add(key);
+        uniqueHeaders.push(key);
+      });
+
+      const columns: ColDef<GridRow>[] = uniqueHeaders.map((field) => ({
+        field,
+        headerName: field,
+        editable: true,
+        resizable: true,
+      }));
+      
+      const data: GridRow[] = (rows as any[]).map((r, idx) => {
+        const obj: GridRow = { id: String(idx) };
+        if (Array.isArray(r)) {
+          uniqueHeaders.forEach((h, i) => {
+            obj[h] = r[i] ?? "";
+          });
+        } else if (r && typeof r === "object") {
+          uniqueHeaders.forEach((h) => {
+            obj[h] = (r as any)[h] ?? "";
+          });
+        }
+        return obj;
+      });
+
+      setColumnDefs(columns);
+      setRowData(data);
+      setExcelHiddenFields(new Set());
+      setUserHiddenFields(new Set());
+      
+      toast({
+        title: "File loaded",
+        description: `Loaded ${data.length} rows from ${file.filename}`,
+      });
+    } catch (err: any) {
+      console.error("Failed to load batch file:", err);
+      toast({
+        title: "Error",
+        description: err?.message || "Failed to load file",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const loadDatasets = async () => {
     try {
@@ -479,48 +632,98 @@ export function DataLabelingInterface() {
 
   return (
     <div className="space-y-6">
-      <Card className=" ">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Database className="h-5 w-5" />
-            Select Dataset
-          </CardTitle>
-          <CardDescription>Select a dataset to start labeling</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {error && (
-            <div className="text-sm text-destructive bg-destructive/10 p-2 rounded">
-              {error}
+      {/* Show batch info if in batch mode, otherwise show dataset selector */}
+      {batchId && jobName ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Database className="h-5 w-5" />
+              {jobName}
+            </CardTitle>
+            <CardDescription>
+              Batch ID: {batchId} • {batchFiles.length} file(s) assigned
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {error && (
+              <div className="text-sm text-destructive bg-destructive/10 p-2 rounded">
+                {error}
+              </div>
+            )}
+            {batchFiles.length > 0 && (
+              <div>
+                <Label>Files in Batch</Label>
+                <Select
+                  value={selectedFile}
+                  onValueChange={(fileId) => {
+                    setSelectedFile(fileId);
+                    const file = batchFiles.find(f => f.file_id.toString() === fileId);
+                    if (file) {
+                      loadBatchFile(file);
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a file to label..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {batchFiles.map((file) => (
+                      <SelectItem
+                        key={file.file_id.toString()}
+                        value={file.file_id.toString()}
+                      >
+                        {file.filename}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className=" ">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Database className="h-5 w-5" />
+              Select Dataset
+            </CardTitle>
+            <CardDescription>Select a dataset to start labeling</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {error && (
+              <div className="text-sm text-destructive bg-destructive/10 p-2 rounded">
+                {error}
+              </div>
+            )}
+            <div>
+              <Label>Dataset</Label>
+              <Select
+                value={selectedDataset}
+                onValueChange={setSelectedDataset}
+                disabled={loadingDatasets}
+              >
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={
+                      loadingDatasets
+                        ? "Loading datasets..."
+                        : "Select dataset..."
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {datasets.map((dataset) => (
+                    <SelectItem
+                      key={dataset.dataset_id.toString()}
+                      value={dataset.dataset_id.toString()}
+                    >
+                      {dataset.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          )}
-          <div>
-            <Label>Dataset</Label>
-            <Select
-              value={selectedDataset}
-              onValueChange={setSelectedDataset}
-              disabled={loadingDatasets}
-            >
-              <SelectTrigger>
-                <SelectValue
-                  placeholder={
-                    loadingDatasets
-                      ? "Loading datasets..."
-                      : "Select dataset..."
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {datasets.map((dataset) => (
-                  <SelectItem
-                    key={dataset.dataset_id.toString()}
-                    value={dataset.dataset_id.toString()}
-                  >
-                    {dataset.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
           {selectedDataset && versions.length > 0 && (
             <div>
               <Label>Version</Label>
@@ -578,8 +781,10 @@ export function DataLabelingInterface() {
           )}
         </CardContent>
       </Card>
+      )}
 
-      {selectedDataset && (
+      {/* Data grid - show if in batch mode with data OR in dataset mode with data */}
+      {((batchId && hasGridData) || (selectedDataset && hasGridData)) && (
         <Card className=" ">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

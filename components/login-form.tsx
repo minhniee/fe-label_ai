@@ -64,7 +64,7 @@ export function LoginForm({
         window.location.href = decodeURIComponent(callbackUrl);
       } else {
         // Otherwise, redirect to the default dashboard
-        window.location.href = "/dashboard";
+        window.location.href = "/projects";
       }
     } catch (error: any) {
       toast({

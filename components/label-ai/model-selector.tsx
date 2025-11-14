@@ -222,15 +222,7 @@ export function ModelSelector({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="gemini-flash-2.5">Gemini Flash 2.5</SelectItem>
-                <SelectItem value="gemini-1.5-pro">Gemini 1.5 Pro</SelectItem>
-                <SelectItem value="gemini-1.5-flash">Gemini 1.5 Flash</SelectItem>
                 <SelectItem value="gpt-4o">GPT-4o</SelectItem>
-                <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
-                <SelectItem value="gpt-4-turbo">GPT-4 Turbo</SelectItem>
-                <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
-                <SelectItem value="qwen-turbo">Qwen Turbo</SelectItem>
-                <SelectItem value="qwen-plus">Qwen Plus</SelectItem>
-                <SelectItem value="qwen-max">Qwen Max</SelectItem>
               </SelectContent>
             </Select>
           </div>
