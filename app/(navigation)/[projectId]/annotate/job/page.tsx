@@ -66,20 +66,38 @@ export default function ProjectJobPage() {
 
       // Fetch project files
       const projectFiles = await getProjectFiles(parseInt(project!.id));
+      console.log("All project files:", projectFiles.length);
+      console.log("Target file IDs:", targetFileIds);
 
       // Filter files by batch file IDs
       let batchFiles = projectFiles;
       if (targetFileIds.length > 0) {
         batchFiles = projectFiles.filter(f => targetFileIds.includes(f.file_id));
+        console.log("Filtered batch files:", batchFiles.length);
+        console.log("Batch files statuses:", batchFiles.map(f => ({ 
+          file_id: f.file_id, 
+          filename: f.filename, 
+          status: f.annotation_status 
+        })));
+      } else {
+        console.warn("No target file IDs, showing all project files");
       }
 
       // Separate into unannotated and annotated
-      const unannotated = batchFiles.filter(f => 
-        f.annotation_status === 'unannotated' || f.annotation_status === 'annotating'
-      );
+      // Files with status 'unannotated' should be in Unannotated tab
+      const unannotated = batchFiles.filter(f => {
+        const isUnannotated = f.annotation_status === 'unannotated' || f.annotation_status === 'annotating';
+        console.log(`File ${f.file_id} (${f.filename}): status=${f.annotation_status}, isUnannotated=${isUnannotated}`);
+        return isUnannotated;
+      });
+      
       const annotated = batchFiles.filter(f => 
         f.annotation_status === 'completed' || f.annotation_status === 'verified'
       );
+
+      console.log("Unannotated files count:", unannotated.length);
+      console.log("Annotated files count:", annotated.length);
+      console.log("Unannotated files:", unannotated.map(f => ({ file_id: f.file_id, filename: f.filename, status: f.annotation_status })));
 
       setUnannotatedFiles(unannotated);
       setAnnotatedFiles(annotated);
