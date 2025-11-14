@@ -17,7 +17,7 @@ const getAuthHeaders = () => {
   return headers
 }
 
-export type BatchStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "BLOCKED"
+export type BatchStatus = "pending" | "in_progress" | "completed" | "blocked"
 
 export interface CreateBatchRequest {
   name: string
@@ -46,6 +46,10 @@ export interface BatchResponse {
   creator_username?: string
   created_at: string
   updated_at: string
+  batch_metadata?: {
+    file_ids?: number[]
+    [key: string]: any
+  }
 }
 
 export interface BatchListResponse {
@@ -171,6 +175,104 @@ export interface UserBatchProgressResponse {
   in_progress_batches: number
   total_progress: number
   recent_activity: BatchAssignmentResponse[]
+}
+
+// =============================================
+// PROJECT-BASED BATCH TYPES
+// =============================================
+
+export interface SplitFileRequest {
+  project_id: number
+  file_id: number
+  chunk_size: number
+  create_batches?: boolean
+}
+
+export interface ChunkMetadata {
+  chunk_id: number
+  start_row: number
+  end_row: number
+  row_count: number
+  batch_id?: number
+}
+
+export interface SplitFileResponse {
+  project_id: number
+  file_id: number
+  total_rows: number
+  chunk_size: number
+  total_chunks: number
+  chunks: ChunkMetadata[]
+  batches_created: boolean
+}
+
+export interface CreateProjectBatchRequest {
+  project_id: number
+  name: string
+  description?: string
+  file_ids: number[]
+  batch_metadata?: Record<string, any>
+}
+
+export interface CreateProjectBatchResponse {
+  batch_id: number
+  project_id: number
+  name: string
+  description?: string
+  status: string
+  total_files: number
+  created_at: string
+}
+
+export interface AssignBatchToUsersRequest {
+  batch_id: number
+  user_ids: number[]
+  notes?: string
+}
+
+export interface AssignBatchToUsersResponse {
+  batch_id: number
+  batch_name: string
+  assignments_created: number
+  assignments: BatchAssignmentResponse[]
+}
+
+export interface DistributeFileRequest {
+  project_id: number
+  file_id: number
+  chunk_size: number
+  user_ids: number[]
+  distribution_method?: 'round_robin' | 'first_takes_remainder'
+  notes?: string
+}
+
+export interface UserDistribution {
+  user_id: number
+  username: string
+  assigned_batches: number
+  batch_ids: number[]
+}
+
+export interface DistributeFileResponse {
+  project_id: number
+  file_id: number
+  total_rows: number
+  chunk_size: number
+  total_chunks: number
+  batches_created: number
+  distribution_method: string
+  user_distribution: UserDistribution[]
+}
+
+export interface ProjectBatchStatsResponse {
+  project_id: number
+  project_name: string
+  total_batches: number
+  pending_batches: number
+  in_progress_batches: number
+  completed_batches: number
+  overall_progress: number
+  assigned_users: number
 }
 
 // GET /batches/
@@ -513,4 +615,153 @@ export async function getUserBatchProgress(userId: number) {
   }
 }
 
+// POST /batches/{batch_id}/progress
+export async function updateBatchProgress(batchId: number) {
+  try {
+    const response = await axios.post<BatchProgressResponse>(
+      `${API_BASE}/batches/${batchId}/progress`,
+      {},
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+      }
+    )
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to update batch progress'
+    throw new Error(errorMessage)
+  }
+}
 
+// =============================================
+// PROJECT-BASED BATCH ENDPOINTS
+// =============================================
+
+// POST /batches/projects/split-file
+export async function splitProjectFile(request: SplitFileRequest) {
+  try {
+    const response = await axios.post<SplitFileResponse>(
+      `${API_BASE}/batches/projects/split-file`,
+      request,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+      }
+    )
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to split project file'
+    throw new Error(errorMessage)
+  }
+}
+
+// POST /batches/projects/create-batch
+export async function createProjectBatch(request: CreateProjectBatchRequest) {
+  try {
+    const response = await axios.post<CreateProjectBatchResponse>(
+      `${API_BASE}/batches/projects/create-batch`,
+      request,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+      }
+    )
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to create project batch'
+    throw new Error(errorMessage)
+  }
+}
+
+// POST /batches/projects/assign-batch
+export async function assignBatchToUsers(request: AssignBatchToUsersRequest) {
+  try {
+    const response = await axios.post<AssignBatchToUsersResponse>(
+      `${API_BASE}/batches/projects/assign-batch`,
+      request,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+      }
+    )
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to assign batch to users'
+    throw new Error(errorMessage)
+  }
+}
+
+// POST /batches/projects/distribute-file
+export async function distributeFileToUsers(request: DistributeFileRequest) {
+  try {
+    const response = await axios.post<DistributeFileResponse>(
+      `${API_BASE}/batches/projects/distribute-file`,
+      request,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+      }
+    )
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to distribute file to users'
+    throw new Error(errorMessage)
+  }
+}
+
+// GET /batches/projects/{project_id}/stats
+export async function getProjectBatchStats(projectId: number) {
+  try {
+    const response = await axios.get<ProjectBatchStatsResponse>(
+      `${API_BASE}/batches/projects/${projectId}/stats`,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+      }
+    )
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to get project batch stats'
+    throw new Error(errorMessage)
+  }
+}
+
+// GET /batches/projects/{project_id}/batches
+export async function getProjectBatches(projectId: number, filters?: Omit<BatchFilterRequest, 'dataset_id'>) {
+  try {
+    const params = new URLSearchParams()
+    if (filters?.version_id) params.append('version_id', filters.version_id.toString())
+    if (filters?.status) params.append('status', filters.status)
+    if (filters?.created_by) params.append('created_by', filters.created_by.toString())
+    if (filters?.search) params.append('search', filters.search)
+    if (filters?.page) params.append('page', filters.page.toString())
+    if (filters?.page_size) params.append('page_size', filters.page_size.toString())
+    
+    const url = params.toString() 
+      ? `${API_BASE}/batches/projects/${projectId}/batches?${params.toString()}`
+      : `${API_BASE}/batches/projects/${projectId}/batches`
+      
+    const response = await axios.get<BatchListResponse>(url, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+    })
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to get project batches'
+    throw new Error(errorMessage)
+  }
+}

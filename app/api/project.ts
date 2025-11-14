@@ -103,12 +103,15 @@ export interface ProjectStatsResponse {
 }
 
 export interface UploadFilesResponse {
-  message: string;
+  success: boolean;
   project_id: number;
-  dataset_id: number;
-  version_id: number;
-  files_uploaded: number;
-  file_ids: number[];
+  uploaded_count: number;
+  files: Array<{
+    file_id: number;
+    filename: string;
+    file_path: string;
+    file_type: string;
+  }>;
 }
 
 export interface GenerateDatasetRequest {
