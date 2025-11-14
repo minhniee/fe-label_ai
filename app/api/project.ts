@@ -303,7 +303,7 @@ export async function listPendingInvitations(projectId: number): Promise<Invitat
  */
 export async function getProjectFiles(projectId: number): Promise<ProjectFileResponse[]> {
   try {
-    const response = await axios.get<any[]>(
+    const response = await axios.get<ProjectFileResponse[]>(
       `${API_BASE}/projects/${projectId}/files`,
       {
         headers: {
@@ -312,18 +312,7 @@ export async function getProjectFiles(projectId: number): Promise<ProjectFileRes
         },
       }
     );
-    
-    // Map backend response to frontend interface
-    // Backend returns 'file_name' but frontend expects 'filename'
-    return response.data.map((file: any) => ({
-      file_id: file.file_id,
-      filename: file.file_name || file.filename, // Support both field names
-      file_path: file.file_path,
-      file_type: file.file_type,
-      annotation_status: file.annotation_status || 'unannotated', // Default to unannotated if missing
-      uploaded_at: file.uploaded_at || file.created_at,
-      uploaded_by: file.uploaded_by,
-    }));
+    return response.data;
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to fetch project files';
     throw new Error(errorMessage);
