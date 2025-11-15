@@ -30,7 +30,12 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { usePathname, useRouter } from "next/navigation";
-import { getSelectedProject, setSelectedProject, projectToSlug, type Project } from "@/types/project";
+import {
+  getSelectedProject,
+  setSelectedProject,
+  projectToSlug,
+  type Project,
+} from "@/types/project";
 import { viewAllProjects } from "@/app/api/project";
 
 interface User {
@@ -59,7 +64,8 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
     avatar: "",
   });
   const [me, setMe] = React.useState<any>(null);
-  const [selectedProject, setSelectedProjectState] = React.useState<Project | null>(null);
+  const [selectedProject, setSelectedProjectState] =
+    React.useState<Project | null>(null);
   const [projects, setProjects] = React.useState<Project[]>([]);
 
   // Load user profile data from localStorage
@@ -119,7 +125,8 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
     };
 
     window.addEventListener("project-changed", handleProjectChange);
-    return () => window.removeEventListener("project-changed", handleProjectChange);
+    return () =>
+      window.removeEventListener("project-changed", handleProjectChange);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -170,64 +177,62 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
   };
 
   // Define all navigation items (shown when a project is selected)
-  const allNavItems: NavItem[] = React.useMemo(
-    () => {
-      const projectPrefix = selectedProject ? `/${projectToSlug(selectedProject)}` : "";
-      
-      return [
-        {
-          title: "Upload Data",
-          url: `${projectPrefix}/upload-file`,
-          icon: Upload,
-          isActive: pathname === `${projectPrefix}/upload-file`,
-        },
-        {
-          title: "Annotate",
-          url: `${projectPrefix}/annotate`,
-          icon: Tag,
-          isActive: pathname.startsWith(`${projectPrefix}/annotate`),
-        },
-        {
-          title: "Dataset",
-          url: `${projectPrefix}/dataset`,
-          icon: FileText,
-          isActive: pathname === `${projectPrefix}/dataset`,
-        },
-        {
-          title: "Schema",
-          url: `${projectPrefix}/schema`,
-          icon: FileCode,
-          isActive: pathname === `${projectPrefix}/schema`,
-        },
-        {
-          title: "Labeling with AI",
-          url: `${projectPrefix}/labelai`,
-          icon: Tag,
-          isActive: pathname === `${projectPrefix}/labelai`,
-        },
+  const allNavItems: NavItem[] = React.useMemo(() => {
+    const projectPrefix = selectedProject
+      ? `/${projectToSlug(selectedProject)}`
+      : "";
 
-        {
-          title: "Classes",
-          url: `${projectPrefix}/classes`,
-          icon: ListOrdered,
-          isActive: pathname === `${projectPrefix}/classes`,
-        },
-        {
-          title: "Administrator",
-          url: "/admin",
-          icon: Shield,
-          isActive: pathname.startsWith("/admin"),
-        },
-        {
-          title: "Comparison Tool",
-          url: `${projectPrefix}/comparison-tool`,
-          icon: GitCompare,
-          isActive: pathname === `${projectPrefix}/comparison-tool`,
-        },
-      ];
-    },
-    [pathname, selectedProject]
-  );
+    return [
+      {
+        title: "Upload Data",
+        url: `${projectPrefix}/upload-file`,
+        icon: Upload,
+        isActive: pathname === `${projectPrefix}/upload-file`,
+      },
+      {
+        title: "Annotate",
+        url: `${projectPrefix}/annotate`,
+        icon: Tag,
+        isActive: pathname.startsWith(`${projectPrefix}/annotate`),
+      },
+      {
+        title: "Labeling with AI",
+        url: `${projectPrefix}/labelai`,
+        icon: Tag,
+        isActive: pathname === `${projectPrefix}/labelai`,
+      },
+      {
+        title: "Dataset",
+        url: `${projectPrefix}/dataset`,
+        icon: FileText,
+        isActive: pathname === `${projectPrefix}/dataset`,
+      },
+      {
+        title: "Schema",
+        url: `${projectPrefix}/schema`,
+        icon: FileCode,
+        isActive: pathname === `${projectPrefix}/schema`,
+      },
+      {
+        title: "Classes",
+        url: `${projectPrefix}/classes`,
+        icon: ListOrdered,
+        isActive: pathname === `${projectPrefix}/classes`,
+      },
+      {
+        title: "Administrator",
+        url: "/admin",
+        icon: Shield,
+        isActive: pathname.startsWith("/admin"),
+      },
+      {
+        title: "Comparison Tool",
+        url: `${projectPrefix}/comparison-tool`,
+        icon: GitCompare,
+        isActive: pathname === `${projectPrefix}/comparison-tool`,
+      },
+    ];
+  }, [pathname, selectedProject]);
 
   // Filter navigation items based on user role
   const flatItems = React.useMemo(() => {

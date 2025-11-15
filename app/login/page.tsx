@@ -24,6 +24,7 @@ export default function LoginPage() {
         console.error("Failed to decode callback_url:", e);
       }
     }
+    
     const checkAuth = async () => {
       try {
         // Check if user has valid token
@@ -33,9 +34,10 @@ export default function LoginPage() {
           // Verify token is valid by calling /auth/me
           try {
             await getMe();
-            // User is already authenticated, redirect to dashboard
+            // User is already authenticated, redirect to callback_url if present, otherwise /projects
             setIsAuthenticated(true);
-            router.replace("/dashboard");
+            const redirectUrl = cbUrl ? decodeURIComponent(cbUrl) : "/projects";
+            router.replace(redirectUrl);
             return;
           } catch (error) {
             // Token is invalid, clear it and show login form
@@ -64,7 +66,7 @@ export default function LoginPage() {
         <div className="flex flex-col items-center space-y-4">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
           <p className="text-gray-600 text-sm">
-            {isAuthenticated ? "Redirecting to dashboard..." : "Checking authentication..."}
+            {isAuthenticated ? "Redirecting to projects..." : "Checking authentication..."}
           </p>
         </div>
       </div>

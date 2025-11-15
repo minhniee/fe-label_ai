@@ -55,15 +55,12 @@ export function LoginForm({
         description: "Welcome back!",
       })
 
-      // Check for a callback_url in the query parameters
-      const searchParams = new URLSearchParams(window.location.search);
-      const callbackUrl = searchParams.get('callback_url');
-
+      // Use callbackUrl prop if provided, otherwise redirect to /projects
       if (callbackUrl) {
-        // If a callback_url is present, decode it and redirect there
-        window.location.href = decodeURIComponent(callbackUrl);
+        // If a callback_url is present, redirect there (already decoded from login page)
+        window.location.href = callbackUrl;
       } else {
-        // Otherwise, redirect to the default dashboard
+        // Otherwise, redirect to the default projects page
         window.location.href = "/projects";
       }
     } catch (error: any) {
