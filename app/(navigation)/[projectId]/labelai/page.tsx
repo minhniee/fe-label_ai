@@ -11,10 +11,13 @@ import { ReferenceUploader } from "@/components/label-ai/reference-uploader"
 import { DatasetSelector } from "@/components/label-ai/dataset-selector"
 import { DocumentRAGManager } from "@/components/label-ai/document-rag-manager"
 import { DataGenerator } from "@/components/label-ai/data-generator"
-import { Loader2, ArrowLeft } from "lucide-react"
+import { Loader2, ArrowLeft, Save, CheckCircle2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { SearchFilter } from "@/components/label-ai/search-filter"
 import { SemanticSearchFilter } from "@/components/label-ai/semantic-search-filter"
 import { ColumnVisibility } from "@/components/label-ai/column-visibility"
@@ -23,7 +26,7 @@ import { DataManager } from "@/components/label-ai/data-manager"
 import { ColumnManager } from "@/components/label-ai/column-manager"
 import { getDatasetVersionData } from "@/app/api/labelai"
 import { getVersionFiles } from "@/app/api/dataset"
-import { getProjectFiles } from "@/app/api/project"
+import { getProjectFiles, generateDatasetFromProject } from "@/app/api/project"
 import { getFilePreview } from "@/app/api/dataset"
 import { slugToProjectId } from "@/types/project"
 import axios from "axios"
@@ -53,6 +56,7 @@ export type RowData = {
   _ai_suggestion?: string
   _ai_reasoning?: string
   _confirmed?: boolean
+  _isModified?: boolean  // Track if row has been modified
   [key: string]: any
 }
 
@@ -93,6 +97,13 @@ export default function Home() {
   }>({ provider: "local" })
   const [hasProjectDocuments, setHasProjectDocuments] = useState(false)  // NEW: track if project has documents
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<number[]>([])  // NEW: track selected document IDs
+  const [saving, setSaving] = useState(false)  // Track save state
+  const [fileDelimiter, setFileDelimiter] = useState<string>(",")  // Track delimiter used in current file
+  const [originalData, setOriginalData] = useState<RowData[]>([])  // Store original data for comparison
+  const [showCompleteDialog, setShowCompleteDialog] = useState(false)  // Show complete dialog
+  const [completing, setCompleting] = useState(false)  // Track complete state
+  const [newDatasetName, setNewDatasetName] = useState("")  // Dataset name for complete
+  const [newDatasetDescription, setNewDatasetDescription] = useState("")  // Dataset description
 
   // Load batch files when in batch mode
   useEffect(() => {
@@ -143,6 +154,7 @@ export default function Home() {
     try {
       setLoading(true)
       setCurrentFileIndex(fileIndex)
+      setCurrentFileId(file.file_id)  // Set current file ID for save functionality
       
       console.log("Loading file:", file)
       console.log("File ID:", file.file_id)
@@ -171,6 +183,7 @@ export default function Home() {
               // Detect delimiter from first line
               const firstLine = lines[0]
               const delimiter = detectDelimiter(firstLine)
+              setFileDelimiter(delimiter)  // Save delimiter for later use
               
               headers = firstLine.split(delimiter).map((h: string) => h.trim())
               rows = lines.slice(1).map((line: string) => {
@@ -266,13 +279,50 @@ export default function Home() {
         return rowObj
       })
       
-      setData(transformedData)
+      // Try to restore from cache first
+      const cacheKey = `labelai_cache_${file.file_id}`
+      try {
+        const cachedData = localStorage.getItem(cacheKey)
+        if (cachedData) {
+          const parsedCache = JSON.parse(cachedData)
+          // Check if cache is for same file (by checking row count)
+          if (parsedCache.rows && parsedCache.rows.length === transformedData.length) {
+            // Merge cached data with loaded data
+            const mergedData = transformedData.map((row, index) => {
+              const cachedRow = parsedCache.rows.find((r: RowData) => r._id === row._id)
+              if (cachedRow) {
+                return { ...row, ...cachedRow, _isModified: true }
+              }
+              return row
+            })
+            setData(mergedData)
+            setOriginalData(transformedData)  // Keep original for comparison
+            toast({
+              title: "File loaded with cache",
+              description: `Restored ${parsedCache.rows.filter((r: RowData) => r._isModified).length} modified rows from cache`,
+            })
+          } else {
+            setData(transformedData)
+            setOriginalData(transformedData)
+          }
+        } else {
+          setData(transformedData)
+          setOriginalData(transformedData)
+        }
+      } catch (error) {
+        console.error("Failed to restore from cache:", error)
+        setData(transformedData)
+        setOriginalData(transformedData)
+      }
+      
       setCurrentPage(0)
       
-      toast({
-        title: "File loaded",
-        description: `Loaded ${file.filename} with ${transformedData.length} rows`,
-      })
+      if (!localStorage.getItem(cacheKey)) {
+        toast({
+          title: "File loaded",
+          description: `Loaded ${file.filename} with ${transformedData.length} rows`,
+        })
+      }
     } catch (error) {
       console.error("Failed to load file:", error)
       toast({
@@ -471,6 +521,220 @@ export default function Home() {
     setData([...data, ...newRows])
   }
 
+  // Save to cache when data changes
+  const saveToCache = (dataToCache: RowData[]) => {
+    if (!currentFileId) return
+    
+    try {
+      const cacheKey = `labelai_cache_${currentFileId}`
+      const modifiedRows = dataToCache.filter(row => row._isModified)
+      
+      if (modifiedRows.length > 0) {
+        localStorage.setItem(cacheKey, JSON.stringify({
+          fileId: currentFileId,
+          timestamp: new Date().toISOString(),
+          rows: modifiedRows
+        }))
+      } else {
+        // Remove cache if no modifications
+        localStorage.removeItem(cacheKey)
+      }
+    } catch (error) {
+      console.error("Failed to save to cache:", error)
+    }
+  }
+
+  // Helper to compare rows (excluding _isModified flag)
+  const isRowModified = (original: RowData | undefined, current: RowData): boolean => {
+    if (!original) return true
+    
+    // Create copies without _isModified for comparison
+    const origCopy = { ...original }
+    const currCopy = { ...current }
+    delete origCopy._isModified
+    delete currCopy._isModified
+    
+    return JSON.stringify(origCopy) !== JSON.stringify(currCopy)
+  }
+
+  // Convert data to CSV format (only modified rows merged with original)
+  const convertDataToCSV = (dataRows: RowData[], columnsList: string[], delimiter: string = ","): string => {
+    // Filter out internal columns (starting with _)
+    const exportColumns = columnsList.filter(col => !col.startsWith("_"))
+    
+    // Build CSV header
+    const header = exportColumns.join(delimiter)
+    
+    // Merge modified rows with original data
+    const finalData = dataRows.map((row) => {
+      if (row._isModified) {
+        // Use modified row
+        return row
+      } else {
+        // Use original row
+        const originalRow = originalData.find(r => r._id === row._id)
+        return originalRow || row
+      }
+    })
+    
+    // Build CSV rows
+    const rows = finalData.map((row) => {
+      return exportColumns
+        .map((col) => {
+          const value = row[col] || ""
+          const stringValue = String(value)
+          // Escape quotes and wrap in quotes if value contains delimiter, newline, or quote
+          const needsQuotes = stringValue.includes(delimiter) || 
+                             stringValue.includes("\n") || 
+                             stringValue.includes("\r") || 
+                             stringValue.includes('"')
+          if (needsQuotes) {
+            return `"${stringValue.replace(/"/g, '""')}"`
+          }
+          return stringValue
+        })
+        .join(delimiter)
+    })
+    
+    return [header, ...rows].join("\n")
+  }
+
+  // Save file content to backend
+  const handleSaveFile = async () => {
+    if (!currentFileId) {
+      toast({
+        title: "Error",
+        description: "No file selected to save",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (data.length === 0) {
+      toast({
+        title: "Error",
+        description: "No data to save",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Check if there are any modified rows
+    const modifiedRows = data.filter(row => row._isModified)
+    if (modifiedRows.length === 0) {
+      toast({
+        title: "No changes",
+        description: "No modifications to save",
+      })
+      return
+    }
+
+    try {
+      setSaving(true)
+      
+      // Use saved delimiter or default to comma
+      const delimiter = fileDelimiter || ","
+      
+      // Convert data to CSV (merges modified rows with original)
+      const csvContent = convertDataToCSV(data, columns, delimiter)
+      
+      // Call API to save file
+      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`
+      }
+      
+      const response = await axios.put(
+        `${API_BASE}/annotations/files/${currentFileId}/content`,
+        {
+          content: csvContent,
+          headers: columns.filter(col => !col.startsWith("_"))
+        },
+        {
+          headers,
+          withCredentials: true,
+        }
+      )
+      
+      if (response.data.success) {
+        // Clear modification flags and update original data
+        const savedData = data.map(row => {
+          const { _isModified, ...rest } = row
+          return rest
+        })
+        setData(savedData)
+        setOriginalData(savedData)
+        
+        // Clear cache after successful save
+        const cacheKey = `labelai_cache_${currentFileId}`
+        localStorage.removeItem(cacheKey)
+        
+        toast({
+          title: "Success",
+          description: `File saved successfully. ${modifiedRows.length} modified rows saved.`,
+        })
+      } else {
+        throw new Error(response.data.error || "Failed to save file")
+      }
+    } catch (error) {
+      console.error("Failed to save file:", error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to save file. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Handle complete project and create dataset
+  const handleComplete = async () => {
+    if (!newDatasetName.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a dataset name",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      setCompleting(true)
+      
+      const result = await generateDatasetFromProject(parseInt(projectId), {
+        dataset_name: newDatasetName.trim(),
+        dataset_description: newDatasetDescription.trim() || undefined,
+        export_type: "full",
+        copy_permissions: true,
+      })
+      
+      toast({
+        title: "Success",
+        description: `Dataset created successfully! Dataset ID: ${result.dataset_id}`,
+      })
+      
+      setShowCompleteDialog(false)
+      setNewDatasetName("")
+      setNewDatasetDescription("")
+      
+      // Optionally redirect to dataset page
+      // window.location.href = `/datasets/${result.dataset_id}`
+    } catch (error) {
+      console.error("Failed to create dataset:", error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create dataset. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setCompleting(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background">
           <h1 className="text-3xl font-bold text-foreground">Semi-AI Labeler</h1>
@@ -586,11 +850,49 @@ export default function Home() {
                   </>
                 )}
               </div>
-              <div className="flex items-center gap-2">
-                <Switch id="manual-mode" checked={manualMode} onCheckedChange={setManualMode} />
-                <Label htmlFor="manual-mode" className="cursor-pointer">
-                  Manual Labeling Mode
-                </Label>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Switch id="manual-mode" checked={manualMode} onCheckedChange={setManualMode} />
+                  <Label htmlFor="manual-mode" className="cursor-pointer">
+                    Manual Labeling Mode
+                  </Label>
+                </div>
+                {currentFileId && batchId && (
+                  <>
+                    <Button
+                      onClick={handleSaveFile}
+                      disabled={saving || data.length === 0}
+                      className="gap-2"
+                      variant={data.filter(row => row._isModified).length > 0 ? "default" : "outline"}
+                    >
+                      {saving ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4" />
+                          Save File
+                          {data.filter(row => row._isModified).length > 0 && (
+                            <span className="ml-1 px-1.5 py-0.5 text-xs bg-primary/20 rounded">
+                              {data.filter(row => row._isModified).length}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      onClick={() => setShowCompleteDialog(true)}
+                      disabled={completing}
+                      className="gap-2"
+                      variant="default"
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                      Complete
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
 
@@ -661,6 +963,11 @@ export default function Home() {
                     const index = newData.findIndex((row) => row._id === updatedRow._id)
                     if (index !== -1) {
                       const existingRow = newData[index]
+                      const originalRow = originalData.find((d) => d._id === updatedRow._id)
+                      
+                      // Check if row has been modified compared to original
+                      const isModified = isRowModified(originalRow, updatedRow)
+                      
                       const updatedIsTrue = String(updatedRow._ai_suggestion || "").toLowerCase() === "true"
                       const existingIsTrue = String(existingRow._ai_suggestion || "").toLowerCase() === "true"
                       if (updatedIsTrue || existingIsTrue) {
@@ -671,13 +978,14 @@ export default function Home() {
                             ;(metaOnly as any)[k] = (updatedRow as any)[k]
                           }
                         })
-                        newData[index] = { ...existingRow, ...metaOnly }
+                        newData[index] = { ...existingRow, ...metaOnly, _isModified: isModified || existingRow._isModified }
                       } else {
-                        newData[index] = updatedRow
+                        newData[index] = { ...updatedRow, _isModified: isModified || updatedRow._isModified }
                       }
                     }
                   })
                   setData(newData)
+                  saveToCache(newData)
                   }}
                 />
               </>
@@ -712,6 +1020,11 @@ export default function Home() {
                 if (updatedRows.length === data.length && updatedRows.length > 0) {
                   const merged = updatedRows.map((newRow) => {
                     const oldRow = data.find((d) => d._id === newRow._id) || newRow
+                    const originalRow = originalData.find((d) => d._id === newRow._id)
+                    
+                    // Check if row has been modified compared to original
+                    const isModified = isRowModified(originalRow, newRow)
+                    
                     const oldIsTrue = String(oldRow._ai_suggestion || "").toLowerCase() === "true"
                     const newIsTrue = String(newRow._ai_suggestion || "").toLowerCase() === "true"
                     if (oldIsTrue || newIsTrue) {
@@ -721,16 +1034,22 @@ export default function Home() {
                           ;(metaOnly as any)[k] = (newRow as any)[k]
                         }
                       })
-                      return { ...oldRow, ...metaOnly }
+                      return { ...oldRow, ...metaOnly, _isModified: isModified || oldRow._isModified }
                     }
-                    return newRow
+                    return { ...newRow, _isModified: isModified || newRow._isModified }
                   })
                   setData(merged)
+                  saveToCache(merged)
                 } else {
                   // Update specific rows by matching IDs
                   const newData = data.map((row) => {
                     const updated = updatedRows.find((r) => r._id === row._id)
                     if (!updated) return row
+                    
+                    const originalRow = originalData.find((d) => d._id === row._id)
+                    // Check if row has been modified compared to original
+                    const isModified = isRowModified(originalRow, updated)
+                    
                     const rowIsTrue = String(row._ai_suggestion || "").toLowerCase() === "true"
                     const updatedIsTrue = String(updated._ai_suggestion || "").toLowerCase() === "true"
                     if (rowIsTrue || updatedIsTrue) {
@@ -740,11 +1059,12 @@ export default function Home() {
                           ;(metaOnly as any)[k] = (updated as any)[k]
                         }
                       })
-                      return { ...row, ...metaOnly }
+                      return { ...row, ...metaOnly, _isModified: isModified || row._isModified }
                     }
-                    return updated
+                    return { ...updated, _isModified: isModified || updated._isModified }
                   })
                   setData(newData)
+                  saveToCache(newData)
                 }
               }}
               currentPage={currentPage}
@@ -757,6 +1077,83 @@ export default function Home() {
           </div>
         )}
       </main>
+
+      {/* Complete Dialog */}
+      <Dialog open={showCompleteDialog} onOpenChange={setShowCompleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Complete Project and Create Dataset</DialogTitle>
+            <DialogDescription>
+              Create a dataset from this project's labeled data. This will mark the project as completed.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="dataset-name">Dataset Name *</Label>
+              <Input
+                id="dataset-name"
+                placeholder="Enter dataset name"
+                value={newDatasetName}
+                onChange={(e) => setNewDatasetName(e.target.value)}
+                disabled={completing}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="dataset-description">Description (Optional)</Label>
+              <Textarea
+                id="dataset-description"
+                placeholder="Enter dataset description"
+                value={newDatasetDescription}
+                onChange={(e) => setNewDatasetDescription(e.target.value)}
+                disabled={completing}
+                rows={3}
+              />
+            </div>
+            
+            <div className="rounded-lg bg-muted p-4 space-y-2">
+              <p className="text-sm font-medium">Export Information:</p>
+              <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                <li>Export type: Full (all files)</li>
+                <li>Project permissions will be copied to dataset</li>
+                <li>Project status will be set to &quot;completed&quot;</li>
+              </ul>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowCompleteDialog(false)
+                setNewDatasetName("")
+                setNewDatasetDescription("")
+              }}
+              disabled={completing}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleComplete}
+              disabled={completing || !newDatasetName.trim()}
+              className="gap-2"
+            >
+              {completing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-4 w-4" />
+                  Create Dataset
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
