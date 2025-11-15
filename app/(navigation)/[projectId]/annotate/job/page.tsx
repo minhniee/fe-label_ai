@@ -141,9 +141,6 @@ export default function ProjectJobPage() {
               <Play className="mr-2 h-4 w-4" />
               Start Annotating
             </Button>
-            <Button variant="outline" disabled>
-              Submit for Review
-            </Button>
           </div>
         </div>
 
@@ -258,9 +255,6 @@ export default function ProjectJobPage() {
                   </Badge>
                 </TabsTrigger>
               </TabsList>
-              <div className="flex items-center gap-2 pb-2">
-                <Button variant="outline" size="sm">Sort By</Button>
-              </div>
             </div>
             
             <TabsContent value="unannotated" className="mt-0 p-6">

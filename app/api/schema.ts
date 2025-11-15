@@ -1,21 +1,4 @@
-import axios from 'axios'
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
-
-// Configure axios to send cookies with requests
-axios.defaults.withCredentials = true
-
-// Helper function to get auth headers (kept for backward compatibility)
-const getAuthHeaders = () => {
-  const headers: Record<string, string> = {}
-  try {
-    const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`
-    }
-  } catch {}
-  return headers
-}
+import api from './client'
 
 // Types (aligned to backend schemas.schema_schemas)
 export interface SchemaCreateRequest {
@@ -37,38 +20,51 @@ export interface SchemaResponse {
   schema_definition: any
   description?: string
   created_by?: number
+  created_by_username?: string
   created_at: string
   updated_at?: string
+  version?: number
 }
 
 // Optional types for ontology-related endpoints
 export type OntologyStructure = any
 
 export interface OntologyValidationResponse {
-  valid: boolean
+  is_valid: boolean
+  valid?: boolean // Backward compatibility
   errors?: string[]
   warnings?: string[]
+  label_count?: number
+  hierarchy_levels?: number
 }
 
 export interface SchemaCompareResponse {
-  left_schema_id: number
-  right_schema_id: number
+  left_schema_id?: number
+  right_schema_id?: number
+  schema1?: SchemaVersionResponse
+  schema2?: SchemaVersionResponse
   differences: any
 }
 
 export interface SchemaHistoryResponse {
+  schema_id: number
   version: number
+  name: string
   created_at: string
-  created_by: number
+  created_by?: number
+  created_by_username?: string
   changes?: string
+  is_current?: boolean
 }
 
 export interface SchemaVersionResponse {
   schema_id: number
   version: number
+  name?: string
   schema_definition: any
   created_at: string
-  created_by: number
+  created_by?: number
+  created_by_username?: string
   changes?: string
 }
 
@@ -85,15 +81,9 @@ export interface SchemaFileResponse {
 // POST /schemas/ (dataset_id in query)
 export async function createSchema(datasetId: number, data: SchemaCreateRequest): Promise<SchemaResponse> {
   try {
-    const response = await axios.post<SchemaResponse>(
-      `${API_BASE}/schemas/?dataset_id=${encodeURIComponent(datasetId)}`,
-      data,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
-      }
+    const response = await api.post<SchemaResponse>(
+      `/schemas/?dataset_id=${encodeURIComponent(datasetId)}`,
+      data
     )
     return response.data
   } catch (error: any) {
@@ -106,15 +96,10 @@ export async function createSchema(datasetId: number, data: SchemaCreateRequest)
 export async function getSchemas(datasetId?: number): Promise<SchemaResponse[]> {
   try {
     const url = typeof datasetId === 'number'
-      ? `${API_BASE}/schemas/?dataset_id=${encodeURIComponent(datasetId)}`
-      : `${API_BASE}/schemas/`
+      ? `/schemas/?dataset_id=${encodeURIComponent(datasetId)}`
+      : `/schemas/`
 
-    const response = await axios.get<SchemaResponse[]>(url, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-    })
+    const response = await api.get<SchemaResponse[]>(url)
     return response.data
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to get schemas'
@@ -125,12 +110,7 @@ export async function getSchemas(datasetId?: number): Promise<SchemaResponse[]> 
 // GET /schemas/{schema_id}
 export async function getSchema(schemaId: number): Promise<SchemaResponse> {
   try {
-    const response = await axios.get<SchemaResponse>(`${API_BASE}/schemas/${schemaId}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-    })
+    const response = await api.get<SchemaResponse>(`/schemas/${schemaId}`)
     return response.data
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to get schema'
@@ -141,12 +121,7 @@ export async function getSchema(schemaId: number): Promise<SchemaResponse> {
 // PUT /schemas/{schema_id}
 export async function updateSchema(schemaId: number, data: SchemaUpdateRequest): Promise<SchemaResponse> {
   try {
-    const response = await axios.put<SchemaResponse>(`${API_BASE}/schemas/${schemaId}`, data, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-    })
+    const response = await api.put<SchemaResponse>(`/schemas/${schemaId}`, data)
     return response.data
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to update schema'
@@ -157,12 +132,7 @@ export async function updateSchema(schemaId: number, data: SchemaUpdateRequest):
 // DELETE /schemas/{schema_id}
 export async function deleteSchema(schemaId: number): Promise<void> {
   try {
-    await axios.delete(`${API_BASE}/schemas/${schemaId}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-    })
+    await api.delete(`/schemas/${schemaId}`)
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to delete schema'
     throw new Error(errorMessage)
@@ -172,12 +142,7 @@ export async function deleteSchema(schemaId: number): Promise<void> {
 // GET /schemas/dataset/{dataset_id}
 export async function getSchemasByDataset(datasetId: number): Promise<SchemaResponse[]> {
   try {
-    const response = await axios.get<SchemaResponse[]>(`${API_BASE}/schemas/dataset/${datasetId}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-    })
+    const response = await api.get<SchemaResponse[]>(`/schemas/dataset/${datasetId}`)
     return response.data
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to get schemas by dataset'
@@ -188,12 +153,7 @@ export async function getSchemasByDataset(datasetId: number): Promise<SchemaResp
 // GET /schemas/{schema_id}/ontology
 export async function getOntology(schemaId: number): Promise<OntologyStructure> {
   try {
-    const response = await axios.get<OntologyStructure>(`${API_BASE}/schemas/${schemaId}/ontology`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-    })
+    const response = await api.get<OntologyStructure>(`/schemas/${schemaId}/ontology`)
     return response.data
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to get ontology'
@@ -204,12 +164,7 @@ export async function getOntology(schemaId: number): Promise<OntologyStructure> 
 // PUT /schemas/{schema_id}/ontology
 export async function updateOntology(schemaId: number, ontology: OntologyStructure): Promise<SchemaResponse> {
   try {
-    const response = await axios.put<SchemaResponse>(`${API_BASE}/schemas/${schemaId}/ontology`, ontology, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-    })
+    const response = await api.put<SchemaResponse>(`/schemas/${schemaId}/ontology`, ontology)
     return response.data
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to update ontology'
@@ -220,12 +175,7 @@ export async function updateOntology(schemaId: number, ontology: OntologyStructu
 // POST /schemas/validate
 export async function validateOntology(ontology: OntologyStructure): Promise<OntologyValidationResponse> {
   try {
-    const response = await axios.post<OntologyValidationResponse>(`${API_BASE}/schemas/validate`, ontology, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-    })
+    const response = await api.post<OntologyValidationResponse>(`/schemas/validate`, ontology)
     return response.data
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to validate ontology'
@@ -236,12 +186,7 @@ export async function validateOntology(ontology: OntologyStructure): Promise<Ont
 // GET /schemas/{schema_id}/compare/{other_schema_id}
 export async function compareSchemas(schemaId: number, otherSchemaId: number): Promise<SchemaCompareResponse> {
   try {
-    const response = await axios.get<SchemaCompareResponse>(`${API_BASE}/schemas/${schemaId}/compare/${otherSchemaId}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-    })
+    const response = await api.get<SchemaCompareResponse>(`/schemas/${schemaId}/compare/${otherSchemaId}`)
     return response.data
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to compare schemas'
@@ -252,12 +197,7 @@ export async function compareSchemas(schemaId: number, otherSchemaId: number): P
 // GET /schemas/{schema_id}/versions
 export async function getSchemaVersions(schemaId: number): Promise<SchemaHistoryResponse[]> {
   try {
-    const response = await axios.get<SchemaHistoryResponse[]>(`${API_BASE}/schemas/${schemaId}/versions`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-    })
+    const response = await api.get<SchemaHistoryResponse[]>(`/schemas/${schemaId}/versions`)
     return response.data
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to get schema versions'
@@ -269,18 +209,12 @@ export async function getSchemaVersions(schemaId: number): Promise<SchemaHistory
 export async function createSchemaVersion(schemaId: number, newDefinition: OntologyStructure, changes?: string): Promise<SchemaResponse> {
   try {
     const payload: any = { ...newDefinition }
-    // Backend expects body as OntologyStructure, and optional `changes` as query or body field.
-    // Router shows `changes` is a query parameter (Form arg), but we pass as body alongside definition if supported.
+    // Backend expects body as OntologyStructure, and optional `changes` as query parameter
     const url = typeof changes === 'string' && changes.length > 0
-      ? `${API_BASE}/schemas/${schemaId}/versions?changes=${encodeURIComponent(changes)}`
-      : `${API_BASE}/schemas/${schemaId}/versions`
+      ? `/schemas/${schemaId}/versions?changes=${encodeURIComponent(changes)}`
+      : `/schemas/${schemaId}/versions`
 
-    const response = await axios.post<SchemaResponse>(url, payload, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-    })
+    const response = await api.post<SchemaResponse>(url, payload)
     return response.data
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to create schema version'
@@ -291,12 +225,7 @@ export async function createSchemaVersion(schemaId: number, newDefinition: Ontol
 // GET /schemas/{schema_id}/versions/{version}
 export async function getSchemaVersion(schemaId: number, version: number): Promise<SchemaVersionResponse> {
   try {
-    const response = await axios.get<SchemaVersionResponse>(`${API_BASE}/schemas/${schemaId}/versions/${version}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-    })
+    const response = await api.get<SchemaVersionResponse>(`/schemas/${schemaId}/versions/${version}`)
     return response.data
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to get schema version'
@@ -311,9 +240,8 @@ export async function uploadSchemaFile(schemaId: number, file: File, fileType: s
   form.append("file_type", fileType)
 
   try {
-    const response = await axios.post<SchemaFileResponse>(`${API_BASE}/schemas/${schemaId}/files`, form, {
+    const response = await api.post<SchemaFileResponse>(`/schemas/${schemaId}/files`, form, {
       headers: {
-        ...getAuthHeaders(),
         'Content-Type': 'multipart/form-data',
       },
     })
@@ -327,12 +255,7 @@ export async function uploadSchemaFile(schemaId: number, file: File, fileType: s
 // GET /schemas/{schema_id}/files
 export async function getSchemaFiles(schemaId: number): Promise<SchemaFileResponse[]> {
   try {
-    const response = await axios.get<SchemaFileResponse[]>(`${API_BASE}/schemas/${schemaId}/files`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-    })
+    const response = await api.get<SchemaFileResponse[]>(`/schemas/${schemaId}/files`)
     return response.data
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to get schema files'
@@ -343,12 +266,7 @@ export async function getSchemaFiles(schemaId: number): Promise<SchemaFileRespon
 // GET /schemas/files/{file_id}
 export async function getSchemaFile(fileId: number): Promise<SchemaFileResponse> {
   try {
-    const response = await axios.get<SchemaFileResponse>(`${API_BASE}/schemas/files/${fileId}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-    })
+    const response = await api.get<SchemaFileResponse>(`/schemas/files/${fileId}`)
     return response.data
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to get schema file'
@@ -359,12 +277,7 @@ export async function getSchemaFile(fileId: number): Promise<SchemaFileResponse>
 // DELETE /schemas/files/{file_id}
 export async function deleteSchemaFile(fileId: number): Promise<void> {
   try {
-    await axios.delete(`${API_BASE}/schemas/files/${fileId}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-    })
+    await api.delete(`/schemas/files/${fileId}`)
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to delete schema file'
     throw new Error(errorMessage)
@@ -379,12 +292,7 @@ export async function searchSchemas(query: string, datasetId?: number): Promise<
       params.append('dataset_id', datasetId.toString())
     }
     
-    const response = await axios.get<SchemaResponse[]>(`${API_BASE}/schemas/search?${params.toString()}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-    })
+    const response = await api.get<SchemaResponse[]>(`/schemas/search?${params.toString()}`)
     return response.data
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to search schemas'
@@ -396,19 +304,28 @@ export async function searchSchemas(query: string, datasetId?: number): Promise<
 export async function getSchemaStatistics(datasetId?: number): Promise<any> {
   try {
     const url = typeof datasetId === 'number'
-      ? `${API_BASE}/schemas/statistics?dataset_id=${encodeURIComponent(datasetId)}`
-      : `${API_BASE}/schemas/statistics`
+      ? `/schemas/statistics?dataset_id=${encodeURIComponent(datasetId)}`
+      : `/schemas/statistics`
     
-    const response = await axios.get<any>(url, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-    })
+    const response = await api.get<any>(url)
     return response.data
   } catch (error: any) {
-    const errorMessage = error.response?.data?.detail || error.message || 'Failed to get schema statistics'
-    throw new Error(errorMessage)
+    // Better error handling for 422
+    let errorMessage = 'Failed to get schema statistics';
+    if (error.response?.data) {
+      if (typeof error.response.data === 'string') {
+        errorMessage = error.response.data;
+      } else if (error.response.data.detail) {
+        errorMessage = typeof error.response.data.detail === 'string' 
+          ? error.response.data.detail 
+          : JSON.stringify(error.response.data.detail);
+      } else {
+        errorMessage = JSON.stringify(error.response.data);
+      }
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    throw new Error(errorMessage);
   }
 }
 

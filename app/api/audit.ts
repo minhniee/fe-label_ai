@@ -1,21 +1,4 @@
-import axios from 'axios'
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
-
-// Configure axios to send cookies with requests
-axios.defaults.withCredentials = true
-
-// Helper function to get auth headers
-const getAuthHeaders = () => {
-  const headers: Record<string, string> = {}
-  try {
-    const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`
-    }
-  } catch {}
-  return headers
-}
+import api from './client'
 
 // =============================================
 // AUDIT TYPES
@@ -111,14 +94,10 @@ export async function listAuditEvents(query?: AuditEventQuery) {
     if (query?.to_time) params.append('to_time', query.to_time)
 
     const url = params.toString() 
-      ? `${API_BASE}/audit/events?${params.toString()}`
-      : `${API_BASE}/audit/events`
+      ? `/audit/events?${params.toString()}`
+      : `/audit/events`
       
-    const response = await axios.get<AuditEventsResponse>(url, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<AuditEventsResponse>(url, {
     })
     return response.data
   } catch (error: any) {
@@ -141,14 +120,10 @@ export async function listAuditChanges(query?: AuditChangeQuery) {
     if (query?.to_time) params.append('to_time', query.to_time)
 
     const url = params.toString() 
-      ? `${API_BASE}/audit/changes?${params.toString()}`
-      : `${API_BASE}/audit/changes`
+      ? `/audit/changes?${params.toString()}`
+      : `/audit/changes`
       
-    const response = await axios.get<AuditChangesResponse>(url, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<AuditChangesResponse>(url, {
     })
     return response.data
   } catch (error: any) {
