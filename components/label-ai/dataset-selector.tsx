@@ -12,6 +12,7 @@ import Papa from "papaparse"
 import { getDatasets, getDatasetVersions, testApiKey } from "@/app/api/labelai"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { detectDelimiterFromFile, getApiKeyFromStorage, saveApiKeyToStorage } from "@/lib/label-ai-utils"
 
 interface Dataset {
   id: string
@@ -57,44 +58,11 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
   useEffect(() => {
     fetchDatasets()
     // Load API key from localStorage if available
-    try {
-      const savedApiKey = localStorage.getItem("gemini_api_key")
-      if (savedApiKey) {
-        setApiKey(savedApiKey)
-      }
-    } catch (error) {
-      // Ignore localStorage errors
+    const savedApiKey = getApiKeyFromStorage()
+    if (savedApiKey) {
+      setApiKey(savedApiKey)
     }
   }, [])
-  // Detect delimiter by reading the first chunk of the file and counting common delimiters
-  const detectDelimiter = async (file: File): Promise<string | undefined> => {
-    try {
-      const blob = file.slice(0, 4096)
-      const text = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "")
-        reader.onerror = () => reject(reader.error)
-        reader.readAsText(blob)
-      })
-
-      const firstNonEmptyLine = (text || "").split(/\r?\n/).find((l) => l.trim().length > 0) || ""
-      const header = firstNonEmptyLine.replace(/^\uFEFF/, "")
-      const candidates = [",", ";", "|", "\t"]
-
-      let best = { d: ",", count: -1 }
-      for (const d of candidates) {
-        const pattern = d === "|" ? /\|/g : d === "\t" ? /\t/g : new RegExp(`\\${d}`, "g")
-        const count = (header.match(pattern) || []).length
-        if (count > best.count) {
-          best = { d, count }
-        }
-      }
-
-      return best.count > 0 ? best.d : undefined
-    } catch {
-      return undefined
-    }
-  }
 
 
   const fetchDatasets = async () => {
@@ -233,11 +201,7 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
       if (result.success) {
         setApiKeyStatus("valid")
         // Save API key to localStorage
-        try {
-          localStorage.setItem("gemini_api_key", apiKey.trim())
-        } catch (error) {
-          // Ignore localStorage errors
-        }
+        saveApiKeyToStorage(apiKey.trim())
         toast({
           title: "API Key Valid",
           description: result.message || "API key is valid and ready to use",
@@ -278,7 +242,7 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
 
     setIsUploading(true)
 
-    const detectedDelimiter = await detectDelimiter(file)
+    const detectedDelimiter = await detectDelimiterFromFile(file)
 
     Papa.parse(file, {
       header: true,

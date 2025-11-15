@@ -9,6 +9,7 @@ import { ModelSelector } from "@/components/label-ai/model-selector"
 import { ColumnSelector } from "@/components/label-ai/column-selector"
 import { ReferenceUploader } from "@/components/label-ai/reference-uploader"
 import { DatasetSelector } from "@/components/label-ai/dataset-selector"
+import { DocumentRAGManager } from "@/components/label-ai/document-rag-manager"
 import { DataGenerator } from "@/components/label-ai/data-generator"
 import { Loader2, ArrowLeft } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
@@ -26,6 +27,7 @@ import { getProjectFiles } from "@/app/api/project"
 import { getFilePreview } from "@/app/api/dataset"
 import { slugToProjectId } from "@/types/project"
 import axios from "axios"
+import { detectContextColumn, detectResultColumn, detectDelimiter } from "@/lib/label-ai-utils"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
 
@@ -84,6 +86,13 @@ export default function Home() {
   const [currentFileIndex, setCurrentFileIndex] = useState(0)
   const { toast } = useToast()
   const rowsPerPage = 50
+  const [embeddingConfig, setEmbeddingConfig] = useState<{
+    provider: string
+    apiKey?: string
+    model?: string
+  }>({ provider: "local" })
+  const [hasProjectDocuments, setHasProjectDocuments] = useState(false)  // NEW: track if project has documents
+  const [selectedDocumentIds, setSelectedDocumentIds] = useState<number[]>([])  // NEW: track selected document IDs
 
   // Load batch files when in batch mode
   useEffect(() => {
@@ -159,9 +168,13 @@ export default function Home() {
             
             const lines = contentStr.split('\n').filter((line: string) => line.trim())
             if (lines.length > 0) {
-              headers = lines[0].split(',').map((h: string) => h.trim())
+              // Detect delimiter from first line
+              const firstLine = lines[0]
+              const delimiter = detectDelimiter(firstLine)
+              
+              headers = firstLine.split(delimiter).map((h: string) => h.trim())
               rows = lines.slice(1).map((line: string) => {
-                return line.split(',').map((v: string) => v.trim())
+                return line.split(delimiter).map((v: string) => v.trim())
               })
             }
           } else if (annotationContent.headers && annotationContent.rows) {
@@ -223,17 +236,8 @@ export default function Home() {
       setColumns(headers)
       
       // Auto-detect context and result columns
-      const detectedContextCol =
-        headers.find((col: string) => col.toLowerCase().includes("context")) ||
-        headers.find((col: string) => col.toLowerCase().includes("text")) ||
-        headers.find((col: string) => col.toLowerCase().includes("description")) ||
-        headers[0] || ""
-      
-      const detectedResultCol =
-        headers.find((col: string) => col.toLowerCase().includes("result")) ||
-        headers.find((col: string) => col.toLowerCase().includes("label")) ||
-        headers.find((col: string) => col.toLowerCase().includes("category")) ||
-        headers[1] || ""
+      const detectedContextCol = detectContextColumn(headers)
+      const detectedResultCol = detectResultColumn(headers)
       
       setContextColumn(detectedContextCol)
       setResultColumn(detectedResultCol)
@@ -317,25 +321,8 @@ export default function Home() {
         const datasetColumns = Object.keys(datasetData[0] || {})
         setColumns(datasetColumns)
 
-        const detectedContextCol =
-          datasetColumns.find((col) => col.toLowerCase().includes("context")) ||
-          datasetColumns.find((col) => col.toLowerCase().includes("text")) ||
-          datasetColumns.find((col) => col.toLowerCase().includes("description")) ||
-          datasetColumns.find((col) => col.toLowerCase().includes("body")) ||
-          datasetColumns.find((col) => col.toLowerCase().includes("feedback")) ||
-          datasetColumns.find((col) => col.toLowerCase().includes("input")) ||
-          datasetColumns[0] ||
-          ""
-
-        const detectedResultCol =
-          datasetColumns.find((col) => col.toLowerCase().includes("result")) ||
-          datasetColumns.find((col) => col.toLowerCase().includes("label")) ||
-          datasetColumns.find((col) => col.toLowerCase().includes("category")) ||
-          datasetColumns.find((col) => col.toLowerCase().includes("sentiment")) ||
-          datasetColumns.find((col) => col.toLowerCase().includes("priority")) ||
-          datasetColumns.find((col) => col.toLowerCase().includes("output")) ||
-          datasetColumns[1] ||
-          ""
+        const detectedContextCol = detectContextColumn(datasetColumns)
+        const detectedResultCol = detectResultColumn(datasetColumns)
 
         setContextColumn(detectedContextCol)
         setResultColumn(detectedResultCol)
@@ -381,22 +368,8 @@ export default function Home() {
   const handleDataGenerated = (generatedData: any[], generatedColumns: string[], name: string) => {
     setColumns(generatedColumns)
 
-    const detectedContextCol =
-      generatedColumns.find((col) => col.toLowerCase().includes("context")) ||
-      generatedColumns.find((col) => col.toLowerCase().includes("text")) ||
-      generatedColumns.find((col) => col.toLowerCase().includes("description")) ||
-      generatedColumns[0] ||
-      ""
-
-    const detectedResultCol =
-      generatedColumns.find((col) => col.toLowerCase().includes("result")) ||
-      generatedColumns.find((col) => col.toLowerCase().includes("label")) ||
-      generatedColumns.find((col) => col.toLowerCase().includes("category")) ||
-      generatedColumns.find((col) => col.toLowerCase().includes("sentiment")) ||
-      generatedColumns.find((col) => col.toLowerCase().includes("priority")) ||
-      generatedColumns.find((col) => col.toLowerCase().includes("output")) ||
-      generatedColumns[1] ||
-      ""
+    const detectedContextCol = detectContextColumn(generatedColumns)
+    const detectedResultCol = detectResultColumn(generatedColumns)
 
     setContextColumn(detectedContextCol)
     setResultColumn(detectedResultCol)
@@ -432,25 +405,8 @@ export default function Home() {
   const handleFileUpload = (uploadedData: any[], uploadedColumns: string[], fileName: string) => {
     setColumns(uploadedColumns)
 
-    const detectedContextCol =
-      uploadedColumns.find((col) => col.toLowerCase().includes("context")) ||
-      uploadedColumns.find((col) => col.toLowerCase().includes("text")) ||
-      uploadedColumns.find((col) => col.toLowerCase().includes("description")) ||
-      uploadedColumns.find((col) => col.toLowerCase().includes("body")) ||
-      uploadedColumns.find((col) => col.toLowerCase().includes("feedback")) ||
-      uploadedColumns.find((col) => col.toLowerCase().includes("input")) ||
-      uploadedColumns[0] ||
-      ""
-
-    const detectedResultCol =
-      uploadedColumns.find((col) => col.toLowerCase().includes("result")) ||
-      uploadedColumns.find((col) => col.toLowerCase().includes("label")) ||
-      uploadedColumns.find((col) => col.toLowerCase().includes("category")) ||
-      uploadedColumns.find((col) => col.toLowerCase().includes("sentiment")) ||
-      uploadedColumns.find((col) => col.toLowerCase().includes("priority")) ||
-      uploadedColumns.find((col) => col.toLowerCase().includes("output")) ||
-      uploadedColumns[1] ||
-      ""
+    const detectedContextCol = detectContextColumn(uploadedColumns)
+    const detectedResultCol = detectResultColumn(uploadedColumns)
 
     setContextColumn(detectedContextCol)
     setResultColumn(detectedResultCol)
@@ -672,11 +628,21 @@ export default function Home() {
 
             {!manualMode && (
               <>
-                <ReferenceUploader
-                  onReferenceUpdate={(content) => {
-                    setReferenceContext(content)
-                  }}
+                <DocumentRAGManager
+                  projectId={parseInt(projectId)}
+                  onEmbeddingConfigChange={setEmbeddingConfig}
+                  onDocumentsChange={setHasProjectDocuments}
+                  onSelectedDocumentsChange={setSelectedDocumentIds}
                 />
+
+                {/* Only show ReferenceUploader if no documents in project (fallback) */}
+                {!hasProjectDocuments && (
+                  <ReferenceUploader
+                    onReferenceUpdate={(content) => {
+                      setReferenceContext(content)
+                    }}
+                  />
+                )}
 
                 <ModelSelector
                   data={paginatedData}
@@ -684,6 +650,9 @@ export default function Home() {
                   resultColumn={resultColumn}
                   referenceContext={referenceContext}
                   columns={columns}
+                  projectId={parseInt(projectId)}
+                  embeddingConfig={embeddingConfig}
+                  documentIds={selectedDocumentIds.length > 0 ? selectedDocumentIds : undefined}
                   onDataUpdate={(updatedRows) => {
                   const newData = [...data]
                   updatedRows.forEach((updatedRow) => {

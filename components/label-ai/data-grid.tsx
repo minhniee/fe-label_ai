@@ -10,9 +10,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
-import type { RowData } from "@/app/(navigation)/labelai/page"
+import type { RowData } from "@/app/(navigation)/[projectId]/labelai/page"
 import { useToast } from "@/hooks/use-toast"
 import { submitDataset } from "@/app/api/labelai"
+import { detectBestDelimiterForExport } from "@/lib/label-ai-utils"
 
 interface DataGridProps {
   data: RowData[]
@@ -60,66 +61,6 @@ export function DataGrid({
     : allData.filter((row) => row._confirmed).length
   const pendingOnPage = data.filter((row) => row._ai_suggestion && !row._confirmed).length
   const allConfirmed = confirmedCount === allData.length && allData.length > 0
-
-  // Detect best delimiter based on data content
-  const detectBestDelimiter = (): string => {
-    if (allData.length === 0) return ","
-    
-    const candidates = [
-      { char: ",", name: "Comma (,)" },
-      { char: ";", name: "Semicolon (;)" },
-      { char: "|", name: "Pipe (|)" },
-      { char: "\t", name: "Tab" },
-    ]
-    
-    // Sample first few rows to check for delimiter conflicts
-    const sampleRows = allData.slice(0, Math.min(10, allData.length))
-    const exportColumns = [...columns, "_validation_status", "_corrected_value"]
-    
-    // Count occurrences of each delimiter in data
-    const delimiterScores = candidates.map((candidate) => {
-      let conflictCount = 0
-      let totalOccurrences = 0
-      
-      sampleRows.forEach((row) => {
-        exportColumns.forEach((col) => {
-          const value = String(col === "_corrected_value" ? row._corrected_value || "" : row[col] || "")
-          // Handle tab character specially in regex
-          let pattern: RegExp
-          if (candidate.char === "\t") {
-            pattern = /\t/g
-          } else if (candidate.char === "|") {
-            pattern = /\|/g
-          } else {
-            pattern = new RegExp(`\\${candidate.char}`, "g")
-          }
-          const occurrences = (value.match(pattern) || []).length
-          totalOccurrences += occurrences
-          if (occurrences > 0) conflictCount++
-        })
-      })
-      
-      return {
-        char: candidate.char,
-        name: candidate.name,
-        conflicts: conflictCount,
-        occurrences: totalOccurrences,
-        score: conflictCount * 1000 + totalOccurrences, // Lower is better
-      }
-    })
-    
-    // Find delimiter with least conflicts
-    const best = delimiterScores.reduce((prev, curr) => 
-      curr.score < prev.score ? curr : prev
-    )
-    
-    // If comma has no or minimal conflicts, use it (most common)
-    const commaScore = delimiterScores.find((d) => d.char === ",")
-    if (commaScore && commaScore.conflicts === 0) return ","
-    
-    // Otherwise use the best delimiter
-    return best.char
-  }
 
   const generateVersionName = () => {
     const baseTitle = datasetName.split(" - v")[0] || datasetName
@@ -380,20 +321,24 @@ export function DataGrid({
 
   const handleExportClick = () => {
     // Auto-detect best delimiter and set it as default
-    const detectedDelimiter = detectBestDelimiter()
+    const detectedDelimiter = detectBestDelimiterForExport(allData, columns)
     setExportDelimiter(detectedDelimiter)
     setShowExportDialog(true)
   }
 
   const handleExport = (delimiter?: string) => {
     const selectedDelimiter = delimiter || exportDelimiter
-    const exportColumns = [...columns, "_validation_status", "_corrected_value"]
+    // Only export actual data columns, not internal status fields
+    // _validation_status (from type_answer) is display-only and should never be exported
+    // _corrected_value should only be in resultColumn if confirmed, not as separate column
+    const exportColumns = [...columns]
     const csv = [
       exportColumns.join(selectedDelimiter),
       ...allData.map((row) =>
         exportColumns
           .map((col) => {
-            const value = col === "_corrected_value" ? row._corrected_value || "" : row[col] || ""
+            // Use the actual column value (which may have been updated with correct_answer on confirm)
+            const value = row[col] || ""
             // Escape quotes and wrap in quotes if value contains delimiter, newline, or quote
             const stringValue = String(value)
             const needsQuotes = stringValue.includes(selectedDelimiter) || 

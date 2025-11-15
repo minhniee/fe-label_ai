@@ -140,6 +140,11 @@ export async function labelData(data: {
   resultColumn?: string
   referenceContext?: string
   multiColumnConfig?: any
+  project_id?: number
+  embedding_provider?: string
+  embedding_api_key?: string
+  embedding_model?: string
+  document_ids?: number[]
 }) {
   try {
     const response = await api.post(`/ai-labeling/label`, {
@@ -150,10 +155,131 @@ export async function labelData(data: {
       resultColumn: data.resultColumn || "",
       referenceContext: data.referenceContext || "",
       multiColumnConfig: Array.isArray(data.multiColumnConfig) ? data.multiColumnConfig : [],
+      project_id: data.project_id,
+      embedding_provider: data.embedding_provider || "local",
+      embedding_api_key: data.embedding_api_key,
+      embedding_model: data.embedding_model,
+      document_ids: data.document_ids,
     })
     return response.data
   } catch (error: any) {
     const errorMessage = error?.response?.data?.error || error.message || "Failed to label data"
+    throw new Error(errorMessage)
+  }
+}
+
+/**
+ * Document RAG API functions
+ */
+
+/**
+ * Upload document to project (NotebookLM style)
+ */
+export async function uploadDocument(projectId: number, file: File) {
+  try {
+    const formData = new FormData()
+    formData.append("file", file)
+
+    const response = await api.post(
+      `/documents/upload?project_id=${projectId}`,
+      formData,
+      {
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    )
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || error.message || "Failed to upload document"
+    throw new Error(errorMessage)
+  }
+}
+
+/**
+ * Get all documents in a project
+ */
+export async function getProjectDocuments(projectId: number) {
+  try {
+    const response = await api.get(`/documents/project/${projectId}`, {
+      headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
+    })
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || error.message || "Failed to get documents"
+    throw new Error(errorMessage)
+  }
+}
+
+/**
+ * Search documents in project
+ */
+export async function searchDocuments(
+  projectId: number,
+  query: string,
+  topK: number = 5,
+  minScore: number = 0.3,
+  embeddingProvider: string = "local",
+  embeddingApiKey?: string,
+  embeddingModel?: string
+) {
+  try {
+    const params = new URLSearchParams({
+      project_id: projectId.toString(),
+      query,
+      top_k: topK.toString(),
+      min_score: minScore.toString(),
+      embedding_provider: embeddingProvider,
+    })
+    
+    if (embeddingApiKey) {
+      params.append('embedding_api_key', embeddingApiKey)
+    }
+    if (embeddingModel) {
+      params.append('embedding_model', embeddingModel)
+    }
+
+    const response = await api.post(`/documents/search?${params.toString()}`, {}, {
+      headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
+    })
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || error.message || "Failed to search documents"
+    throw new Error(errorMessage)
+  }
+}
+
+/**
+ * Index project documents with custom embedding provider
+ */
+export async function indexProjectDocuments(
+  projectId: number,
+  embeddingProvider: string = "local",
+  embeddingApiKey?: string,
+  embeddingModel?: string,
+  forceReindex: boolean = false
+) {
+  try {
+    const params = new URLSearchParams({
+      project_id: projectId.toString(),
+      embedding_provider: embeddingProvider,
+      force_reindex: forceReindex.toString(),
+    })
+    
+    if (embeddingApiKey) {
+      params.append('embedding_api_key', embeddingApiKey)
+    }
+    if (embeddingModel) {
+      params.append('embedding_model', embeddingModel)
+    }
+
+    const response = await api.post(`/documents/index-project?${params.toString()}`, {}, {
+      headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
+    })
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || error.message || "Failed to index documents"
     throw new Error(errorMessage)
   }
 }

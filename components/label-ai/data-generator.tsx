@@ -10,6 +10,7 @@ import { Sparkles, Loader2 } from "lucide-react"
 import { ReferenceUploader } from "@/components/label-ai/reference-uploader"
 import { useToast } from "@/hooks/use-toast"
 import { generateData } from "@/app/api/labelai"
+import { detectDelimiter } from "@/lib/label-ai-utils"
 
 interface DataGeneratorProps {
   onDataGenerated: (data: any[], columns: string[], datasetName: string) => void
@@ -24,23 +25,6 @@ export function DataGenerator({ onDataGenerated }: DataGeneratorProps) {
   const [referenceContext, setReferenceContext] = useState("")
   const [generating, setGenerating] = useState(false)
   const { toast } = useToast()
-
-  // Detect delimiter by analyzing the first line
-  const detectDelimiter = (firstLine: string): string => {
-    const header = firstLine.replace(/^\uFEFF/, "") // Remove BOM if present
-    const candidates = [",", ";", "|", "\t"]
-    
-    let best = { d: ",", count: -1 }
-    for (const d of candidates) {
-      const pattern = d === "|" ? /\|/g : d === "\t" ? /\t/g : new RegExp(`\\${d}`, "g")
-      const count = (header.match(pattern) || []).length
-      if (count > best.count) {
-        best = { d, count }
-      }
-    }
-    
-    return best.count > 0 ? best.d : ","
-  }
 
   const handleGenerate = async () => {
     if (!topic.trim()) {

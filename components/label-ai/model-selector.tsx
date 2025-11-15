@@ -11,6 +11,7 @@ import type { RowData } from "@/app/(navigation)/labelai/page"
 import { useToast } from "@/hooks/use-toast"
 import { MultiColumnConfig } from "@/components/label-ai/multi-column-config"
 import { testApiKey, labelData } from "@/app/api/labelai"
+import { getApiKeyFromStorage, saveApiKeyToStorage } from "@/lib/label-ai-utils"
 
 interface ModelSelectorProps {
   data: RowData[]
@@ -21,6 +22,13 @@ interface ModelSelectorProps {
   onDataUpdate: (data: RowData[]) => void
   apiKey?: string
   selectedModel?: string
+  projectId?: number
+  embeddingConfig?: {
+    provider: string
+    apiKey?: string
+    model?: string
+  }
+  documentIds?: number[]  // NEW: selected document IDs for RAG
   onLabel?: (
     rows: RowData[],
     model: string,
@@ -40,6 +48,9 @@ export function ModelSelector({
   onDataUpdate,
   apiKey: providedApiKey,
   selectedModel: providedModel,
+  projectId,
+  embeddingConfig,
+  documentIds,
   onLabel,
   onTestKey,
 }: ModelSelectorProps) {
@@ -53,13 +64,9 @@ export function ModelSelector({
 
   // Load API key from localStorage on mount
   useEffect(() => {
-    try {
-      const savedApiKey = localStorage.getItem("llm_api_key") || localStorage.getItem("gemini_api_key")
-      if (savedApiKey) {
-        setApiKey(savedApiKey)
-      }
-    } catch (error) {
-      // Ignore localStorage errors
+    const savedApiKey = getApiKeyFromStorage()
+    if (savedApiKey) {
+      setApiKey(savedApiKey)
     }
   }, [])
 
@@ -84,9 +91,7 @@ export function ModelSelector({
         const ok = await onTestKey(effectiveApiKey.trim(), effectiveModel)
         if (ok) {
           setKeyStatus("valid")
-          try {
-            localStorage.setItem("llm_api_key", effectiveApiKey.trim())
-          } catch (error) {}
+          saveApiKeyToStorage(effectiveApiKey.trim())
           toast({
             title: "API Key Valid",
             description: "Your API key is valid and ready to use.",
@@ -99,9 +104,7 @@ export function ModelSelector({
         const result = await testApiKey(effectiveApiKey.trim(), effectiveModel)
         if (result.success) {
           setKeyStatus("valid")
-          try {
-            localStorage.setItem("llm_api_key", effectiveApiKey.trim())
-          } catch (error) {}
+          saveApiKeyToStorage(effectiveApiKey.trim())
           toast({
             title: "API Key Valid",
             description: result.message || "Your API key is valid and ready to use.",
@@ -176,6 +179,11 @@ export function ModelSelector({
           resultColumn,
           referenceContext,
           multiColumnConfig,
+          project_id: projectId,
+          embedding_provider: embeddingConfig?.provider || "local",
+          embedding_api_key: embeddingConfig?.apiKey,
+          embedding_model: embeddingConfig?.model,
+          document_ids: documentIds && documentIds.length > 0 ? documentIds : undefined,
         })
 
         if (result.success) {
