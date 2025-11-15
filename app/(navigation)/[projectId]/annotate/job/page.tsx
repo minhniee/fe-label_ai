@@ -8,9 +8,20 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Play, FileText } from "lucide-react";
 import { useProjectFromSlug } from "@/hooks/use-project-from-slug";
-import { getBatch } from "@/app/api/batch";
-import { getProjectFiles } from "@/app/api/project";
+import { getBatch, updateBatch } from "@/app/api/batch";
+import { getProjectFiles, listPendingInvitations, getProjectCollaborators } from "@/app/api/project";
 import { toast } from "sonner";
+import { UserPlus, Mail } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export default function ProjectJobPage() {
   const params = useParams();
@@ -29,11 +40,18 @@ export default function ProjectJobPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [instructions, setInstructions] = useState("");
   const [assignedMembers, setAssignedMembers] = useState<any[]>([]);
+  const [collaborators, setCollaborators] = useState<any[]>([]);
+  const [pendingInvitations, setPendingInvitations] = useState<any[]>([]);
+  const [selectedPendingEmails, setSelectedPendingEmails] = useState<string[]>([]);
+  const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
+  const [isAssigning, setIsAssigning] = useState(false);
 
   // Load job data on mount
   useEffect(() => {
     if (batchId && project) {
       loadJobData();
+      loadPendingInvitations();
+      loadCollaborators();
     }
   }, [batchId, project]);
 
@@ -84,12 +102,84 @@ export default function ProjectJobPage() {
       setUnannotatedFiles(unannotated);
       setAnnotatedFiles(annotated);
 
+      // Load assigned pending emails from batch metadata
+      if (batch.batch_metadata?.assigned_pending_emails) {
+        setSelectedPendingEmails(batch.batch_metadata.assigned_pending_emails);
+      }
+
     } catch (error: any) {
       console.error("Failed to load job data:", error);
       toast.error("Failed to load job data");
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const loadPendingInvitations = async () => {
+    try {
+      if (!project) return;
+      const invitations = await listPendingInvitations(parseInt(project.id));
+      setPendingInvitations(invitations);
+    } catch (error: any) {
+      console.error("Failed to load pending invitations:", error);
+    }
+  };
+
+  const loadCollaborators = async () => {
+    try {
+      if (!project) return;
+      const collabs = await getProjectCollaborators(parseInt(project.id));
+      setCollaborators(collabs);
+    } catch (error: any) {
+      console.error("Failed to load collaborators:", error);
+    }
+  };
+
+  const handleAssignPendingUsers = async () => {
+    if (selectedPendingEmails.length === 0) {
+      toast.error("Please select at least one pending user");
+      return;
+    }
+
+    setIsAssigning(true);
+    try {
+      // Get current batch metadata
+      const currentBatch = await getBatch(parseInt(batchId!));
+      const currentMetadata = currentBatch.batch_metadata || {};
+      
+      // Update batch metadata with assigned pending emails
+      const updatedMetadata = {
+        ...currentMetadata,
+        assigned_pending_emails: selectedPendingEmails,
+      };
+
+      await updateBatch(parseInt(batchId!), {
+        batch_metadata: updatedMetadata,
+      });
+
+      toast.success(`Assigned ${selectedPendingEmails.length} pending user(s) to this job`);
+      setIsAssignDialogOpen(false);
+      
+      // Reload job data to reflect changes
+      await loadJobData();
+    } catch (error: any) {
+      console.error("Failed to assign pending users:", error);
+      toast.error(error.message || "Failed to assign pending users");
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
+  const getRoleName = (roleId: number) => {
+    const roleNames: Record<number, string> = {
+      1: "Owner",
+      2: "Co-Owner",
+      3: "Manager",
+      4: "Reviewer",
+      5: "Labeler",
+      6: "Viewer",
+    };
+    return roleNames[roleId] || "Unknown";
   };
 
   const totalFiles = unannotatedFiles.length + annotatedFiles.length;
@@ -202,20 +292,100 @@ export default function ProjectJobPage() {
         <div className="p-6 border-b">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold">Assignment</h3>
+            <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Assign
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Assign Pending Users</DialogTitle>
+                  <DialogDescription>
+                    Select pending invitations to assign to this job. They will be assigned automatically when they accept the invitation.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {pendingInvitations.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No pending invitations
+                    </p>
+                  ) : (
+                    pendingInvitations.map((invite) => (
+                      <div key={invite.invitation_id} className="flex items-center space-x-3 p-3 border rounded-lg">
+                        <Checkbox
+                          checked={selectedPendingEmails.includes(invite.email)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedPendingEmails([...selectedPendingEmails, invite.email]);
+                            } else {
+                              setSelectedPendingEmails(selectedPendingEmails.filter(e => e !== invite.email));
+                            }
+                          }}
+                        />
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">{invite.email}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {getRoleName(invite.role_id)} • Pending
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="text-xs">
+                          <Mail className="h-3 w-3 mr-1" />
+                          Invited
+                        </Badge>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsAssignDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleAssignPendingUsers} 
+                    disabled={isAssigning || selectedPendingEmails.length === 0}
+                  >
+                    {isAssigning ? "Assigning..." : `Assign ${selectedPendingEmails.length} user(s)`}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
           <div className="space-y-2">
-            <div className="p-3 border rounded-lg">
-              <p className="font-medium text-sm">Truong Vinh Hao</p>
-              <p className="text-xs text-muted-foreground">Labeler</p>
-            </div>
-            {assignedMembers.map((member, index) => (
-              <div key={index} className="p-3 border rounded-lg">
-                <p className="font-medium text-sm">{member.name}</p>
+            {/* Collaborators (Team Members) */}
+            {collaborators.map((collab) => (
+              <div key={collab.user_id} className="p-3 border rounded-lg">
+                <p className="font-medium text-sm">{collab.user_email || collab.user_username || 'Unknown'}</p>
                 <p className="text-xs text-muted-foreground">
-                  {member.role || "Labeler"} • {member.filesAssigned || 0} files
+                  {getRoleName(collab.role_id)} • Team Member
                 </p>
               </div>
             ))}
+            
+            {/* Pending assigned users */}
+            {selectedPendingEmails.length > 0 && (
+              <>
+                {pendingInvitations
+                  .filter(invite => selectedPendingEmails.includes(invite.email))
+                  .map((invite) => (
+                    <div key={invite.invitation_id} className="p-3 border rounded-lg border-orange-200 bg-orange-50">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-sm">{invite.email}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {getRoleName(invite.role_id)} • Pending invitation
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="text-xs border-orange-300">
+                          <Mail className="h-3 w-3 mr-1" />
+                          Pending
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+              </>
+            )}
           </div>
         </div>
 

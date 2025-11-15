@@ -13,6 +13,11 @@ export interface UpdateBatchRequest {
   name?: string
   description?: string
   status?: BatchStatus
+  batch_metadata?: {
+    file_ids?: number[]
+    assigned_pending_emails?: string[]
+    [key: string]: any
+  }
 }
 
 export interface BatchResponse {

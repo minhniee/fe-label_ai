@@ -35,6 +35,17 @@ export default function AuthCallbackPage() {
         return;
       }
 
+      // Check for pending invitation token
+      const pendingInviteToken = localStorage.getItem("pending_invite_token");
+      if (pendingInviteToken) {
+        // Remove the pending token
+        localStorage.removeItem("pending_invite_token");
+        
+        // Redirect to accept invitation page to handle acceptance
+        router.replace(`/invites/accept?token=${pendingInviteToken}`);
+        return;
+      }
+
       // Check for saved redirect URL from Google login
       const redirectAfterLogin = localStorage.getItem("redirect_after_login");
       if (redirectAfterLogin) {

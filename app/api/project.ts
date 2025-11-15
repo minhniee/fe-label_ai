@@ -39,8 +39,12 @@ export interface ProjectCollaboratorResponse {
   project_id: number;
   user_id: number;
   role_id: number;
+  role?: number; // For backward compatibility
   assigned_by: number;
   assigned_at: string;
+  user_email?: string;
+  user_username?: string;
+  role_name?: string;
 }
 
 export interface InvitationResponse {
@@ -60,9 +64,26 @@ export interface AcceptInviteRequest {
 }
 
 export interface AcceptInviteResponse {
-  message: string;
-  project_id: number;
   collaborator_id: number;
+  project_id: number;
+  user_id: number;
+  role: number;
+  accepted_at: string;
+}
+
+export interface InvitationDetailsResponse {
+  invitation_id: number;
+  project_id: number;
+  project_name: string;
+  email: string;
+  role_id: number;
+  role_name: string;
+  invite_token: string;
+  status: string;
+  invited_by: number;
+  inviter_name: string;
+  invited_at: string;
+  expires_at: string;
 }
 
 export interface ProjectFileResponse {
@@ -165,6 +186,19 @@ export async function setLabelingType(
 }
 
 /**
+ * Get all collaborators for a project
+ */
+export async function getProjectCollaborators(projectId: number): Promise<ProjectCollaboratorResponse[]> {
+  try {
+    const response = await api.get<ProjectCollaboratorResponse[]>(`/projects/${projectId}/collaborators`);
+    return response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to fetch collaborators';
+    throw new Error(errorMessage);
+  }
+}
+
+/**
  * Add a collaborator to a project (for team labeling)
  * Roles: owner, manager, labeler, reviewer
  */
@@ -194,6 +228,21 @@ export async function createInvitation(
     return response.data;
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to create invitation';
+    throw new Error(errorMessage);
+  }
+}
+
+/**
+ * Get invitation details by token (public endpoint, no auth required)
+ */
+export async function getInvitationByToken(token: string): Promise<InvitationDetailsResponse> {
+  try {
+    const response = await api.get<InvitationDetailsResponse>('/projects/invitations/by-token', {
+      params: { token }
+    });
+    return response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to fetch invitation';
     throw new Error(errorMessage);
   }
 }

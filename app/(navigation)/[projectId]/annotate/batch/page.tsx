@@ -27,7 +27,7 @@ import { ArrowLeft, Upload, Edit, Plus, Users, FileText, X, Loader2 } from "luci
 import { useProjectFromSlug } from "@/hooks/use-project-from-slug";
 import { projectToSlug } from "@/types/project";
 import { getBatch, updateBatch, assignBatchToUsers, distributeFileToUsers } from "@/app/api/batch";
-import { getProjectFiles, uploadFilesToProject, createInvitation, listPendingInvitations, setLabelingType } from "@/app/api/project";
+import { getProjectFiles, uploadFilesToProject, createInvitation, listPendingInvitations, setLabelingType, getProjectCollaborators } from "@/app/api/project";
 import { getMe } from "@/app/api/auth";
 import { toast } from "sonner";
 import React from "react";
@@ -64,6 +64,7 @@ export default function ProjectBatchPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [invitations, setInvitations] = useState<any[]>([]);
+  const [collaborators, setCollaborators] = useState<any[]>([]);
   const [isLoadingTeam, setIsLoadingTeam] = useState(false);
   const [isSendingInvite, setIsSendingInvite] = useState(false);
 
@@ -90,10 +91,7 @@ export default function ProjectBatchPage() {
     try {
       const user = await getMe();
       setCurrentUser(user);
-      // Set current user as first selected member
-      if (user?.user_id) {
-        setSelectedMembers([user.user_id.toString()]);
-      }
+      // Don't auto-select current user - let them select from collaborators list
     } catch (error: any) {
       console.error("Failed to load current user:", error);
     }
@@ -107,8 +105,9 @@ export default function ProjectBatchPage() {
       const pendingInvites = await listPendingInvitations(parseInt(project!.id));
       setInvitations(pendingInvites);
       
-      // TODO: Load collaborators when API is available
-      // For now, we only show current user + invitations
+      // Load collaborators (users who have accepted invitations)
+      const collabs = await getProjectCollaborators(parseInt(project!.id));
+      setCollaborators(collabs);
       
     } catch (error: any) {
       console.error("Failed to load team data:", error);
@@ -220,15 +219,49 @@ export default function ProjectBatchPage() {
           return;
         }
 
-        const userIds = selectedMembers.map(id => parseInt(id));
+        // Separate actual user IDs from pending invitation IDs
+        const actualUserIds: number[] = [];
+        const pendingInviteIds: string[] = [];
         
-        await assignBatchToUsers({
-          batch_id: parseInt(batchId),
-          user_ids: userIds,
-          notes: instructions || undefined,
+        selectedMembers.forEach(id => {
+          if (id.startsWith('pending_')) {
+            pendingInviteIds.push(id.replace('pending_', ''));
+          } else {
+            actualUserIds.push(parseInt(id));
+          }
         });
 
-        toast.success(`Batch assigned to ${selectedMembers.length} team member(s)`);
+        // Get pending invitation emails
+        const pendingEmails = invitations
+          .filter(inv => pendingInviteIds.includes(inv.invitation_id.toString()))
+          .map(inv => inv.email);
+
+        // Assign to actual users (if any)
+        if (actualUserIds.length > 0) {
+          await assignBatchToUsers({
+            batch_id: parseInt(batchId),
+            user_ids: actualUserIds,
+            notes: instructions || undefined,
+          });
+        }
+
+        // Save pending emails to batch metadata (if any)
+        if (pendingEmails.length > 0) {
+          const batch = await getBatch(parseInt(batchId));
+          const currentMetadata = batch.batch_metadata || {};
+          const existingPendingEmails = currentMetadata.assigned_pending_emails || [];
+          const updatedPendingEmails = [...new Set([...existingPendingEmails, ...pendingEmails])];
+          
+          await updateBatch(parseInt(batchId), {
+            batch_metadata: {
+              ...currentMetadata,
+              assigned_pending_emails: updatedPendingEmails
+            }
+          });
+        }
+
+        const totalAssigned = actualUserIds.length + pendingEmails.length;
+        toast.success(`Batch assigned to ${totalAssigned} team member(s)`);
         
         // Redirect to job page with file IDs
         const fileIdsParam = encodeURIComponent(JSON.stringify(batchFileIds));
@@ -617,60 +650,42 @@ export default function ProjectBatchPage() {
                     Selected Team Members
                   </p>
                   
-                  {/* Current User (Creator) - Always first */}
-                  {currentUser && (
+                  {/* Collaborators (Accepted Members) */}
+                  {collaborators.map((collab) => (
                     <div 
-                      className={`flex items-center justify-between p-3 border rounded-lg bg-muted/30 cursor-pointer transition-colors ${
-                        selectedMembers.includes(currentUser.user_id.toString()) 
-                          ? 'ring-2 ring-primary' 
-                          : 'hover:bg-muted/50'
-                      }`}
-                      onClick={() => handleMemberToggle(currentUser.user_id.toString())}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium">{currentUser.username || "You"}</p>
-                            <Badge variant="outline" className="text-xs">Creator</Badge>
-                          </div>
-                          <p className="text-sm text-muted-foreground">{currentUser.email}</p>
-                        </div>
-                      </div>
-                      {selectedMembers.includes(currentUser.user_id.toString()) && (
-                        <Badge variant="secondary">{filesPerMember} files</Badge>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Accepted Members */}
-                  {invitations.filter(inv => inv.status === 'accepted').map((invite) => (
-                    <div 
-                      key={invite.invitation_id} 
+                      key={collab.user_id} 
                       className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${
-                        selectedMembers.includes(invite.invitation_id.toString()) 
+                        selectedMembers.includes(collab.user_id.toString()) 
                           ? 'ring-2 ring-primary' 
                           : 'hover:bg-muted/50'
                       }`}
-                      onClick={() => handleMemberToggle(invite.invitation_id.toString())}
+                      onClick={() => handleMemberToggle(collab.user_id.toString())}
                     >
                       <div className="flex items-center gap-3">
                         <div>
                           <div className="flex items-center gap-2">
-                            <p className="font-medium">{invite.email}</p>
-                            <Badge variant="outline" className="text-xs">{getRoleName(invite.role_id)}</Badge>
+                            <p className="font-medium">{collab.user_email || collab.user_username || 'Unknown'}</p>
+                            <Badge variant="outline" className="text-xs">{getRoleName(collab.role_id)}</Badge>
                           </div>
-                          <p className="text-sm text-muted-foreground">Accepted</p>
                         </div>
                       </div>
-                      {selectedMembers.includes(invite.invitation_id.toString()) && (
+                      {selectedMembers.includes(collab.user_id.toString()) && (
                         <Badge variant="secondary">{filesPerMember} files</Badge>
                       )}
                     </div>
                   ))}
 
-                  {/* Pending Members - Cannot be selected but shown in list */}
+                  {/* Pending Members - Can be selected */}
                   {invitations.filter(inv => inv.status === 'pending').map((invite) => (
-                    <div key={invite.invitation_id} className="flex items-center justify-between p-3 border rounded-lg opacity-60 cursor-not-allowed">
+                    <div 
+                      key={invite.invitation_id} 
+                      className={`flex items-center justify-between p-3 border rounded-lg border-orange-200 bg-orange-50 cursor-pointer transition-colors ${
+                        selectedMembers.includes(`pending_${invite.invitation_id}`) 
+                          ? 'ring-2 ring-primary' 
+                          : 'hover:bg-orange-100'
+                      }`}
+                      onClick={() => handleMemberToggle(`pending_${invite.invitation_id}`)}
+                    >
                       <div className="flex items-center gap-3">
                         <div>
                           <div className="flex items-center gap-2">
@@ -678,10 +693,13 @@ export default function ProjectBatchPage() {
                             <Badge variant="outline" className="text-xs">{getRoleName(invite.role_id)}</Badge>
                           </div>
                           <p className="text-sm text-muted-foreground">
-                            <Badge variant="secondary" className="text-xs">Pending</Badge>
+                            <Badge variant="secondary" className="text-xs">Pending Invitation</Badge>
                           </p>
                         </div>
                       </div>
+                      {selectedMembers.includes(`pending_${invite.invitation_id}`) && (
+                        <Badge variant="secondary">{filesPerMember} files</Badge>
+                      )}
                     </div>
                   ))}
                 </div>
