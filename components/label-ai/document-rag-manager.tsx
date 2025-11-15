@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Database, Upload, Loader2, Settings, CheckCircle2, RefreshCw } from "lucide-react"
+import { Database, Upload, Loader2, Settings, CheckCircle2, RefreshCw, Trash2 } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -12,7 +12,8 @@ import { useToast } from "@/hooks/use-toast"
 import { 
   uploadDocument, 
   getProjectDocuments, 
-  indexProjectDocuments 
+  indexProjectDocuments,
+  deleteDocument
 } from "@/app/api/labelai"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
@@ -42,6 +43,7 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
   const [isLoading, setIsLoading] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [isIndexing, setIsIndexing] = useState(false)
+  const [deletingDocId, setDeletingDocId] = useState<number | null>(null)
   const [showSettings, setShowSettings] = useState(false)
   const [embeddingProvider, setEmbeddingProvider] = useState("local")
   const [embeddingApiKey, setEmbeddingApiKey] = useState("")
@@ -143,6 +145,33 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
       })
     } finally {
       setIsIndexing(false)
+    }
+  }
+
+  const handleDeleteDocument = async (documentId: number) => {
+    if (!confirm("Are you sure you want to delete this document? This action cannot be undone.")) {
+      return
+    }
+
+    setDeletingDocId(documentId)
+    try {
+      await deleteDocument(documentId)
+      toast({
+        title: "Document deleted",
+        description: "Document has been deleted successfully",
+      })
+      // Remove from selected if it was selected
+      setSelectedDocumentIds(selectedDocumentIds.filter(id => id !== documentId))
+      // Reload documents list
+      await loadDocuments()
+    } catch (error) {
+      toast({
+        title: "Delete failed",
+        description: error instanceof Error ? error.message : "Failed to delete document",
+        variant: "destructive",
+      })
+    } finally {
+      setDeletingDocId(null)
     }
   }
 
@@ -266,9 +295,24 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
                       </p>
                     </div>
                   </div>
-                  {isIndexed && (
-                    <span className="text-xs text-green-600">Ready</span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {isIndexed && (
+                      <span className="text-xs text-green-600">Ready</span>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteDocument(doc.document_id)}
+                      disabled={deletingDocId === doc.document_id}
+                      className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    >
+                      {deletingDocId === doc.document_id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
               )
             })}

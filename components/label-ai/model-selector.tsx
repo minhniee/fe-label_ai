@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import type { RowData } from "@/app/(navigation)/labelai/page"
+import type { RowData } from "@/app/(navigation)/[projectId]/labelai/page"
 import { useToast } from "@/hooks/use-toast"
 import { MultiColumnConfig } from "@/components/label-ai/multi-column-config"
 import { testApiKey, labelData } from "@/app/api/labelai"
@@ -183,7 +183,9 @@ export function ModelSelector({
           embedding_provider: embeddingConfig?.provider || "local",
           embedding_api_key: embeddingConfig?.apiKey,
           embedding_model: embeddingConfig?.model,
-          document_ids: documentIds && documentIds.length > 0 ? documentIds : undefined,
+          // Pass empty array if no documents selected (user unselected all)
+          // Pass undefined only if documentIds prop is not provided at all
+          document_ids: documentIds !== undefined ? (documentIds.length > 0 ? documentIds : []) : undefined,
         })
 
         if (result.success) {

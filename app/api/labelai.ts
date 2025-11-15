@@ -285,6 +285,21 @@ export async function indexProjectDocuments(
 }
 
 /**
+ * Delete a document
+ */
+export async function deleteDocument(documentId: number) {
+  try {
+    const response = await api.delete(`/documents/${documentId}`, {
+      headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
+    })
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || error.message || "Failed to delete document"
+    throw new Error(errorMessage)
+  }
+}
+
+/**
  * AI Search
  */
 export async function aiSearch(query: string) {

@@ -652,7 +652,9 @@ export default function Home() {
                   columns={columns}
                   projectId={parseInt(projectId)}
                   embeddingConfig={embeddingConfig}
-                  documentIds={selectedDocumentIds.length > 0 ? selectedDocumentIds : undefined}
+                  // Pass empty array when no documents selected (user unselected all)
+                  // This allows backend to distinguish between "no selection" vs "use all"
+                  documentIds={selectedDocumentIds}
                   onDataUpdate={(updatedRows) => {
                   const newData = [...data]
                   updatedRows.forEach((updatedRow) => {

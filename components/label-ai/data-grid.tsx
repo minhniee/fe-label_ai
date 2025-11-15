@@ -13,7 +13,6 @@ import { cn } from "@/lib/utils"
 import type { RowData } from "@/app/(navigation)/[projectId]/labelai/page"
 import { useToast } from "@/hooks/use-toast"
 import { submitDataset } from "@/app/api/labelai"
-import { detectBestDelimiterForExport } from "@/lib/label-ai-utils"
 
 interface DataGridProps {
   data: RowData[]
@@ -61,6 +60,66 @@ export function DataGrid({
     : allData.filter((row) => row._confirmed).length
   const pendingOnPage = data.filter((row) => row._ai_suggestion && !row._confirmed).length
   const allConfirmed = confirmedCount === allData.length && allData.length > 0
+
+  // Detect best delimiter based on data content
+  const detectBestDelimiter = (): string => {
+    if (allData.length === 0) return ","
+    
+    const candidates = [
+      { char: ",", name: "Comma (,)" },
+      { char: ";", name: "Semicolon (;)" },
+      { char: "|", name: "Pipe (|)" },
+      { char: "\t", name: "Tab" },
+    ]
+    
+    // Sample first few rows to check for delimiter conflicts
+    const sampleRows = allData.slice(0, Math.min(10, allData.length))
+    const exportColumns = [...columns, "_validation_status", "_corrected_value"]
+    
+    // Count occurrences of each delimiter in data
+    const delimiterScores = candidates.map((candidate) => {
+      let conflictCount = 0
+      let totalOccurrences = 0
+      
+      sampleRows.forEach((row) => {
+        exportColumns.forEach((col) => {
+          const value = String(col === "_corrected_value" ? row._corrected_value || "" : row[col] || "")
+          // Handle tab character specially in regex
+          let pattern: RegExp
+          if (candidate.char === "\t") {
+            pattern = /\t/g
+          } else if (candidate.char === "|") {
+            pattern = /\|/g
+          } else {
+            pattern = new RegExp(`\\${candidate.char}`, "g")
+          }
+          const occurrences = (value.match(pattern) || []).length
+          totalOccurrences += occurrences
+          if (occurrences > 0) conflictCount++
+        })
+      })
+      
+      return {
+        char: candidate.char,
+        name: candidate.name,
+        conflicts: conflictCount,
+        occurrences: totalOccurrences,
+        score: conflictCount * 1000 + totalOccurrences, // Lower is better
+      }
+    })
+    
+    // Find delimiter with least conflicts
+    const best = delimiterScores.reduce((prev, curr) => 
+      curr.score < prev.score ? curr : prev
+    )
+    
+    // If comma has no or minimal conflicts, use it (most common)
+    const commaScore = delimiterScores.find((d) => d.char === ",")
+    if (commaScore && commaScore.conflicts === 0) return ","
+    
+    // Otherwise use the best delimiter
+    return best.char
+  }
 
   const generateVersionName = () => {
     const baseTitle = datasetName.split(" - v")[0] || datasetName
@@ -113,16 +172,12 @@ export function DataGrid({
     // Determine new values based on status
     const applyRowUpdate = (r: any) => {
       if (r._id !== rowId) return r
-      if (isIncorrect) {
+      // When confirming, fill resultColumn with correct_answer (_corrected_value) or AI suggestion
+      const valueToFill = row._corrected_value || row._ai_suggestion || r[resultColumn] || ""
+      if (isIncorrect || isCorrect) {
         return {
           ...r,
-          [resultColumn]: row._corrected_value || r[resultColumn] || "",
-          _confirmed: true,
-        }
-      }
-      if (isCorrect) {
-        return {
-          ...r,
+          [resultColumn]: valueToFill,
           _confirmed: true,
         }
       }
@@ -134,10 +189,8 @@ export function DataGrid({
 
     onDataUpdate(updatedAllData)
     toast({
-      title: isIncorrect ? "Confirmed (applied correction)" : "Confirmed",
-      description: isIncorrect
-        ? `Applied AI correct_answer to ${resultColumn}`
-        : `Marked as confirmed (no changes made)`,
+      title: "Confirmed",
+      description: `Applied AI correct_answer to ${resultColumn}`,
     })
   }
 
@@ -192,7 +245,6 @@ export function DataGrid({
     const targets = data.filter((row) => row._ai_suggestion && !row._confirmed)
 
     let applied = 0
-    let confirmedOnly = 0
     let ambiguous = 0
 
     const updatedAllData = allData.map((row) => {
@@ -207,18 +259,13 @@ export function DataGrid({
         ambiguous += 1
         return row
       }
-      if (isIncorrect) {
+      // When confirming, fill resultColumn with correct_answer (_corrected_value) or AI suggestion
+      const valueToFill = row._corrected_value || row._ai_suggestion || row[resultColumn] || ""
+      if (isIncorrect || isCorrect) {
         applied += 1
         return {
           ...row,
-          [resultColumn]: row._corrected_value || row[resultColumn] || "",
-          _confirmed: true,
-        }
-      }
-      if (isCorrect) {
-        confirmedOnly += 1
-        return {
-          ...row,
+          [resultColumn]: valueToFill,
           _confirmed: true,
         }
       }
@@ -228,7 +275,6 @@ export function DataGrid({
     onDataUpdate(updatedAllData)
     const parts = [] as string[]
     if (applied) parts.push(`${applied} applied`)
-    if (confirmedOnly) parts.push(`${confirmedOnly} confirmed`)
     if (ambiguous) parts.push(`${ambiguous} ambiguous skipped`)
     toast({
       title: "Confirm all",
@@ -321,24 +367,20 @@ export function DataGrid({
 
   const handleExportClick = () => {
     // Auto-detect best delimiter and set it as default
-    const detectedDelimiter = detectBestDelimiterForExport(allData, columns)
+    const detectedDelimiter = detectBestDelimiter()
     setExportDelimiter(detectedDelimiter)
     setShowExportDialog(true)
   }
 
   const handleExport = (delimiter?: string) => {
     const selectedDelimiter = delimiter || exportDelimiter
-    // Only export actual data columns, not internal status fields
-    // _validation_status (from type_answer) is display-only and should never be exported
-    // _corrected_value should only be in resultColumn if confirmed, not as separate column
-    const exportColumns = [...columns]
+    const exportColumns = [...columns, "_validation_status", "_corrected_value"]
     const csv = [
       exportColumns.join(selectedDelimiter),
       ...allData.map((row) =>
         exportColumns
           .map((col) => {
-            // Use the actual column value (which may have been updated with correct_answer on confirm)
-            const value = row[col] || ""
+            const value = col === "_corrected_value" ? row._corrected_value || "" : row[col] || ""
             // Escape quotes and wrap in quotes if value contains delimiter, newline, or quote
             const stringValue = String(value)
             const needsQuotes = stringValue.includes(selectedDelimiter) || 
@@ -748,7 +790,7 @@ export function DataGrid({
                                   className="h-6 font-mono text-sm p-1"
                                 />
                               ) : (
-                                <span>{row._corrected_value || row._ai_suggestion || row[resultColumn] || "-"}</span>
+                                <span>{row[resultColumn] || "-"}</span>
                               )}
                             </div>
                             {/* Only show Info icon if there's AI suggestion/reasoning and not yet confirmed */}
@@ -810,12 +852,13 @@ export function DataGrid({
                             </Tooltip>
                           )}
 
-                          {/* Only show buttons when not confirmed, not correct/ambiguous, and a change is applicable */}
+                          {/* Show buttons when there's AI suggestion and not confirmed (excluding ambiguous and correct) */}
                           {row._ai_suggestion &&
                             !row._confirmed &&
-                            ((row._validation_status || "").toString().toLowerCase() !== "correct") &&
                             ((row._validation_status || "").toString().toLowerCase() !== "ambiguous") &&
-                            ((row[resultColumn] || "") !== (row._corrected_value || row._ai_suggestion || row[resultColumn] || "")) && (
+                            ((row._validation_status || "").toString().toLowerCase() !== "correct") &&
+                            ((row._ai_type || "").toString().toLowerCase() !== "correct") &&
+                            ((row._ai_suggestion || "").toString().toLowerCase() !== "true") && (
                             <>
                               <Tooltip>
                                 <TooltipTrigger asChild>
