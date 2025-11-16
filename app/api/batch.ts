@@ -1,21 +1,4 @@
-import axios from 'axios'
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
-
-// Configure axios to send cookies with requests
-axios.defaults.withCredentials = true
-
-// Helper function to get auth headers (keeping for backward compatibility)
-const getAuthHeaders = () => {
-  const headers: Record<string, string> = {}
-  try {
-    const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`
-    }
-  } catch {}
-  return headers
-}
+import api from './client'
 
 export type BatchStatus = "pending" | "in_progress" | "completed" | "blocked"
 
@@ -30,6 +13,11 @@ export interface UpdateBatchRequest {
   name?: string
   description?: string
   status?: BatchStatus
+  batch_metadata?: {
+    file_ids?: number[]
+    assigned_pending_emails?: string[]
+    [key: string]: any
+  }
 }
 
 export interface BatchResponse {
@@ -240,7 +228,7 @@ export interface AssignBatchToUsersResponse {
 export interface DistributeFileRequest {
   project_id: number
   file_id: number
-  chunk_size: number
+  chunk_size?: number // Optional - API will auto-calculate if not provided
   user_ids: number[]
   distribution_method?: 'round_robin' | 'first_takes_remainder'
   notes?: string
@@ -278,11 +266,7 @@ export interface ProjectBatchStatsResponse {
 // GET /batches/
 export async function getBatches() {
   try {
-    const response = await axios.get<BatchListResponse>(`${API_BASE}/batches/`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<BatchListResponse>(`/batches/`, {
     })
     return response.data
   } catch (error: any) {
@@ -294,11 +278,7 @@ export async function getBatches() {
 // POST /batches/
 export async function createBatch(payload: CreateBatchRequest) {
   try {
-    const response = await axios.post<BatchResponse>(`${API_BASE}/batches/`, payload, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.post<BatchResponse>(`/batches/`, payload, {
     })
     return response.data
   } catch (error: any) {
@@ -310,11 +290,7 @@ export async function createBatch(payload: CreateBatchRequest) {
 // GET /batches/{batch_id}
 export async function getBatch(batchId: number) {
   try {
-    const response = await axios.get<BatchResponse>(`${API_BASE}/batches/${batchId}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<BatchResponse>(`/batches/${batchId}`, {
     })
     return response.data
   } catch (error: any) {
@@ -326,11 +302,7 @@ export async function getBatch(batchId: number) {
 // PUT /batches/{batch_id}
 export async function updateBatch(batchId: number, payload: UpdateBatchRequest) {
   try {
-    const response = await axios.put<BatchResponse>(`${API_BASE}/batches/${batchId}`, payload, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.put<BatchResponse>(`/batches/${batchId}`, payload, {
     })
     return response.data
   } catch (error: any) {
@@ -342,11 +314,7 @@ export async function updateBatch(batchId: number, payload: UpdateBatchRequest) 
 // DELETE /batches/{batch_id}
 export async function deleteBatch(batchId: number) {
   try {
-    const response = await axios.delete<{ message: string }>(`${API_BASE}/batches/${batchId}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.delete<{ message: string }>(`/batches/${batchId}`, {
     })
     return response.data
   } catch (error: any) {
@@ -358,11 +326,7 @@ export async function deleteBatch(batchId: number) {
 // GET /batches/{batch_id}/progress
 export async function getBatchProgress(batchId: number) {
   try {
-    const response = await axios.get<BatchProgressResponse>(`${API_BASE}/batches/${batchId}/progress`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<BatchProgressResponse>(`/batches/${batchId}/progress`, {
     })
     return response.data
   } catch (error: any) {
@@ -374,11 +338,7 @@ export async function getBatchProgress(batchId: number) {
 // POST /batches/assignments/
 export async function createBatchAssignment(request: CreateBatchAssignmentRequest) {
   try {
-    const response = await axios.post<BatchAssignmentResponse>(`${API_BASE}/batches/assignments/`, request, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.post<BatchAssignmentResponse>(`/batches/assignments/`, request, {
     })
     return response.data
   } catch (error: any) {
@@ -404,13 +364,9 @@ export async function getBatchAssignments(filters?: {
     if (filters?.page_size) params.append('page_size', filters.page_size.toString())
 
     const url = params.toString() 
-      ? `${API_BASE}/batches/assignments/?${params.toString()}`
-      : `${API_BASE}/batches/assignments/`
-    const response = await axios.get<BatchAssignmentListResponse>(url, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+      ? `/batches/assignments/?${params.toString()}`
+      : `/batches/assignments/`
+    const response = await api.get<BatchAssignmentListResponse>(url, {
     })
     return response.data
   } catch (error: any) {
@@ -422,14 +378,10 @@ export async function getBatchAssignments(filters?: {
 // PUT /batches/assignments/{assignment_id}
 export async function updateBatchAssignment(assignmentId: number, request: UpdateBatchAssignmentRequest) {
   try {
-    const response = await axios.put<BatchAssignmentResponse>(
-      `${API_BASE}/batches/assignments/${assignmentId}`,
+    const response = await api.put<BatchAssignmentResponse>(
+      `/batches/assignments/${assignmentId}`,
       request,
       {
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
       }
     )
     return response.data
@@ -442,13 +394,9 @@ export async function updateBatchAssignment(assignmentId: number, request: Updat
 // DELETE /batches/assignments/{assignment_id}
 export async function deleteBatchAssignment(assignmentId: number) {
   try {
-    const response = await axios.delete<{ message: string }>(
-      `${API_BASE}/batches/assignments/${assignmentId}`,
+    const response = await api.delete<{ message: string }>(
+      `/batches/assignments/${assignmentId}`,
       {
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
       }
     )
     return response.data
@@ -465,14 +413,10 @@ export async function getBatchStats(datasetId?: number) {
     if (datasetId) params.append('dataset_id', datasetId.toString())
     
     const url = params.toString() 
-      ? `${API_BASE}/batches/stats/?${params.toString()}`
-      : `${API_BASE}/batches/stats/`
+      ? `/batches/stats/?${params.toString()}`
+      : `/batches/stats/`
       
-    const response = await axios.get<BatchStatsResponse>(url, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<BatchStatsResponse>(url, {
     })
     return response.data
   } catch (error: any) {
@@ -484,11 +428,7 @@ export async function getBatchStats(datasetId?: number) {
 // GET /batches/dashboard/
 export async function getBatchDashboard() {
   try {
-    const response = await axios.get<BatchDashboardResponse>(`${API_BASE}/batches/dashboard/`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<BatchDashboardResponse>(`/batches/dashboard/`, {
     })
     return response.data
   } catch (error: any) {
@@ -500,11 +440,7 @@ export async function getBatchDashboard() {
 // POST /batches/bulk/create
 export async function bulkCreateBatches(request: BulkCreateBatchesRequest) {
   try {
-    const response = await axios.post<BulkCreateBatchesResponse>(`${API_BASE}/batches/bulk/create`, request, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.post<BulkCreateBatchesResponse>(`/batches/bulk/create`, request, {
     })
     return response.data
   } catch (error: any) {
@@ -516,11 +452,7 @@ export async function bulkCreateBatches(request: BulkCreateBatchesRequest) {
 // POST /batches/bulk/assign
 export async function bulkAssignBatches(request: BulkAssignBatchesRequest) {
   try {
-    const response = await axios.post<BulkAssignBatchesResponse>(`${API_BASE}/batches/bulk/assign`, request, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.post<BulkAssignBatchesResponse>(`/batches/bulk/assign`, request, {
     })
     return response.data
   } catch (error: any) {
@@ -541,14 +473,10 @@ export async function getDatasetBatches(datasetId: number, filters?: Omit<BatchF
     if (filters?.page_size) params.append('page_size', filters.page_size.toString())
     
     const url = params.toString() 
-      ? `${API_BASE}/batches/datasets/${datasetId}/batches?${params.toString()}`
-      : `${API_BASE}/batches/datasets/${datasetId}/batches`
+      ? `/batches/datasets/${datasetId}/batches?${params.toString()}`
+      : `/batches/datasets/${datasetId}/batches`
       
-    const response = await axios.get<BatchListResponse>(url, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<BatchListResponse>(url, {
     })
     return response.data
   } catch (error: any) {
@@ -560,11 +488,7 @@ export async function getDatasetBatches(datasetId: number, filters?: Omit<BatchF
 // GET /batches/datasets/{dataset_id}/stats
 export async function getDatasetBatchStats(datasetId: number) {
   try {
-    const response = await axios.get<BatchStatsResponse>(`${API_BASE}/batches/datasets/${datasetId}/stats`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<BatchStatsResponse>(`/batches/datasets/${datasetId}/stats`, {
     })
     return response.data
   } catch (error: any) {
@@ -583,14 +507,10 @@ export async function getUserAssignments(userId: number, filters?: Omit<BatchAss
     if (filters?.page_size) params.append('page_size', filters.page_size.toString())
     
     const url = params.toString() 
-      ? `${API_BASE}/batches/users/${userId}/assignments?${params.toString()}`
-      : `${API_BASE}/batches/users/${userId}/assignments`
+      ? `/batches/users/${userId}/assignments?${params.toString()}`
+      : `/batches/users/${userId}/assignments`
       
-    const response = await axios.get<BatchAssignmentListResponse>(url, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<BatchAssignmentListResponse>(url, {
     })
     return response.data
   } catch (error: any) {
@@ -602,11 +522,7 @@ export async function getUserAssignments(userId: number, filters?: Omit<BatchAss
 // GET /batches/users/{user_id}/progress
 export async function getUserBatchProgress(userId: number) {
   try {
-    const response = await axios.get<UserBatchProgressResponse>(`${API_BASE}/batches/users/${userId}/progress`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<UserBatchProgressResponse>(`/batches/users/${userId}/progress`, {
     })
     return response.data
   } catch (error: any) {
@@ -618,14 +534,10 @@ export async function getUserBatchProgress(userId: number) {
 // POST /batches/{batch_id}/progress
 export async function updateBatchProgress(batchId: number) {
   try {
-    const response = await axios.post<BatchProgressResponse>(
-      `${API_BASE}/batches/${batchId}/progress`,
+    const response = await api.post<BatchProgressResponse>(
+      `/batches/${batchId}/progress`,
       {},
       {
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
       }
     )
     return response.data
@@ -642,14 +554,10 @@ export async function updateBatchProgress(batchId: number) {
 // POST /batches/projects/split-file
 export async function splitProjectFile(request: SplitFileRequest) {
   try {
-    const response = await axios.post<SplitFileResponse>(
-      `${API_BASE}/batches/projects/split-file`,
+    const response = await api.post<SplitFileResponse>(
+      `/batches/projects/split-file`,
       request,
       {
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
       }
     )
     return response.data
@@ -662,14 +570,10 @@ export async function splitProjectFile(request: SplitFileRequest) {
 // POST /batches/projects/create-batch
 export async function createProjectBatch(request: CreateProjectBatchRequest) {
   try {
-    const response = await axios.post<CreateProjectBatchResponse>(
-      `${API_BASE}/batches/projects/create-batch`,
+    const response = await api.post<CreateProjectBatchResponse>(
+      `/batches/projects/create-batch`,
       request,
       {
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
       }
     )
     return response.data
@@ -682,14 +586,10 @@ export async function createProjectBatch(request: CreateProjectBatchRequest) {
 // POST /batches/projects/assign-batch
 export async function assignBatchToUsers(request: AssignBatchToUsersRequest) {
   try {
-    const response = await axios.post<AssignBatchToUsersResponse>(
-      `${API_BASE}/batches/projects/assign-batch`,
+    const response = await api.post<AssignBatchToUsersResponse>(
+      `/batches/projects/assign-batch`,
       request,
       {
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
       }
     )
     return response.data
@@ -702,14 +602,10 @@ export async function assignBatchToUsers(request: AssignBatchToUsersRequest) {
 // POST /batches/projects/distribute-file
 export async function distributeFileToUsers(request: DistributeFileRequest) {
   try {
-    const response = await axios.post<DistributeFileResponse>(
-      `${API_BASE}/batches/projects/distribute-file`,
+    const response = await api.post<DistributeFileResponse>(
+      `/batches/projects/distribute-file`,
       request,
       {
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
       }
     )
     return response.data
@@ -722,13 +618,9 @@ export async function distributeFileToUsers(request: DistributeFileRequest) {
 // GET /batches/projects/{project_id}/stats
 export async function getProjectBatchStats(projectId: number) {
   try {
-    const response = await axios.get<ProjectBatchStatsResponse>(
-      `${API_BASE}/batches/projects/${projectId}/stats`,
+    const response = await api.get<ProjectBatchStatsResponse>(
+      `/batches/projects/${projectId}/stats`,
       {
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
       }
     )
     return response.data
@@ -750,14 +642,10 @@ export async function getProjectBatches(projectId: number, filters?: Omit<BatchF
     if (filters?.page_size) params.append('page_size', filters.page_size.toString())
     
     const url = params.toString() 
-      ? `${API_BASE}/batches/projects/${projectId}/batches?${params.toString()}`
-      : `${API_BASE}/batches/projects/${projectId}/batches`
+      ? `/batches/projects/${projectId}/batches?${params.toString()}`
+      : `/batches/projects/${projectId}/batches`
       
-    const response = await axios.get<BatchListResponse>(url, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<BatchListResponse>(url, {
     })
     return response.data
   } catch (error: any) {

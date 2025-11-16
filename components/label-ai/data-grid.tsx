@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils"
 import type { RowData } from "@/app/(navigation)/[projectId]/labelai/page"
 import { useToast } from "@/hooks/use-toast"
 import { submitDataset } from "@/app/api/labelai"
+import { generateDatasetFromProject } from "@/app/api/project"
 
 interface DataGridProps {
   data: RowData[]
@@ -27,6 +28,7 @@ interface DataGridProps {
   allData: RowData[]
   datasetName: string
   manualMode?: boolean
+  projectId?: number
 }
 
 export function DataGrid({
@@ -42,6 +44,7 @@ export function DataGrid({
   allData,
   datasetName,
   manualMode = false,
+  projectId,
 }: DataGridProps) {
   const [editingCell, setEditingCell] = useState<{
     rowId: string
@@ -317,47 +320,37 @@ export function DataGrid({
       return
     }
 
+    // Check if projectId is available
+    if (!projectId) {
+      toast({
+        title: "Error",
+        description: "Project ID is required to generate dataset",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
       setIsSubmitting(true)
 
-      const submissionData = allData.map((row) => {
-        const cleanRow: any = {}
-        columns.forEach((col) => {
-          cleanRow[col] = row[col]
-        })
-        return cleanRow
+      // Call generateDatasetFromProject API
+      const result = await generateDatasetFromProject(projectId, {
+        dataset_name: versionName.trim(),
+        dataset_description: `Dataset generated from labeled data. Total rows: ${allData.length}, Confirmed rows: ${confirmedCount}`,
+        export_type: 'full', // Export all labeled data
+        copy_permissions: true, // Copy project permissions
       })
 
-      const result = await submitDataset({
-        versionName: versionName.trim(),
-        data: submissionData,
-        columns,
-        metadata: {
-          totalRows: allData.length,
-          confirmedRows: confirmedCount,
-          contextColumn,
-          resultColumn,
-        },
+      toast({
+        title: "Success",
+        description: `Successfully generated dataset: ${result.dataset_id}. ${result.files_exported} files exported.`,
       })
-
-      if (result.success) {
-        toast({
-          title: "Success",
-          description: `Successfully saved version: ${versionName}`,
-        })
-        setVersionName("")
-      } else {
-        toast({
-          title: "Error",
-          description: result.error || "Failed to submit data",
-          variant: "destructive",
-        })
-      }
-    } catch (error) {
-      console.error("Error submitting data:", error)
+      setVersionName("")
+    } catch (error: any) {
+      console.error("Error generating dataset:", error)
       toast({
         title: "Error",
-        description: "Failed to submit data",
+        description: error.message || "Failed to generate dataset",
         variant: "destructive",
       })
     } finally {

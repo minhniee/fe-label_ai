@@ -1,21 +1,4 @@
-import axios from 'axios';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
-
-// Configure axios to send cookies with requests
-axios.defaults.withCredentials = true;
-
-// Helper function to get auth headers
-const getAuthHeaders = () => {
-  const headers: Record<string, string> = {};
-  try {
-    const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
-  } catch {}
-  return headers;
-};
+import api from './client';
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -56,8 +39,12 @@ export interface ProjectCollaboratorResponse {
   project_id: number;
   user_id: number;
   role_id: number;
+  role?: number; // For backward compatibility
   assigned_by: number;
   assigned_at: string;
+  user_email?: string;
+  user_username?: string;
+  role_name?: string;
 }
 
 export interface InvitationResponse {
@@ -77,9 +64,26 @@ export interface AcceptInviteRequest {
 }
 
 export interface AcceptInviteResponse {
-  message: string;
-  project_id: number;
   collaborator_id: number;
+  project_id: number;
+  user_id: number;
+  role: number;
+  accepted_at: string;
+}
+
+export interface InvitationDetailsResponse {
+  invitation_id: number;
+  project_id: number;
+  project_name: string;
+  email: string;
+  role_id: number;
+  role_name: string;
+  invite_token: string;
+  status: string;
+  invited_by: number;
+  inviter_name: string;
+  invited_at: string;
+  expires_at: string;
 }
 
 export interface ProjectFileResponse {
@@ -140,12 +144,7 @@ export interface GenerateDatasetResponse {
  */
 export async function viewAllProjects(): Promise<ProjectWithRoleResponse[]> {
   try {
-    const response = await axios.get<ProjectWithRoleResponse[]>(`${API_BASE}/projects`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-    });
+    const response = await api.get<ProjectWithRoleResponse[]>('/projects');
     return response.data;
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to fetch projects';
@@ -160,12 +159,7 @@ export async function viewAllProjects(): Promise<ProjectWithRoleResponse[]> {
  */
 export async function createProject(payload: ProjectCreateRequest): Promise<ProjectResponse> {
   try {
-    const response = await axios.post<ProjectResponse>(`${API_BASE}/projects`, payload, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-    });
+    const response = await api.post<ProjectResponse>('/projects', payload);
     return response.data;
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to create project';
@@ -183,19 +177,23 @@ export async function setLabelingType(
   payload: SetLabelingTypeRequest
 ): Promise<ProjectResponse> {
   try {
-    const response = await axios.put<ProjectResponse>(
-      `${API_BASE}/projects/${projectId}/labeling-type`,
-      payload,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
-      }
-    );
+    const response = await api.put<ProjectResponse>(`/projects/${projectId}/labeling-type`, payload);
     return response.data;
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to set labeling type';
+    throw new Error(errorMessage);
+  }
+}
+
+/**
+ * Get all collaborators for a project
+ */
+export async function getProjectCollaborators(projectId: number): Promise<ProjectCollaboratorResponse[]> {
+  try {
+    const response = await api.get<ProjectCollaboratorResponse[]>(`/projects/${projectId}/collaborators`);
+    return response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to fetch collaborators';
     throw new Error(errorMessage);
   }
 }
@@ -209,16 +207,7 @@ export async function addCollaborator(
   payload: AddCollaboratorRequest
 ): Promise<ProjectCollaboratorResponse> {
   try {
-    const response = await axios.post<ProjectCollaboratorResponse>(
-      `${API_BASE}/projects/${projectId}/collaborators`,
-      payload,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
-      }
-    );
+    const response = await api.post<ProjectCollaboratorResponse>(`/projects/${projectId}/collaborators`, payload);
     return response.data;
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to add collaborator';
@@ -235,19 +224,25 @@ export async function createInvitation(
   payload: AddCollaboratorRequest
 ): Promise<InvitationResponse> {
   try {
-    const response = await axios.post<InvitationResponse>(
-      `${API_BASE}/projects/${projectId}/invitations`,
-      payload,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
-      }
-    );
+    const response = await api.post<InvitationResponse>(`/projects/${projectId}/invitations`, payload);
     return response.data;
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to create invitation';
+    throw new Error(errorMessage);
+  }
+}
+
+/**
+ * Get invitation details by token (public endpoint, no auth required)
+ */
+export async function getInvitationByToken(token: string): Promise<InvitationDetailsResponse> {
+  try {
+    const response = await api.get<InvitationDetailsResponse>('/projects/invitations/by-token', {
+      params: { token }
+    });
+    return response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to fetch invitation';
     throw new Error(errorMessage);
   }
 }
@@ -258,16 +253,7 @@ export async function createInvitation(
  */
 export async function acceptInvitation(payload: AcceptInviteRequest): Promise<AcceptInviteResponse> {
   try {
-    const response = await axios.post<AcceptInviteResponse>(
-      `${API_BASE}/projects/invitations/accept`,
-      payload,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
-      }
-    );
+    const response = await api.post<AcceptInviteResponse>('/projects/invitations/accept', payload);
     return response.data;
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to accept invitation';
@@ -281,15 +267,7 @@ export async function acceptInvitation(payload: AcceptInviteRequest): Promise<Ac
  */
 export async function listPendingInvitations(projectId: number): Promise<InvitationResponse[]> {
   try {
-    const response = await axios.get<InvitationResponse[]>(
-      `${API_BASE}/projects/${projectId}/invitations`,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
-      }
-    );
+    const response = await api.get<InvitationResponse[]>(`/projects/${projectId}/invitations`);
     return response.data;
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to fetch invitations';
@@ -303,15 +281,7 @@ export async function listPendingInvitations(projectId: number): Promise<Invitat
  */
 export async function getProjectFiles(projectId: number): Promise<ProjectFileResponse[]> {
   try {
-    const response = await axios.get<ProjectFileResponse[]>(
-      `${API_BASE}/projects/${projectId}/files`,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
-      }
-    );
+    const response = await api.get<ProjectFileResponse[]>(`/projects/${projectId}/files`);
     return response.data;
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to fetch project files';
@@ -324,15 +294,7 @@ export async function getProjectFiles(projectId: number): Promise<ProjectFileRes
  */
 export async function getProjectStats(projectId: number): Promise<ProjectStatsResponse> {
   try {
-    const response = await axios.get<ProjectStatsResponse>(
-      `${API_BASE}/projects/${projectId}/stats`,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
-      }
-    );
+    const response = await api.get<ProjectStatsResponse>(`/projects/${projectId}/stats`);
     return response.data;
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to fetch project stats';
@@ -368,12 +330,11 @@ export async function uploadFilesToProject(
     // Append file type
     formData.append('file_type', fileType);
     
-    const response = await axios.post<UploadFilesResponse>(
-      `${API_BASE}/projects/${projectId}/upload-files`,
+    const response = await api.post<UploadFilesResponse>(
+      `/projects/${projectId}/upload-files`,
       formData,
       {
         headers: {
-          ...getAuthHeaders(),
           'Content-Type': 'multipart/form-data',
         },
       }
@@ -404,15 +365,9 @@ export async function generateDatasetFromProject(
   payload: GenerateDatasetRequest
 ): Promise<GenerateDatasetResponse> {
   try {
-    const response = await axios.post<GenerateDatasetResponse>(
-      `${API_BASE}/projects/${projectId}/generate-dataset`,
-      payload,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
-      }
+    const response = await api.post<GenerateDatasetResponse>(
+      `/projects/${projectId}/generate-dataset`,
+      payload
     );
     return response.data;
   } catch (error: any) {

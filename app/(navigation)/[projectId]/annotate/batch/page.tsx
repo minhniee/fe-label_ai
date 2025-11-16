@@ -27,7 +27,7 @@ import { ArrowLeft, Upload, Edit, Plus, Users, FileText, X, Loader2 } from "luci
 import { useProjectFromSlug } from "@/hooks/use-project-from-slug";
 import { projectToSlug } from "@/types/project";
 import { getBatch, updateBatch, assignBatchToUsers, distributeFileToUsers } from "@/app/api/batch";
-import { getProjectFiles, uploadFilesToProject, createInvitation, listPendingInvitations, setLabelingType } from "@/app/api/project";
+import { getProjectFiles, uploadFilesToProject, createInvitation, listPendingInvitations, setLabelingType, getProjectCollaborators } from "@/app/api/project";
 import { getMe } from "@/app/api/auth";
 import { toast } from "sonner";
 import React from "react";
@@ -64,8 +64,11 @@ export default function ProjectBatchPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [invitations, setInvitations] = useState<any[]>([]);
+  const [collaborators, setCollaborators] = useState<any[]>([]);
   const [isLoadingTeam, setIsLoadingTeam] = useState(false);
   const [isSendingInvite, setIsSendingInvite] = useState(false);
+  const [csvRowCounts, setCsvRowCounts] = useState<{ [fileId: number]: number }>({});
+  const [totalRows, setTotalRows] = useState<number>(0);
 
   // Load current user
   useEffect(() => {
@@ -90,10 +93,7 @@ export default function ProjectBatchPage() {
     try {
       const user = await getMe();
       setCurrentUser(user);
-      // Set current user as first selected member
-      if (user?.user_id) {
-        setSelectedMembers([user.user_id.toString()]);
-      }
+      // Don't auto-select current user - let them select from collaborators list
     } catch (error: any) {
       console.error("Failed to load current user:", error);
     }
@@ -107,8 +107,9 @@ export default function ProjectBatchPage() {
       const pendingInvites = await listPendingInvitations(parseInt(project!.id));
       setInvitations(pendingInvites);
       
-      // TODO: Load collaborators when API is available
-      // For now, we only show current user + invitations
+      // Load collaborators (users who have accepted invitations)
+      const collabs = await getProjectCollaborators(parseInt(project!.id));
+      setCollaborators(collabs);
       
     } catch (error: any) {
       console.error("Failed to load team data:", error);
@@ -129,6 +130,16 @@ export default function ProjectBatchPage() {
 
       console.log("Batch data:", batch);
       console.log("Batch metadata:", batch.batch_metadata);
+      
+      // Load CSV row counts from batch metadata (if available)
+      if (batch.batch_metadata?.csv_row_counts) {
+        const rowCounts = batch.batch_metadata.csv_row_counts;
+        setCsvRowCounts(rowCounts);
+        const total = batch.batch_metadata.total_csv_rows || Object.values(rowCounts).reduce((sum: number, count: any) => sum + (count || 0), 0);
+        setTotalRows(total);
+        console.log("Loaded CSV row counts from metadata:", rowCounts);
+        console.log("Total rows from metadata:", total);
+      }
 
       // Get file_ids from URL params (if coming from upload) or from batch metadata
       const fileIdsParam = searchParams.get("fileIds");
@@ -167,6 +178,11 @@ export default function ProjectBatchPage() {
         );
         console.log("Batch specific files:", batchSpecificFiles.length);
         setBatchFiles(batchSpecificFiles);
+        
+        // Read CSV files to count rows (only if not already loaded from metadata)
+        if (!batch.batch_metadata?.csv_row_counts) {
+          await loadCsvRowCounts(batchSpecificFiles);
+        }
       } else {
         // No file IDs found - this shouldn't happen
         console.error("No file_ids found for batch!");
@@ -182,6 +198,69 @@ export default function ProjectBatchPage() {
     }
   };
 
+  // Function to read CSV file and count rows from URL
+  const readCsvRowCountFromUrl = async (fileUrl: string): Promise<number> => {
+    try {
+      const response = await fetch(fileUrl);
+      const text = await response.text();
+      
+      if (!text) return 0;
+      
+      // Split by newlines and filter out empty lines
+      const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
+      
+      if (lines.length === 0) return 0;
+      
+      // Check if first line looks like a header
+      const firstLine = lines[0].toLowerCase();
+      const headerKeywords = ['id', 'name', 'text', 'label', 'content', 'data', 'value', 'title', 'description'];
+      const hasHeader = headerKeywords.some(keyword => firstLine.includes(keyword));
+      
+      // Count data rows (exclude header if detected)
+      return hasHeader ? lines.length - 1 : lines.length;
+    } catch (error) {
+      console.error("Error reading CSV file from URL:", error);
+      return 0;
+    }
+  };
+
+  // Load CSV row counts for all CSV files in batch
+  const loadCsvRowCounts = async (files: any[]) => {
+    const DATA_EXTENSIONS = [".xlsx", ".json", ".csv"];
+    const newRowCounts: { [fileId: number]: number } = {};
+    let total = 0;
+    
+    for (const file of files) {
+      if (file.filename && DATA_EXTENSIONS.some(ext => file.filename.toLowerCase().endsWith(ext))) {
+        // For CSV files, try to read from file_path or download
+        if (file.filename.toLowerCase().endsWith('.csv')) {
+          try {
+            // Try to get file URL from API
+            // Note: This assumes there's a way to access the file
+            // If file_path is a full URL, use it; otherwise construct download URL
+            const fileUrl = file.file_path?.startsWith('http') 
+              ? file.file_path 
+              : `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/files/${file.file_id}/download`;
+            
+            const rowCount = await readCsvRowCountFromUrl(fileUrl);
+            newRowCounts[file.file_id] = rowCount;
+            total += rowCount;
+          } catch (error) {
+            console.error(`Failed to read CSV file ${file.filename}:`, error);
+          }
+        }
+      }
+    }
+    
+    setCsvRowCounts(newRowCounts);
+    setTotalRows(total);
+  };
+
+  // Calculate rows per member
+  const rowsPerMember = selectedMembers.length > 0 && totalRows > 0
+    ? Math.ceil(totalRows / selectedMembers.length)
+    : 0;
+  
   const filesPerMember = selectedMembers.length > 0 
     ? Math.ceil(batchFiles.length / selectedMembers.length) 
     : 0;
@@ -220,19 +299,102 @@ export default function ProjectBatchPage() {
           return;
         }
 
-        const userIds = selectedMembers.map(id => parseInt(id));
+        // Separate actual user IDs from pending invitation IDs
+        const actualUserIds: number[] = [];
+        const pendingInviteIds: string[] = [];
         
-        await assignBatchToUsers({
-          batch_id: parseInt(batchId),
-          user_ids: userIds,
-          notes: instructions || undefined,
+        selectedMembers.forEach(id => {
+          if (id.startsWith('pending_')) {
+            pendingInviteIds.push(id.replace('pending_', ''));
+          } else {
+            actualUserIds.push(parseInt(id));
+          }
         });
 
-        toast.success(`Batch assigned to ${selectedMembers.length} team member(s)`);
+        // Get pending invitation emails
+        const pendingEmails = invitations
+          .filter(inv => pendingInviteIds.includes(inv.invitation_id.toString()))
+          .map(inv => inv.email);
+
+        // Check if batch has CSV files that need to be distributed
+        const csvFiles = batchFiles.filter(f => 
+          f.filename && f.filename.toLowerCase().endsWith('.csv')
+        );
+
+        if (csvFiles.length > 0 && totalRows > 0 && actualUserIds.length > 0) {
+          // Distribute CSV files to team members
+          // Each member will get a chunk of rows, creating separate jobs (batches)
+          // Example: 300 câu, 3 users -> 3 jobs, mỗi job 100 câu
+          // API distributeFileToUsers sẽ tự động tạo nhiều batches riêng biệt, mỗi batch cho 1 user
+          const chunkSize = Math.ceil(totalRows / actualUserIds.length);
+          
+          console.log(`Distributing ${totalRows} câu to ${actualUserIds.length} users, chunk_size: ${chunkSize} câu per user`);
+          
+          // Distribute each CSV file
+          let totalJobsCreated = 0;
+          for (const csvFile of csvFiles) {
+            try {
+              const distributeResponse = await distributeFileToUsers({
+                project_id: parseInt(project!.id),
+                file_id: csvFile.file_id,
+                chunk_size: chunkSize, // Số câu mỗi chunk (mỗi user)
+                user_ids: actualUserIds,
+                distribution_method: 'round_robin', // Round robin để chia đều
+                notes: instructions || undefined,
+              });
+              
+              console.log(`Distribution response for ${csvFile.filename}:`, distributeResponse);
+              console.log(`User distribution:`, distributeResponse.user_distribution);
+              
+              // distributeResponse.batches_created sẽ là số batches (jobs) được tạo
+              // Mỗi batch sẽ được assign cho 1 user với số câu tương ứng
+              totalJobsCreated += distributeResponse.batches_created || actualUserIds.length;
+              
+              toast.success(
+                `File ${csvFile.filename}: ${distributeResponse.batches_created || actualUserIds.length} job(s) created - ${chunkSize} câu per job`
+              );
+            } catch (error: any) {
+              console.error(`Failed to distribute CSV file ${csvFile.filename}:`, error);
+              toast.error(`Failed to distribute ${csvFile.filename}: ${error.message}`);
+            }
+          }
+          
+          toast.success(`Total: ${totalJobsCreated} job(s) created for ${actualUserIds.length} team member(s)`);
+        } else {
+          // For non-CSV files or if no CSV files, use regular batch assignment
+          if (actualUserIds.length > 0) {
+            await assignBatchToUsers({
+              batch_id: parseInt(batchId),
+              user_ids: actualUserIds,
+              notes: instructions || undefined,
+            });
+          }
+        }
+
+        // Save pending emails to batch metadata (if any)
+        if (pendingEmails.length > 0) {
+          const batch = await getBatch(parseInt(batchId));
+          const currentMetadata = batch.batch_metadata || {};
+          const existingPendingEmails = currentMetadata.assigned_pending_emails || [];
+          const updatedPendingEmails = [...new Set([...existingPendingEmails, ...pendingEmails])];
+          
+          await updateBatch(parseInt(batchId), {
+            batch_metadata: {
+              ...currentMetadata,
+              assigned_pending_emails: updatedPendingEmails
+            }
+          });
+        }
+
+        const totalAssigned = actualUserIds.length + pendingEmails.length;
+        if (csvFiles.length > 0 && totalRows > 0) {
+          toast.success(`${totalAssigned} job(s) created - ${rowsPerMember} câu per member`);
+        } else {
+          toast.success(`Batch assigned to ${totalAssigned} team member(s)`);
+        }
         
-        // Redirect to job page with file IDs
-        const fileIdsParam = encodeURIComponent(JSON.stringify(batchFileIds));
-        router.push(`/${projectSlug}/annotate/job?jobId=${batchId}&fileIds=${fileIdsParam}`);
+        // Redirect to annotate page to see all jobs
+        router.push(`/${projectSlug}/annotate`);
       }
     } catch (error: any) {
       console.error("Failed to start labeling:", error);
@@ -401,7 +563,11 @@ export default function ProjectBatchPage() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">{batchName}</h1>
             <p className="text-muted-foreground">
-              {batchFiles.length} files • Project: {project?.name || "Loading..."}
+              {totalRows > 0 ? (
+                <>{totalRows} câu • {batchFiles.length} file(s) • Project: {project?.name || "Loading..."}</>
+              ) : (
+                <>{batchFiles.length} files • Project: {project?.name || "Loading..."}</>
+              )}
             </p>
             {batchData && (
               <Badge variant="secondary" className="mt-2">
@@ -443,9 +609,16 @@ export default function ProjectBatchPage() {
                     </button>
                   </div>
                   <p className="text-xs truncate">{file.filename}</p>
-                  <Badge variant="outline" className="text-xs">
-                    {file.annotation_status}
-                  </Badge>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="outline" className="text-xs">
+                      {file.annotation_status}
+                    </Badge>
+                    {file.filename && file.filename.toLowerCase().endsWith('.csv') && csvRowCounts[file.file_id] && (
+                      <Badge variant="secondary" className="text-xs">
+                        {csvRowCounts[file.file_id]} câu
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -513,9 +686,15 @@ export default function ProjectBatchPage() {
 
           {selectedOption === "myself" && (
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                You will label all {batchFiles.length} files in this batch.
-              </p>
+              {totalRows > 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  You will label all <span className="font-semibold">{totalRows} câu</span> in this batch.
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  You will label all {batchFiles.length} files in this batch.
+                </p>
+              )}
               <div className="flex gap-2">
                 <Button onClick={handleStartLabeling} disabled={isAssigning}>
                   {isAssigning ? (
@@ -536,6 +715,18 @@ export default function ProjectBatchPage() {
 
           {selectedOption === "team" && (
             <div className="space-y-4">
+              {totalRows > 0 && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm font-medium text-blue-900">
+                    Tổng số câu cần label: <span className="font-bold">{totalRows} câu</span>
+                  </p>
+                  {selectedMembers.length > 0 && (
+                    <p className="text-xs text-blue-700 mt-1">
+                      Mỗi member sẽ được assign: <span className="font-semibold">{rowsPerMember} câu</span>
+                    </p>
+                  )}
+                </div>
+              )}
               <div className="flex gap-2">
                 <Button
                   variant={showInstructions ? "default" : "outline"}
@@ -617,60 +808,44 @@ export default function ProjectBatchPage() {
                     Selected Team Members
                   </p>
                   
-                  {/* Current User (Creator) - Always first */}
-                  {currentUser && (
+                  {/* Collaborators (Accepted Members) */}
+                  {collaborators.map((collab) => (
                     <div 
-                      className={`flex items-center justify-between p-3 border rounded-lg bg-muted/30 cursor-pointer transition-colors ${
-                        selectedMembers.includes(currentUser.user_id.toString()) 
-                          ? 'ring-2 ring-primary' 
-                          : 'hover:bg-muted/50'
-                      }`}
-                      onClick={() => handleMemberToggle(currentUser.user_id.toString())}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium">{currentUser.username || "You"}</p>
-                            <Badge variant="outline" className="text-xs">Creator</Badge>
-                          </div>
-                          <p className="text-sm text-muted-foreground">{currentUser.email}</p>
-                        </div>
-                      </div>
-                      {selectedMembers.includes(currentUser.user_id.toString()) && (
-                        <Badge variant="secondary">{filesPerMember} files</Badge>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Accepted Members */}
-                  {invitations.filter(inv => inv.status === 'accepted').map((invite) => (
-                    <div 
-                      key={invite.invitation_id} 
+                      key={collab.user_id} 
                       className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${
-                        selectedMembers.includes(invite.invitation_id.toString()) 
+                        selectedMembers.includes(collab.user_id.toString()) 
                           ? 'ring-2 ring-primary' 
                           : 'hover:bg-muted/50'
                       }`}
-                      onClick={() => handleMemberToggle(invite.invitation_id.toString())}
+                      onClick={() => handleMemberToggle(collab.user_id.toString())}
                     >
                       <div className="flex items-center gap-3">
                         <div>
                           <div className="flex items-center gap-2">
-                            <p className="font-medium">{invite.email}</p>
-                            <Badge variant="outline" className="text-xs">{getRoleName(invite.role_id)}</Badge>
+                            <p className="font-medium">{collab.user_email || collab.user_username || 'Unknown'}</p>
+                            <Badge variant="outline" className="text-xs">{getRoleName(collab.role_id)}</Badge>
                           </div>
-                          <p className="text-sm text-muted-foreground">Accepted</p>
                         </div>
                       </div>
-                      {selectedMembers.includes(invite.invitation_id.toString()) && (
-                        <Badge variant="secondary">{filesPerMember} files</Badge>
+                      {selectedMembers.includes(collab.user_id.toString()) && (
+                        <Badge variant="secondary">
+                          {totalRows > 0 ? `${rowsPerMember} câu` : `${filesPerMember} files`}
+                        </Badge>
                       )}
                     </div>
                   ))}
 
-                  {/* Pending Members - Cannot be selected but shown in list */}
+                  {/* Pending Members - Can be selected */}
                   {invitations.filter(inv => inv.status === 'pending').map((invite) => (
-                    <div key={invite.invitation_id} className="flex items-center justify-between p-3 border rounded-lg opacity-60 cursor-not-allowed">
+                    <div 
+                      key={invite.invitation_id} 
+                      className={`flex items-center justify-between p-3 border rounded-lg border-orange-200 bg-orange-50 cursor-pointer transition-colors ${
+                        selectedMembers.includes(`pending_${invite.invitation_id}`) 
+                          ? 'ring-2 ring-primary' 
+                          : 'hover:bg-orange-100'
+                      }`}
+                      onClick={() => handleMemberToggle(`pending_${invite.invitation_id}`)}
+                    >
                       <div className="flex items-center gap-3">
                         <div>
                           <div className="flex items-center gap-2">
@@ -678,10 +853,15 @@ export default function ProjectBatchPage() {
                             <Badge variant="outline" className="text-xs">{getRoleName(invite.role_id)}</Badge>
                           </div>
                           <p className="text-sm text-muted-foreground">
-                            <Badge variant="secondary" className="text-xs">Pending</Badge>
+                            <Badge variant="secondary" className="text-xs">Pending Invitation</Badge>
                           </p>
                         </div>
                       </div>
+                      {selectedMembers.includes(`pending_${invite.invitation_id}`) && (
+                        <Badge variant="secondary">
+                          {totalRows > 0 ? `${rowsPerMember} câu` : `${filesPerMember} files`}
+                        </Badge>
+                      )}
                     </div>
                   ))}
                 </div>

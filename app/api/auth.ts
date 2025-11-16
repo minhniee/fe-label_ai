@@ -14,6 +14,10 @@ export interface TokenResponse {
   user: any; // Assuming user object is part of the token response
 }
 
+export interface RefreshTokenRequest {
+  refresh_token: string;
+}
+
 export interface MeResponse {
   user_id: number;
   username: string;
@@ -97,6 +101,27 @@ export async function logout() {
     } catch (error) {
       console.error("Failed to clear auth tokens from storage:", error);
     }
+  }
+}
+
+/**
+ * Refresh access token using refresh token
+ * @param refreshToken - The refresh token to use
+ * @returns New token response with access_token and refresh_token
+ */
+export async function refreshToken(refreshToken: string): Promise<TokenResponse> {
+  try {
+    const response = await api.post<TokenResponse>('/auth/refresh', {
+      refresh_token: refreshToken,
+    });
+    // After successful refresh, persist the new auth tokens
+    if (response.data.access_token) {
+      persistAuth(response.data);
+    }
+    return response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to refresh token';
+    throw new Error(errorMessage);
   }
 }
 

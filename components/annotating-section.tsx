@@ -113,7 +113,7 @@ export default function AnnotatingSection() {
                   appear as an annotation job in the Annotating column. Deleting
                   images from the Annotating column will send them back to the
                   Unassigned column as a batch.
-                </p>
+              </p>
               </div>
             </TooltipContent>
           </Tooltip>
@@ -133,7 +133,7 @@ export default function AnnotatingSection() {
           </div>
         ) : (
           jobs.map((job) => (
-            <div
+          <div
               key={job.batch_id}
               className="border border-input rounded-md p-4 bg-background hover:bg-accent/50 transition-colors cursor-pointer"
               onClick={() => handleJobSelect(job)}
@@ -145,8 +145,8 @@ export default function AnnotatingSection() {
                   handleJobSelect(job);
                 }
               }}
-            >
-              <div className="flex items-start justify-between mb-2">
+          >
+            <div className="flex items-start justify-between mb-2">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground truncate">
                     {job.name}
@@ -154,11 +154,11 @@ export default function AnnotatingSection() {
                   <p className="text-xs text-muted-foreground mt-1">
                     Labeler: {job.labeler}
                   </p>
-                </div>
-                <button className="text-muted-foreground hover:text-foreground flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                  <MoreVertical className="w-4 h-4" />
-                </button>
               </div>
+                <button className="text-muted-foreground hover:text-foreground flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                <MoreVertical className="w-4 h-4" />
+              </button>
+            </div>
 
               <div className="my-3 flex flex-col gap-1 text-xs text-muted-foreground">
                 <span className="font-medium text-foreground">
@@ -166,7 +166,7 @@ export default function AnnotatingSection() {
                 </span>
                 <span>Annotated: {job.annotatedCount}</span>
                 <span>Unannotated: {job.unannotatedCount}</span>
-              </div>
+            </div>
 
               <button
                 type="button"
@@ -176,10 +176,10 @@ export default function AnnotatingSection() {
                 }}
                 className="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors text-sm font-medium"
               >
-                <span>Start Annotating</span>
-                <ArrowRight className="w-3 h-3" />
-              </button>
-            </div>
+              <span>Start Annotating</span>
+              <ArrowRight className="w-3 h-3" />
+            </button>
+          </div>
           ))
         )}
       </div>

@@ -35,10 +35,48 @@ export default function AuthCallbackPage() {
         return;
       }
 
-      router.replace("/projects");
+      // Check for pending invitation token
+      const pendingInviteToken = localStorage.getItem("pending_invite_token");
+      if (pendingInviteToken) {
+        // Remove the pending token
+        localStorage.removeItem("pending_invite_token");
+        
+        // Redirect to accept invitation page to handle acceptance
+        router.replace(`/invites/accept?token=${pendingInviteToken}`);
+        return;
+      }
+
+      // Check for saved redirect URL from Google login
+      const redirectAfterLogin = localStorage.getItem("redirect_after_login");
+      if (redirectAfterLogin) {
+        // Remove the saved redirect URL
+        localStorage.removeItem("redirect_after_login");
+        
+        // Extract path + search from URL if it's a full URL, otherwise use as-is
+        let redirectPath: string;
+        try {
+          // Try to parse as full URL (with protocol)
+          if (redirectAfterLogin.startsWith('http://') || redirectAfterLogin.startsWith('https://')) {
+            const url = new URL(redirectAfterLogin);
+            redirectPath = url.pathname + url.search;
+          } else {
+            // Already a path + search (relative URL)
+            redirectPath = redirectAfterLogin;
+          }
+        } catch {
+          // If parsing fails, assume it's already a path + search
+          redirectPath = redirectAfterLogin;
+        }
+        
+        // Redirect to the saved URL (includes query params)
+        router.replace(redirectPath);
+      } else {
+        // Default redirect to projects
+        router.replace("/projects");
+      }
     } else {
-        // Handle case where no token is provided
-        router.replace("/login?error=no_token");
+      // Handle case where no token is provided
+      router.replace("/login?error=no_token");
     }
   }, [router, searchParams]);
 

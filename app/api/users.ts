@@ -1,18 +1,4 @@
-import axios from 'axios'
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
-
-// Helper function to get auth headers
-const getAuthHeaders = () => {
-  const headers: Record<string, string> = {}
-  try {
-    const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`
-    }
-  } catch {}
-  return headers
-}
+import api from './client'
 
 export interface User {
   user_id: number
@@ -38,11 +24,7 @@ export interface UpdateUserPayload {
 
 export async function getUsers() {
   try {
-    const response = await axios.get<User[]>(`${API_BASE}/users/`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<User[]>(`/users/`, {
     })
     return response.data
   } catch (error: any) {
@@ -53,11 +35,7 @@ export async function getUsers() {
 
 export async function createUser(payload: CreateUserPayload) {
   try {
-    const response = await axios.post<User>(`${API_BASE}/users/`, payload, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.post<User>(`/users/`, payload, {
     })
     return response.data
   } catch (error: any) {
@@ -68,11 +46,7 @@ export async function createUser(payload: CreateUserPayload) {
 
 export async function updateUser(userId: number, payload: UpdateUserPayload) {
   try {
-    const response = await axios.put<User>(`${API_BASE}/users/${userId}`, payload, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.put<User>(`/users/${userId}`, payload, {
     })
     return response.data
   } catch (error: any) {
@@ -83,11 +57,7 @@ export async function updateUser(userId: number, payload: UpdateUserPayload) {
 
 export async function deleteUser(userId: number) {
   try {
-    await axios.delete(`${API_BASE}/users/${userId}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    await api.delete(`/users/${userId}`, {
     })
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to delete user'

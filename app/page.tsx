@@ -18,8 +18,8 @@ export default function HomePage() {
           // Verify token is valid by calling /auth/me
           try {
             await getMe()
-            // User is authenticated, redirect to dashboard
-            router.replace("/dashboard")
+            // User is authenticated, redirect to projects
+            router.replace("/projects")
             return
           } catch (error) {
             // Token is invalid, clear it and redirect to login

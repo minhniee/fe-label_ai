@@ -1,29 +1,10 @@
 import api from "./client"
-
-/**
- * Centralized API management for LabelAI functionality
- * All functions include authentication headers automatically
- */
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
-
-// Helper function to get auth headers (keeping for backward compatibility)
-const getAuthHeaders = () => {
-  const headers: Record<string, string> = {}
-  try {
-    const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`
-    }
-  } catch {}
-  return headers
-}
 /**
  * Get dataset version data
  */
 export async function getDatasetVersionData(datasetId: string, versionId: string) {
   try {
     const response = await api.get(`/datasets/${datasetId}/versions/${versionId}`,{
-      headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
     })
     return response.data
   } catch (error: any) {
@@ -38,7 +19,6 @@ export async function getDatasetVersionData(datasetId: string, versionId: string
 export async function getDatasets() {
   try {
     const response = await api.get(`/datasets`,{
-      headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
     })
     const datasets = response.data
     
@@ -72,7 +52,6 @@ export async function getDatasets() {
 export async function getDatasetVersions(datasetId: string) {
   try {
     const response = await api.get(`/datasets/${datasetId}/versions`,{
-      headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
     })
     const versions = response.data
     
@@ -87,7 +66,6 @@ export async function getDatasetVersions(datasetId: string) {
         try {
           // Get files for this version
           const filesResponse = await api.get(`/datasets/versions/${v.version_id}/files`,{
-            headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
           })
           const files = filesResponse.data
           if (Array.isArray(files) && files.length > 0) {
@@ -305,7 +283,6 @@ export async function deleteDocument(documentId: number) {
 export async function aiSearch(query: string) {
   try {
     const response = await api.post(`/ai-search`, { query },{
-      headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
     })
     return response.data
   } catch (error: any) {
@@ -333,7 +310,6 @@ export async function generateData(data: {
       instructions: data.instructions || "",
       reference_context: data.referenceContext || "",
     },{
-      headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
     })
 
     return response.data
@@ -373,11 +349,7 @@ export async function generateMoreData(data: {
       context_column: data.contextColumn,
       api_key: data.apiKey,
       model: data.model,
-    }, {
-      headers: {
-        ...getAuthHeaders(),
-        'Content-Type': 'application/json',
-      },
+    },{
     });
     return response.data;
   } catch (error: any) {
@@ -403,7 +375,6 @@ export async function generateMoreData(data: {
 export async function submitDataset(data: any) {
   try {
     const response = await api.post(`/datasets/submit`, data,{
-      headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
     })
     return response.data
   } catch (error: any) {
@@ -420,9 +391,8 @@ export async function parseReference(file: File) {
     const formData = new FormData()
     formData.append("file", file)
 
-    const response = await api.post(`/gen-ai/parse-reference`, formData,{
+    const response = await api.post(`/gen-ai/parse-reference`, formData, {
       headers: {
-        ...getAuthHeaders(),
         'Content-Type': 'multipart/form-data',
       },
     })
@@ -442,7 +412,6 @@ export async function testApiKey(apiKey: string, model: string = "gemini-2.5-fla
       apiKey,
       model,
     },{
-      headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
     })
     return response.data
   } catch (error: any) {
@@ -465,7 +434,6 @@ export async function indexFileForSemanticSearch(fileId: number, textColumns?: s
       text_columns: textColumns,
       force_reindex: forceReindex,
     }, {
-      headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
     })
     return response.data
   } catch (error: any) {
@@ -485,7 +453,6 @@ export async function semanticSearch(fileId: number, query: string, topK: number
       top_k: topK,
       min_score: minScore,
     }, {
-      headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
     })
     return response.data
   } catch (error: any) {
@@ -500,7 +467,6 @@ export async function semanticSearch(fileId: number, query: string, topK: number
 export async function getSemanticSearchIndexStatus(fileId: number) {
   try {
     const response = await api.get(`/api/semantic-search/index-status/${fileId}`, {
-      headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
     })
     return response.data
   } catch (error: any) {

@@ -45,9 +45,9 @@ export default function RegisterPage() {
           // Verify token is valid by calling /auth/me
           try {
             await getMe()
-            // User is already authenticated, redirect to dashboard
+            // User is already authenticated, redirect to projects
             setIsAuthenticated(true)
-            router.replace("/dashboard")
+            router.replace("/projects")
             return
           } catch (error) {
             // Token is invalid, clear it and show register form

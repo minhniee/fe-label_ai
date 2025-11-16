@@ -1,21 +1,4 @@
-import axios from 'axios'
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
-
-// Configure axios to send cookies with requests
-axios.defaults.withCredentials = true
-
-// Helper function to get auth headers (kept for backward compatibility)
-const getAuthHeaders = () => {
-  const headers: Record<string, string> = {}
-  try {
-    const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`
-    }
-  } catch {}
-  return headers
-}
+import api from './client'
 
 export interface Dataset {
   dataset_id: number
@@ -114,11 +97,7 @@ export interface DatasetUpdateRequest {
 // Get all datasets
 export async function getDatasets() {
   try {
-    const response = await axios.get<Dataset[]>(`${API_BASE}/datasets`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<Dataset[]>(`/datasets`, {
     })
     return response.data
   } catch (error: any) {
@@ -130,11 +109,7 @@ export async function getDatasets() {
 // GET /datasets/{dataset_id}
 export async function getDataset(datasetId: number): Promise<Dataset> {
   try {
-    const response = await axios.get<Dataset>(`${API_BASE}/datasets/${datasetId}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<Dataset>(`/datasets/${datasetId}`, {
     })
     return response.data
   } catch (error: any) {
@@ -146,13 +121,9 @@ export async function getDataset(datasetId: number): Promise<Dataset> {
 // Create dataset
 export async function createDataset(name: string, description?: string) {
   try {
-    const response = await axios.post<Dataset>(`${API_BASE}/datasets`, 
+    const response = await api.post<Dataset>(`/datasets`, 
       { name, description: description || "" }, 
       {
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
       }
     )
     return response.data
@@ -165,11 +136,7 @@ export async function createDataset(name: string, description?: string) {
 // PUT /datasets/{dataset_id}
 export async function updateDataset(datasetId: number, data: DatasetUpdateRequest): Promise<Dataset> {
   try {
-    const response = await axios.put<Dataset>(`${API_BASE}/datasets/${datasetId}`, data, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.put<Dataset>(`/datasets/${datasetId}`, data, {
     })
     return response.data
   } catch (error: any) {
@@ -181,11 +148,7 @@ export async function updateDataset(datasetId: number, data: DatasetUpdateReques
 // Delete dataset
 export async function deleteDataset(datasetId: number) {
   try {
-    await axios.delete(`${API_BASE}/datasets/${datasetId}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    await api.delete(`/datasets/${datasetId}`, {
     })
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to delete dataset'
@@ -196,13 +159,9 @@ export async function deleteDataset(datasetId: number) {
 // Create dataset version
 export async function createDatasetVersion(datasetId: number, changelog?: string) {
   try {
-    const response = await axios.post<DatasetVersion>(`${API_BASE}/datasets/${datasetId}/versions`, 
+    const response = await api.post<DatasetVersion>(`/datasets/${datasetId}/versions`, 
       { changelog: changelog || "Initial version" }, 
       {
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
       }
     )
     return response.data
@@ -215,11 +174,7 @@ export async function createDatasetVersion(datasetId: number, changelog?: string
 // Get dataset versions
 export async function getDatasetVersions(datasetId: number) {
   try {
-    const response = await axios.get<DatasetVersion[]>(`${API_BASE}/datasets/${datasetId}/versions`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<DatasetVersion[]>(`/datasets/${datasetId}/versions`, {
     })
     return response.data
   } catch (error: any) {
@@ -231,11 +186,7 @@ export async function getDatasetVersions(datasetId: number) {
 // GET /datasets/versions/{version_id}
 export async function getVersion(versionId: number): Promise<DatasetVersion> {
   try {
-    const response = await axios.get<DatasetVersion>(`${API_BASE}/datasets/versions/${versionId}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<DatasetVersion>(`/datasets/versions/${versionId}`, {
     })
     return response.data
   } catch (error: any) {
@@ -251,9 +202,8 @@ export async function uploadFileToVersion(versionId: number, file: File, fileTyp
   form.append("file_type", fileType)
 
   try {
-    const response = await axios.post(`${API_BASE}/datasets/versions/${versionId}/files`, form, {
+    const response = await api.post(`/datasets/versions/${versionId}/files`, form, {
       headers: {
-        ...getAuthHeaders(),
         'Content-Type': 'multipart/form-data',
       },
     })
@@ -274,9 +224,8 @@ export async function uploadFileToDataset(datasetId: number, file: File, fileTyp
   }
 
   try {
-    const response = await axios.post(`${API_BASE}/datasets/${datasetId}/upload`, form, {
+    const response = await api.post(`/datasets/${datasetId}/upload`, form, {
       headers: {
-        ...getAuthHeaders(),
         'Content-Type': 'multipart/form-data',
       },
     })
@@ -290,11 +239,7 @@ export async function uploadFileToDataset(datasetId: number, file: File, fileTyp
 // Get version files
 export async function getVersionFiles(versionId: number) {
   try {
-    const response = await axios.get<DataFile[]>(`${API_BASE}/datasets/versions/${versionId}/files`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<DataFile[]>(`/datasets/versions/${versionId}/files`, {
     })
     return response.data
   } catch (error: any) {
@@ -306,11 +251,7 @@ export async function getVersionFiles(versionId: number) {
 // GET /datasets/files/{file_id}
 export async function getFile(fileId: number): Promise<DataFile> {
   try {
-    const response = await axios.get<DataFile>(`${API_BASE}/datasets/files/${fileId}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<DataFile>(`/datasets/files/${fileId}`, {
     })
     return response.data
   } catch (error: any) {
@@ -322,11 +263,7 @@ export async function getFile(fileId: number): Promise<DataFile> {
 // Get preview of a file's content (parsed rows/headers)
 export async function getFilePreview(fileId: number, previewLines: number = 10): Promise<FilePreviewResponse> {
   try {
-    const response = await axios.get<any>(`${API_BASE}/datasets/files/${fileId}/preview?preview_lines=${previewLines}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<any>(`/datasets/files/${fileId}/preview?preview_lines=${previewLines}`, {
     })
     const raw = response.data
     
@@ -378,11 +315,7 @@ export async function getFilePreview(fileId: number, previewLines: number = 10):
 // Get actual data from a dataset version
 export async function getVersionData(datasetId: number, versionId: number) {
   try {
-    const response = await axios.get<any>(`${API_BASE}/datasets/${datasetId}/versions/${versionId}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<any>(`/datasets/${datasetId}/versions/${versionId}`, {
     })
     return response.data
   } catch (error: any) {
@@ -394,11 +327,7 @@ export async function getVersionData(datasetId: number, versionId: number) {
 // Get file data from a specific file
 export async function getFileData(fileId: number) {
   try {
-    const response = await axios.get<any>(`${API_BASE}/datasets/files/${fileId}/data`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<any>(`/datasets/files/${fileId}/data`, {
     })
     
     // Extract the data from the response structure
@@ -416,11 +345,7 @@ export async function getFileData(fileId: number) {
 // DELETE /datasets/files/{file_id}
 export async function deleteFile(fileId: number): Promise<void> {
   try {
-    await axios.delete(`${API_BASE}/datasets/files/${fileId}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    await api.delete(`/datasets/files/${fileId}`, {
     })
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to delete file'
@@ -431,11 +356,7 @@ export async function deleteFile(fileId: number): Promise<void> {
 // GET /datasets/{dataset_id}/history
 export async function getDatasetHistory(datasetId: number): Promise<DatasetHistoryResponse[]> {
   try {
-    const response = await axios.get<DatasetHistoryResponse[]>(`${API_BASE}/datasets/${datasetId}/history`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<DatasetHistoryResponse[]>(`/datasets/${datasetId}/history`, {
     })
     return response.data
   } catch (error: any) {
@@ -447,11 +368,7 @@ export async function getDatasetHistory(datasetId: number): Promise<DatasetHisto
 // GET /datasets/compare/{version1_id}/{version2_id}
 export async function compareVersions(version1Id: number, version2Id: number): Promise<DatasetCompareResponse> {
   try {
-    const response = await axios.get<DatasetCompareResponse>(`${API_BASE}/datasets/compare/${version1Id}/${version2Id}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<DatasetCompareResponse>(`/datasets/compare/${version1Id}/${version2Id}`, {
     })
     return response.data
   } catch (error: any) {
@@ -463,11 +380,7 @@ export async function compareVersions(version1Id: number, version2Id: number): P
 // GET /datasets/{dataset_id}/versions/{version_id}
 export async function getDatasetVersionData(datasetId: number, versionId: number): Promise<VersionDataResponse> {
   try {
-    const response = await axios.get<VersionDataResponse>(`${API_BASE}/datasets/${datasetId}/versions/${versionId}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<VersionDataResponse>(`/datasets/${datasetId}/versions/${versionId}`, {
     })
     return response.data
   } catch (error: any) {
@@ -479,11 +392,7 @@ export async function getDatasetVersionData(datasetId: number, versionId: number
 // GET /datasets/{dataset_id}/versions/{version_id}/files
 export async function getVersionFilesByDataset(datasetId: number, versionId: number): Promise<VersionFilesResponse> {
   try {
-    const response = await axios.get<VersionFilesResponse>(`${API_BASE}/datasets/${datasetId}/versions/${versionId}/files`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<VersionFilesResponse>(`/datasets/${datasetId}/versions/${versionId}/files`, {
     })
     return response.data
   } catch (error: any) {
@@ -494,11 +403,7 @@ export async function getVersionFilesByDataset(datasetId: number, versionId: num
 // GET /datasets/{dataset_id}/versions/{version_id}/complete
 export async function getVersionCompleteInfo(datasetId: number, versionId: number): Promise<VersionCompleteResponse> {
   try {
-    const response = await axios.get<VersionCompleteResponse>(`${API_BASE}/datasets/${datasetId}/versions/${versionId}/complete`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<VersionCompleteResponse>(`/datasets/${datasetId}/versions/${versionId}/complete`, {
     })
     return response.data
   } catch (error: any) {

@@ -232,9 +232,6 @@ export default function ProjectsPage() {
                   <SelectItem value="name">Name</SelectItem>
                 </SelectContent>
               </Select>
-              <Button variant="ghost" size="icon">
-                <SlidersHorizontal className="h-4 w-4" />
-              </Button>
             </div>
           </div>
 

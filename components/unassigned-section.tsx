@@ -96,9 +96,9 @@ export default function UnassignedSection() {
             <TooltipContent className="max-w-xs">
               <div>
                 <p className="font-bold">UNASSIGNED FILES</p>
-                <p>
+              <p>
                   These are files that are uploaded for easy user assignment. These are files that have no annotations and no assigned labels.
-                </p>
+              </p>
               </div>
             </TooltipContent>
           </Tooltip>
@@ -127,7 +127,7 @@ export default function UnassignedSection() {
           </div>
         ) : (
           batches.map((batch) => (
-            <div
+          <div
               key={batch.batch_id}
               className="border border-input rounded-md p-4 bg-background hover:bg-accent/50 transition-colors cursor-pointer"
               onClick={() => handleBatchSelect(batch)}
@@ -139,16 +139,16 @@ export default function UnassignedSection() {
                   handleBatchSelect(batch)
                 }
               }}
-            >
-              <div className="flex items-start justify-between mb-2">
+          >
+            <div className="flex items-start justify-between mb-2">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground truncate">{batch.name}</p>
                   <p className="text-xs text-muted-foreground mt-1">{batch.total_files} unassigned files</p>
-                </div>
-                <button className="text-muted-foreground hover:text-foreground flex-shrink-0">
-                  <MoreVertical className="w-4 h-4" />
-                </button>
               </div>
+                <button className="text-muted-foreground hover:text-foreground flex-shrink-0">
+                <MoreVertical className="w-4 h-4" />
+              </button>
+            </div>
               <button
                 type="button"
                 onClick={(event) => {
@@ -158,9 +158,9 @@ export default function UnassignedSection() {
                 className="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors text-sm font-medium mt-3"
               >
                 <span>Annotate Files</span>
-                <ArrowRight className="w-3 h-3" />
-              </button>
-            </div>
+              <ArrowRight className="w-3 h-3" />
+            </button>
+          </div>
           ))
         )}
       </div>
