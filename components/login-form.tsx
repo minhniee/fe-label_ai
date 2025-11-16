@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -26,11 +26,13 @@ import Link from "next/link"
 
 interface LoginFormProps extends React.ComponentProps<"div"> {
   callbackUrl?: string | null;
+  error?: string | null;
 }
 
 export function LoginForm({
   className,
   callbackUrl,
+  error,
   ...props
 }: LoginFormProps) {
   const { toast } = useToast()
@@ -41,6 +43,43 @@ export function LoginForm({
     identifier: "",
     password: "",
   })
+
+  // Display error message from URL query params
+  useEffect(() => {
+    if (error) {
+      let errorMessage = "An error occurred during authentication";
+      
+      switch (error) {
+        case "oauth_failed":
+          errorMessage = "Google OAuth authentication failed. Please try again.";
+          break;
+        case "oauth_error":
+          errorMessage = "OAuth authentication error. Please try again.";
+          break;
+        case "no_token":
+          errorMessage = "No authentication token received. Please try again.";
+          break;
+        case "storage_failed":
+          errorMessage = "Failed to save authentication data. Please check your browser settings.";
+          break;
+        default:
+          errorMessage = `Authentication error: ${error}`;
+      }
+      
+      toast({
+        title: "Authentication Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      
+      // Clean up the URL by removing the error parameter
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("error");
+        window.history.replaceState({}, "", url.toString());
+      }
+    }
+  }, [error, toast])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

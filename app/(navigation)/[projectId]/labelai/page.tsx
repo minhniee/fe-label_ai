@@ -11,7 +11,7 @@ import { ReferenceUploader } from "@/components/label-ai/reference-uploader"
 import { DatasetSelector } from "@/components/label-ai/dataset-selector"
 import { DocumentRAGManager } from "@/components/label-ai/document-rag-manager"
 import { DataGenerator } from "@/components/label-ai/data-generator"
-import { Loader2, ArrowLeft, Save, CheckCircle2 } from "lucide-react"
+import { Loader2, ArrowLeft, Save, CheckCircle2, Settings2, Search, X } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
@@ -22,7 +22,6 @@ import { SearchFilter } from "@/components/label-ai/search-filter"
 import { SemanticSearchFilter } from "@/components/label-ai/semantic-search-filter"
 import { ColumnVisibility } from "@/components/label-ai/column-visibility"
 import { DataManager } from "@/components/label-ai/data-manager"
-// import { AISearch } from "@/components/label-ai/ai-search"
 import { ColumnManager } from "@/components/label-ai/column-manager"
 import { getDatasetVersionData } from "@/app/api/labelai"
 import { getVersionFiles } from "@/app/api/dataset"
@@ -83,7 +82,6 @@ export default function Home() {
   const [manualMode, setManualMode] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [visibleColumns, setVisibleColumns] = useState<string[]>([])
-  const [searchResults, setSearchResults] = useState<any[]>([])
   const [semanticSearchResults, setSemanticSearchResults] = useState<any[]>([])
   const [currentFileId, setCurrentFileId] = useState<number | null>(null)
   const [batchFiles, setBatchFiles] = useState<any[]>([])
@@ -104,6 +102,7 @@ export default function Home() {
   const [completing, setCompleting] = useState(false)  // Track complete state
   const [newDatasetName, setNewDatasetName] = useState("")  // Dataset name for complete
   const [newDatasetDescription, setNewDatasetDescription] = useState("")  // Dataset description
+  const [isScrolled, setIsScrolled] = useState(false)  // Track scroll state for floating sidebar
 
   // Load batch files when in batch mode
   useEffect(() => {
@@ -111,6 +110,15 @@ export default function Home() {
       loadBatchFiles()
     }
   }, [batchId, fileIdsParam, projectId])
+
+  // Track scroll to show/hide floating sidebar
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 200)
+    }
+    window.addEventListener("scroll", handleScroll)
+    return () => window.removeEventListener("scroll", handleScroll)
+  }, [])
 
   const loadBatchFiles = async () => {
     try {
@@ -753,7 +761,6 @@ export default function Home() {
         ) : data.length === 0 && !batchId ? (
           view === "select" ? (
             <div className="space-y-6">
-              {/* <AISearch onSearchResults={setSearchResults} /> */}
               <DatasetSelector
                 onVersionSelect={handleVersionSelect}
                 onGenerateClick={() => setView("generate")}
@@ -770,7 +777,122 @@ export default function Home() {
             </div>
           )
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-6 relative">
+            {/* Floating Sidebar for Column Management - appears when scrolled */}
+            {isScrolled && data.length > 0 && (
+              <div className="fixed right-4 top-20 z-40 w-80 space-y-3 hidden lg:block animate-in slide-in-from-right duration-200">
+                <Card className="p-4 shadow-lg border-2 bg-background/95 backdrop-blur-sm max-h-[calc(100vh-7rem)] overflow-y-auto">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 pb-2 border-b sticky top-0 bg-background/95 backdrop-blur-sm z-10">
+                      <Settings2 className="h-4 w-4" />
+                      <h3 className="text-sm font-semibold">Quick Actions</h3>
+                    </div>
+                    
+                    {/* Manual Mode Switch */}
+                    <div className="space-y-2 pb-3 border-b">
+                      <Label htmlFor="sidebar-manual-mode" className="text-xs font-medium text-muted-foreground">
+                        Labeling Mode
+                      </Label>
+                      <div className="flex items-center gap-2">
+                        <Switch 
+                          id="sidebar-manual-mode" 
+                          checked={manualMode} 
+                          onCheckedChange={setManualMode} 
+                        />
+                        <Label htmlFor="sidebar-manual-mode" className="text-sm cursor-pointer">
+                          Manual Mode
+                        </Label>
+                      </div>
+                    </div>
+
+                    {/* Search Filters */}
+                    <div className="space-y-2 pb-3 border-b">
+                      <Label className="text-xs font-medium text-muted-foreground">Search</Label>
+                      <div className="space-y-2">
+                        <div className="relative w-full">
+                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
+                          <Input
+                            type="text"
+                            placeholder="Text search..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-10 pr-10 h-9 text-sm"
+                          />
+                          {searchQuery && (
+                            <button
+                              onClick={() => setSearchQuery("")}
+                              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                        {currentFileId && (
+                          <SemanticSearchFilter 
+                            fileId={currentFileId}
+                            onSearchResults={setSemanticSearchResults}
+                            placeholder="Semantic search..."
+                          />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Save File Button */}
+                    {currentFileId && batchId && (
+                      <div className="space-y-2 pb-3 border-b">
+                        <Label className="text-xs font-medium text-muted-foreground">File Actions</Label>
+                        <Button
+                          onClick={handleSaveFile}
+                          disabled={saving || data.length === 0}
+                          className="w-full gap-2"
+                          variant={data.filter(row => row._isModified).length > 0 ? "default" : "outline"}
+                          size="sm"
+                        >
+                          {saving ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <Save className="h-4 w-4" />
+                              Save File
+                              {data.filter(row => row._isModified).length > 0 && (
+                                <span className="ml-1 px-1.5 py-0.5 text-xs bg-primary/20 rounded">
+                                  {data.filter(row => row._isModified).length}
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Column Management */}
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium text-muted-foreground">Columns</Label>
+                      <div className="space-y-2">
+                        <ColumnManager
+                          columns={columns}
+                          data={data}
+                          contextColumn={contextColumn}
+                          resultColumn={resultColumn}
+                          onColumnsUpdateAction={handleColumnsUpdate}
+                          onDataUpdateAction={setData}
+                          onContextColumnChange={setContextColumn}
+                          onResultColumnChange={setResultColumn}
+                        />
+                        <ColumnVisibility
+                          columns={columns}
+                          visibleColumns={visibleColumns}
+                          onVisibilityChange={setVisibleColumns}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 {batchId ? (
@@ -940,7 +1062,7 @@ export default function Home() {
                 {/* Only show ReferenceUploader if no documents in project (fallback) */}
                 {!hasProjectDocuments && (
                   <ReferenceUploader
-                    onReferenceUpdate={(content) => {
+                    onReferenceUpdate={(content, files) => {
                       setReferenceContext(content)
                     }}
                   />
@@ -1007,6 +1129,9 @@ export default function Home() {
               onAddColumn={handleAddColumn}
               onGenerateMore={handleGenerateMore}
               contextColumn={contextColumn}
+              apiKey={embeddingConfig.apiKey}
+              model={embeddingConfig.model || "gemini-2.5-flash"}
+              referenceFileContent={referenceContext}
             />
 
             <DataGrid

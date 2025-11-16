@@ -12,17 +12,24 @@ export default function LoginPage() {
   const [isChecking, setIsChecking] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [callbackUrl, setCallbackUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Extract callback_url from query params to display to the user
+    // Extract callback_url and error from query params
     const searchParams = new URLSearchParams(window.location.search);
     const cbUrl = searchParams.get('callback_url');
+    const errorParam = searchParams.get('error');
+    
     if (cbUrl) {
       try {
         setCallbackUrl(decodeURIComponent(cbUrl));
       } catch (e) {
         console.error("Failed to decode callback_url:", e);
       }
+    }
+    
+    if (errorParam) {
+      setError(errorParam);
     }
     const checkAuth = async () => {
       try {
@@ -91,7 +98,7 @@ export default function LoginPage() {
 
           {/* Login Form */}
           <div className="mt-32">
-            <LoginForm callbackUrl={callbackUrl} />
+            <LoginForm callbackUrl={callbackUrl} error={error} />
           </div>
         </div>
       </div>

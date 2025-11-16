@@ -150,7 +150,7 @@ export function DataGenerator({ onDataGenerated }: DataGeneratorProps) {
             </div>
           </div>
             <ReferenceUploader
-              onReferenceUpdate={(content) => {
+              onReferenceUpdate={(content, files) => {
                 setReferenceContext(content)
               }}
             />

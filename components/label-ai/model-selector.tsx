@@ -54,7 +54,7 @@ export function ModelSelector({
   onLabel,
   onTestKey,
 }: ModelSelectorProps) {
-  const [model, setModel] = useState("gemini-flash-2.5")
+  const [model, setModel] = useState("gemini-2.5-flash")
   const [apiKey, setApiKey] = useState("")
   const [isLabeling, setIsLabeling] = useState(false)
   const [isTestingKey, setIsTestingKey] = useState(false)
@@ -231,7 +231,7 @@ export function ModelSelector({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="gemini-flash-2.5">Gemini Flash 2.5</SelectItem>
+                <SelectItem value="gemini-2.5-flash">Gemini Flash 2.5</SelectItem>
                 <SelectItem value="gpt-4o">GPT-4o</SelectItem>
               </SelectContent>
             </Select>

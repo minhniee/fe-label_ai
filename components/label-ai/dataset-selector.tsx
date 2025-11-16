@@ -196,7 +196,7 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
     setApiKeyStatus("idle")
 
     try {
-      const result = await testApiKey(apiKey.trim(), "gemini-flash-2.5")
+      const result = await testApiKey(apiKey.trim(), "gemini-2.5-flash")
 
       if (result.success) {
         setApiKeyStatus("valid")

@@ -356,6 +356,15 @@ export async function generateMoreData(data: {
   referenceFileContent: string;
 }) {
   try {
+    console.log("Calling generateMoreData API:", {
+      url: `/gen-ai/generate-rows-from-file`,
+      method: "POST",
+      columns: data.columns.length,
+      count: data.count,
+      hasContent: !!data.referenceFileContent,
+      contentLength: data.referenceFileContent?.length || 0
+    });
+    
     const response = await api.post(`/gen-ai/generate-rows-from-file`, {
       file_content: data.referenceFileContent,
       columns: data.columns,
@@ -364,12 +373,26 @@ export async function generateMoreData(data: {
       context_column: data.contextColumn,
       api_key: data.apiKey,
       model: data.model,
-    },{
-      headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
+    }, {
+      headers: {
+        ...getAuthHeaders(),
+        'Content-Type': 'application/json',
+      },
     });
     return response.data;
   } catch (error: any) {
-    const errorMessage = error?.response?.data?.error || error.message || "Failed to generate more data";
+    console.error("Error generating more data:", error);
+    console.error("Error response:", error?.response?.data);
+    console.error("Request method:", error?.config?.method);
+    console.error("Request URL:", error?.config?.url);
+    
+    // Get error message from different possible locations
+    const errorMessage = 
+      error?.response?.data?.detail || 
+      error?.response?.data?.error || 
+      error?.message || 
+      "Failed to generate more data";
+    
     throw new Error(errorMessage);
   }
 }
@@ -413,7 +436,7 @@ export async function parseReference(file: File) {
 /**
  * Test API key
  */
-export async function testApiKey(apiKey: string, model: string = "gemini-flash-2.5") {
+export async function testApiKey(apiKey: string, model: string = "gemini-2.5-flash") {
   try {
     const response = await api.post(`/ai-labeling/test-key`, {
       apiKey,
