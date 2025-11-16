@@ -228,7 +228,7 @@ export interface AssignBatchToUsersResponse {
 export interface DistributeFileRequest {
   project_id: number
   file_id: number
-  chunk_size: number
+  chunk_size?: number // Optional - API will auto-calculate if not provided
   user_ids: number[]
   distribution_method?: 'round_robin' | 'first_takes_remainder'
   notes?: string
