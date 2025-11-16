@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Card } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -40,6 +41,7 @@ import {
 } from "lucide-react";
 import { useProjectFromSlug } from "@/hooks/use-project-from-slug";
 import { getProjectFiles, generateDatasetFromProject } from "@/app/api/project";
+import { getDatasets, getVersionCompleteInfo, getDatasetVersions, type Dataset } from "@/app/api/dataset";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 
@@ -48,70 +50,52 @@ export default function ProjectDatasetPage() {
   const { project } = useProjectFromSlug();
   const projectSlug = params.projectId as string;
 
-  const [annotatedFiles, setAnnotatedFiles] = useState<any[]>([]);
-  const [filteredFiles, setFilteredFiles] = useState<any[]>([]);
+  const [datasets, setDatasets] = useState<Dataset[]>([]);
+  const [filteredDatasets, setFilteredDatasets] = useState<Dataset[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filenameFilter, setFilenameFilter] = useState("");
-  const [selectedFiles, setSelectedFiles] = useState<Set<number>>(new Set());
-  const [showAnnotations, setShowAnnotations] = useState(true);
+  const [selectedDatasets, setSelectedDatasets] = useState<Set<number>>(new Set());
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [sortBy, setSortBy] = useState("newest");
   const [currentPage, setCurrentPage] = useState(1);
-  const [imagesPerPage, setImagesPerPage] = useState(50);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
   
   // Export dialog state
   const [isExportOpen, setIsExportOpen] = useState(false);
-  const [exportName, setExportName] = useState("");
-  const [exportDescription, setExportDescription] = useState("");
-  const [exportType, setExportType] = useState<"full" | "partial" | "verified_only">("full");
+  const [selectedDatasetId, setSelectedDatasetId] = useState<number | null>(null);
+  const [exportFormat, setExportFormat] = useState<"csv" | "xlsx" | "json">("csv");
   const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
-    if (project) {
-      loadAnnotatedFiles();
-    }
-  }, [project]);
+    loadDatasets();
+  }, []);
 
   useEffect(() => {
-    filterAndSortFiles();
-  }, [annotatedFiles, searchQuery, filenameFilter, sortBy]);
+    filterAndSortDatasets();
+  }, [datasets, searchQuery, sortBy]);
 
-  const loadAnnotatedFiles = async () => {
+  const loadDatasets = async () => {
     try {
       setIsLoading(true);
-      const files = await getProjectFiles(parseInt(project!.id));
-      
-      // Filter only annotated files (completed or verified)
-      const annotated = files.filter(
-        f => f.annotation_status === 'completed' || f.annotation_status === 'verified'
-      );
-      
-      setAnnotatedFiles(annotated);
+      const datasetsList = await getDatasets();
+      setDatasets(datasetsList);
     } catch (error: any) {
-      console.error("Failed to load annotated files:", error);
-      toast.error("Failed to load files");
+      console.error("Failed to load datasets:", error);
+      toast.error("Failed to load datasets");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const filterAndSortFiles = () => {
-    let filtered = [...annotatedFiles];
+  const filterAndSortDatasets = () => {
+    let filtered = [...datasets];
 
     // Search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(f =>
-        f.filename.toLowerCase().includes(query)
-      );
-    }
-
-    // Filename filter
-    if (filenameFilter.trim()) {
-      const filter = filenameFilter.toLowerCase();
-      filtered = filtered.filter(f =>
-        f.filename.toLowerCase().includes(filter)
+      filtered = filtered.filter(d =>
+        d.name.toLowerCase().includes(query) ||
+        (d.description && d.description.toLowerCase().includes(query))
       );
     }
 
@@ -119,27 +103,27 @@ export default function ProjectDatasetPage() {
     filtered.sort((a, b) => {
       switch (sortBy) {
         case "newest":
-          return new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime();
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
         case "oldest":
-          return new Date(a.uploaded_at).getTime() - new Date(b.uploaded_at).getTime();
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
         case "name":
-          return a.filename.localeCompare(b.filename);
+          return a.name.localeCompare(b.name);
         default:
           return 0;
       }
     });
 
-    setFilteredFiles(filtered);
+    setFilteredDatasets(filtered);
     setCurrentPage(1); // Reset to first page when filtering
   };
 
-  const handleFileSelect = (fileId: number, checked: boolean) => {
-    setSelectedFiles(prev => {
+  const handleDatasetSelect = (datasetId: number, checked: boolean) => {
+    setSelectedDatasets(prev => {
       const newSet = new Set(prev);
       if (checked) {
-        newSet.add(fileId);
+        newSet.add(datasetId);
       } else {
-        newSet.delete(fileId);
+        newSet.delete(datasetId);
       }
       return newSet;
     });
@@ -147,38 +131,111 @@ export default function ProjectDatasetPage() {
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      const allIds = new Set(paginatedFiles.map(f => f.file_id));
-      setSelectedFiles(allIds);
+      const allIds = new Set(paginatedDatasets.map(d => d.dataset_id));
+      setSelectedDatasets(allIds);
     } else {
-      setSelectedFiles(new Set());
+      setSelectedDatasets(new Set());
+    }
+  };
+
+  const handleExportClick = (dataset: Dataset) => {
+    setSelectedDatasetId(dataset.dataset_id);
+    setIsExportOpen(true);
+  };
+
+  const exportToCSV = (data: any[], filename: string) => {
+    if (data.length === 0) return;
+    
+    const headers = Object.keys(data[0]);
+    const csvContent = [
+      headers.join(','),
+      ...data.map(row => headers.map(header => {
+        const value = row[header];
+        // Escape commas and quotes in CSV
+        if (typeof value === 'string' && (value.includes(',') || value.includes('"') || value.includes('\n'))) {
+          return `"${value.replace(/"/g, '""')}"`;
+        }
+        return value ?? '';
+      }).join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${filename}.csv`;
+    link.click();
+  };
+
+  const exportToJSON = (data: any[], filename: string) => {
+    const jsonContent = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${filename}.json`;
+    link.click();
+  };
+
+  const exportToXLSX = async (data: any[], filename: string) => {
+    try {
+      // Dynamic import for xlsx library
+      const XLSX = await import('xlsx');
+      const worksheet = XLSX.utils.json_to_sheet(data);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
+      XLSX.writeFile(workbook, `${filename}.xlsx`);
+    } catch (error) {
+      console.error("Failed to export to XLSX:", error);
+      toast.error("XLSX export requires xlsx library. Please install it: npm install xlsx");
     }
   };
 
   const handleExport = async () => {
-    if (!exportName.trim()) {
-      toast.error("Please enter a dataset name");
-      return;
-    }
-
-    if (!project) {
-      toast.error("Project not found");
+    if (!selectedDatasetId) {
+      toast.error("Please select a dataset");
       return;
     }
 
     setIsExporting(true);
     try {
-      const response = await generateDatasetFromProject(parseInt(project.id), {
-        dataset_name: exportName,
-        dataset_description: exportDescription || undefined,
-        export_type: exportType,
-        copy_permissions: true,
-      });
+      // Get dataset versions first to find the latest version
+      const { getDatasetVersions } = await import("@/app/api/dataset");
+      const versions = await getDatasetVersions(selectedDatasetId);
+      
+      if (!versions || versions.length === 0) {
+        toast.error("Dataset has no versions");
+        return;
+      }
 
-      toast.success(`Dataset "${exportName}" created successfully! ${response.files_exported} files exported.`);
+      // Get the latest version (highest version_number)
+      const latestVersion = versions.sort((a, b) => b.version_number - a.version_number)[0];
+      
+      // Get dataset version data
+      const datasetInfo = await getVersionCompleteInfo(selectedDatasetId, latestVersion.version_id);
+      
+      if (!datasetInfo.success || !datasetInfo.data || datasetInfo.data.length === 0) {
+        toast.error("Dataset is empty or not found");
+        return;
+      }
+
+      const data = Array.isArray(datasetInfo.data) ? datasetInfo.data : [];
+      const dataset = datasets.find(d => d.dataset_id === selectedDatasetId);
+      const filename = dataset?.name || `dataset_${selectedDatasetId}`;
+
+      switch (exportFormat) {
+        case 'csv':
+          exportToCSV(data, filename);
+          break;
+        case 'json':
+          exportToJSON(data, filename);
+          break;
+        case 'xlsx':
+          await exportToXLSX(data, filename);
+          break;
+      }
+
+      toast.success(`Dataset exported as ${exportFormat.toUpperCase()} successfully!`);
       setIsExportOpen(false);
-      setExportName("");
-      setExportDescription("");
-      setExportType("full");
+      setSelectedDatasetId(null);
     } catch (error: any) {
       console.error("Failed to export dataset:", error);
       toast.error(error.message || "Failed to export dataset");
@@ -188,11 +245,11 @@ export default function ProjectDatasetPage() {
   };
 
   // Pagination
-  const totalPages = Math.ceil(filteredFiles.length / imagesPerPage);
-  const startIndex = (currentPage - 1) * imagesPerPage;
-  const endIndex = startIndex + imagesPerPage;
-  const paginatedFiles = filteredFiles.slice(startIndex, endIndex);
-  const allSelected = paginatedFiles.length > 0 && paginatedFiles.every(f => selectedFiles.has(f.file_id));
+  const totalPages = Math.ceil(filteredDatasets.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedDatasets = filteredDatasets.slice(startIndex, endIndex);
+  const allSelected = paginatedDatasets.length > 0 && paginatedDatasets.every(d => selectedDatasets.has(d.dataset_id));
 
   if (isLoading) {
     return (
@@ -214,73 +271,64 @@ export default function ProjectDatasetPage() {
               How to Search
             </Button> */}
           </div>
+          {/* <Button
+            variant="outline"
+            onClick={() => {
+              toast.info("Please select a dataset and click Export button");
+            }}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export Dataset
+          </Button> */}
           <Dialog open={isExportOpen} onOpenChange={setIsExportOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Download className="h-4 w-4 mr-2" />
-                Export file
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-md">
               <DialogHeader>
                 <DialogTitle>Export Dataset</DialogTitle>
                 <DialogDescription>
-                  Generate a dataset from completed project annotations
+                  Choose export format for the selected dataset
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
+                {selectedDatasetId && (
+                  <div className="space-y-2">
+                    <Label>Selected Dataset</Label>
+                    <p className="text-sm font-medium">
+                      {datasets.find(d => d.dataset_id === selectedDatasetId)?.name || 'Unknown'}
+                    </p>
+                  </div>
+                )}
                 <div className="space-y-2">
-                  <Label htmlFor="export-name">Dataset Name *</Label>
-                  <Input
-                    id="export-name"
-                    placeholder="e.g., My Dataset v1"
-                    value={exportName}
-                    onChange={(e) => setExportName(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="export-description">Description</Label>
-                  <Input
-                    id="export-description"
-                    placeholder="Optional description"
-                    value={exportDescription}
-                    onChange={(e) => setExportDescription(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="export-type">Export Type</Label>
+                  <Label htmlFor="export-format">Export Format *</Label>
                   <Select
-                    value={exportType}
-                    onValueChange={(value: any) => setExportType(value)}
+                    value={exportFormat}
+                    onValueChange={(value: any) => setExportFormat(value)}
                   >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="full">Full - All annotated files</SelectItem>
-                      <SelectItem value="partial">Partial - Only completed files</SelectItem>
-                      <SelectItem value="verified_only">Verified Only - Only verified files</SelectItem>
+                      <SelectItem value="csv">CSV (.csv)</SelectItem>
+                      <SelectItem value="xlsx">Excel (.xlsx)</SelectItem>
+                      <SelectItem value="json">JSON (.json)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  <p>Total annotated files: {annotatedFiles.length}</p>
-                  <p className="mt-1">
-                    {exportType === "full" && "Will export all annotated files"}
-                    {exportType === "partial" && "Will export only completed files"}
-                    {exportType === "verified_only" && "Will export only verified files"}
-                  </p>
+                  <p>The dataset will be exported in {exportFormat.toUpperCase()} format.</p>
                 </div>
               </div>
               <DialogFooter>
                 <Button
                   variant="outline"
-                  onClick={() => setIsExportOpen(false)}
+                  onClick={() => {
+                    setIsExportOpen(false);
+                    setSelectedDatasetId(null);
+                  }}
                   disabled={isExporting}
                 >
                   Cancel
                 </Button>
-                <Button onClick={handleExport} disabled={isExporting || !exportName.trim()}>
+                <Button onClick={handleExport} disabled={isExporting || !selectedDatasetId}>
                   {isExporting ? "Exporting..." : "Export Dataset"}
                 </Button>
               </DialogFooter>
@@ -293,7 +341,7 @@ export default function ProjectDatasetPage() {
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search images"
+              placeholder="Search datasets..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -303,37 +351,6 @@ export default function ProjectDatasetPage() {
 
         {/* Filters */}
         <div className="flex items-center gap-4 flex-wrap">
-          <div className="flex items-center gap-2">
-            <Label htmlFor="filename-filter" className="text-sm whitespace-nowrap">
-              Filter by filename
-            </Label>
-            <Input
-              id="filename-filter"
-              placeholder="Enter filename"
-              value={filenameFilter}
-              onChange={(e) => setFilenameFilter(e.target.value)}
-              className="w-48"
-            />
-          </div>
-          <Select defaultValue="all">
-            <SelectTrigger className="w-32">
-              <SelectValue placeholder="Split" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="train">Train</SelectItem>
-              <SelectItem value="val">Validation</SelectItem>
-              <SelectItem value="test">Test</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select defaultValue="all">
-            <SelectTrigger className="w-32">
-              <SelectValue placeholder="Classes" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Classes</SelectItem>
-            </SelectContent>
-          </Select>
           <Select value={sortBy} onValueChange={setSortBy}>
             <SelectTrigger className="w-40">
               <SelectValue />
@@ -344,10 +361,6 @@ export default function ProjectDatasetPage() {
               <SelectItem value="name">Sort By Name</SelectItem>
             </SelectContent>
           </Select>
-          {/* <Button variant="outline" size="sm">
-            <Camera className="h-4 w-4 mr-2" />
-            Search by Image
-          </Button> */}
         </div>
 
         {/* Selection and View Options */}
@@ -390,89 +403,86 @@ export default function ProjectDatasetPage() {
 
       {/* Content Area */}
       <div className="flex-1 overflow-y-auto p-6">
-        {filteredFiles.length === 0 ? (
+        {filteredDatasets.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-            <ImageIcon className="h-12 w-12 mb-4" />
-            <p>No annotated files found</p>
+            <FileText className="h-12 w-12 mb-4" />
+            <p>No datasets found</p>
           </div>
         ) : (
           <div
             className={
               viewMode === "grid"
-                ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
+                ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
                 : "space-y-2"
             }
           >
-            {paginatedFiles.map((file) => (
-              <div
-                key={file.file_id}
-                className={`group cursor-pointer ${
-                  viewMode === "grid" ? "" : "flex items-center gap-4 p-2 border rounded-lg hover:bg-muted"
+            {paginatedDatasets.map((dataset) => (
+              <Card
+                key={dataset.dataset_id}
+                className={`group cursor-pointer hover:border-primary transition-colors ${
+                  viewMode === "list" ? "p-4" : ""
                 }`}
               >
                 {viewMode === "grid" ? (
-                  <>
-                    <div className="relative aspect-square rounded-lg border bg-muted flex items-center justify-center overflow-hidden hover:border-primary transition-colors">
-                      <Checkbox
-                        checked={selectedFiles.has(file.file_id)}
-                        onCheckedChange={(checked) =>
-                          handleFileSelect(file.file_id, checked as boolean)
-                        }
-                        className="absolute top-2 left-2 z-10"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      {file.file_type?.startsWith("image/") ? (
-                        <img
-                          src={`${process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"}/files/${file.file_path}`}
-                          alt={file.filename}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = "none";
-                          }}
-                        />
-                      ) : (
-                        <FileText className="h-8 w-8 text-muted-foreground" />
-                      )}
-                      {showAnnotations && (
-                        <Badge
-                          variant="secondary"
-                          className="absolute bottom-2 right-2 text-xs"
-                        >
-                          {file.annotation_status}
-                        </Badge>
-                      )}
+                  <div className="p-4">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold truncate" title={dataset.name}>
+                          {dataset.name}
+                        </h3>
+                        {dataset.description && (
+                          <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                            {dataset.description}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    <p className="text-xs truncate mt-2" title={file.filename}>
-                      {file.filename}
-                    </p>
-                  </>
+                    <div className="flex items-center justify-between mt-4">
+                      <div className="text-xs text-muted-foreground">
+                        <p>Created: {new Date(dataset.created_at).toLocaleDateString()}</p>
+                        <p>By: {dataset.created_by_username}</p>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleExportClick(dataset);
+                        }}
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Export
+                      </Button>
+                    </div>
+                  </div>
                 ) : (
-                  <>
-                    <Checkbox
-                      checked={selectedFiles.has(file.file_id)}
-                      onCheckedChange={(checked) =>
-                        handleFileSelect(file.file_id, checked as boolean)
-                      }
-                    />
-                    <div className="w-16 h-16 rounded border bg-muted flex items-center justify-center flex-shrink-0">
-                      {file.file_type?.startsWith("image/") ? (
-                        <ImageIcon className="h-6 w-6 text-muted-foreground" />
-                      ) : (
-                        <FileText className="h-6 w-6 text-muted-foreground" />
-                      )}
+                  <div className="flex items-center gap-4 p-4">
+                    <div className="w-12 h-12 rounded border bg-muted flex items-center justify-center flex-shrink-0">
+                      <FileText className="h-6 w-6 text-muted-foreground" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{file.filename}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {file.annotation_status} • {new Date(file.uploaded_at).toLocaleDateString()}
+                      <h3 className="font-semibold truncate">{dataset.name}</h3>
+                      {dataset.description && (
+                        <p className="text-sm text-muted-foreground truncate mt-1">
+                          {dataset.description}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Created: {new Date(dataset.created_at).toLocaleDateString()} • By: {dataset.created_by_username}
                       </p>
                     </div>
-                    {showAnnotations && (
-                      <Badge variant="secondary">{file.annotation_status}</Badge>
-                    )}
-                  </>
+                    <Button
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleExportClick(dataset);
+                      }}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Export
+                    </Button>
+                  </div>
                 )}
-              </div>
+              </Card>
             ))}
           </div>
         )}
@@ -482,13 +492,13 @@ export default function ProjectDatasetPage() {
       <div className="border-t bg-background p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Label htmlFor="images-per-page" className="text-sm">
-              Images per page:
+            <Label htmlFor="items-per-page" className="text-sm">
+              Items per page:
             </Label>
             <Select
-              value={imagesPerPage.toString()}
+              value={itemsPerPage.toString()}
               onValueChange={(value) => {
-                setImagesPerPage(parseInt(value));
+                setItemsPerPage(parseInt(value));
                 setCurrentPage(1);
               }}
             >
@@ -505,7 +515,7 @@ export default function ProjectDatasetPage() {
           </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground">
-              {startIndex + 1} - {Math.min(endIndex, filteredFiles.length)} of {filteredFiles.length}
+              {startIndex + 1} - {Math.min(endIndex, filteredDatasets.length)} of {filteredDatasets.length}
             </span>
             <div className="flex items-center gap-1">
               <Button

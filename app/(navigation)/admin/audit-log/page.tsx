@@ -97,13 +97,51 @@ export default function AuditLogPage() {
   const loadEvents = async () => {
     setIsLoading(true);
     try {
-      const response = await listAuditEvents({
-        ...eventFilters,
+      // Build query with filters, but only include defined filters
+      const query: AuditEventQuery = {
         page: eventsPage,
         page_size: pageSize,
-      });
-      setEvents(response.items);
-      setEventsTotal(response.total);
+      };
+      
+      // Only add filters that are actually set
+      if (eventFilters.user_id) {
+        query.user_id = eventFilters.user_id;
+      }
+      if (eventFilters.action) {
+        query.action = eventFilters.action;
+      }
+      if (eventFilters.resource_type) {
+        query.resource_type = eventFilters.resource_type;
+      }
+      if (eventFilters.resource_id) {
+        query.resource_id = eventFilters.resource_id;
+      }
+      if (eventFilters.request_id) {
+        query.request_id = eventFilters.request_id;
+      }
+      if (eventFilters.http_method) {
+        query.http_method = eventFilters.http_method;
+      }
+      if (eventFilters.status_code) {
+        query.status_code = eventFilters.status_code;
+      }
+      if (eventFilters.ip_address) {
+        query.ip_address = eventFilters.ip_address;
+      }
+      if (eventFilters.from_time) {
+        query.from_time = eventFilters.from_time;
+      }
+      if (eventFilters.to_time) {
+        query.to_time = eventFilters.to_time;
+      }
+      
+      console.log("Loading audit events with query:", query);
+      
+      const response = await listAuditEvents(query);
+      console.log("Audit events response:", response);
+      
+      setEvents(response.items || []);
+      setEventsTotal(response.total || 0);
     } catch (error: any) {
       console.error("Failed to load audit events:", error);
       
@@ -119,6 +157,10 @@ export default function AuditLogPage() {
       } else {
         toast.error(error.message || "Failed to load audit events");
       }
+      
+      // Set empty state on error
+      setEvents([]);
+      setEventsTotal(0);
     } finally {
       setIsLoading(false);
     }
@@ -128,15 +170,50 @@ export default function AuditLogPage() {
   const loadChanges = async () => {
     setIsLoading(true);
     try {
-      const response = await listAuditChanges({
-        ...changeFilters,
+      // Build query with filters, but only include defined filters
+      const query: AuditChangeQuery = {
         page: changesPage,
         page_size: pageSize,
-      });
-      setChanges(response.items);
-      setChangesTotal(response.total);
+      };
+      
+      // Only add filters that are actually set
+      if (changeFilters.user_id) {
+        query.user_id = changeFilters.user_id;
+      }
+      if (changeFilters.table_name) {
+        query.table_name = changeFilters.table_name;
+      }
+      if (changeFilters.operation) {
+        query.operation = changeFilters.operation;
+      }
+      if (changeFilters.request_id) {
+        query.request_id = changeFilters.request_id;
+      }
+      if (changeFilters.from_time) {
+        query.from_time = changeFilters.from_time;
+      }
+      if (changeFilters.to_time) {
+        query.to_time = changeFilters.to_time;
+      }
+      
+      console.log("Loading audit changes with query:", query);
+      
+      const response = await listAuditChanges(query);
+      console.log("Audit changes response:", response);
+      
+      setChanges(response.items || []);
+      setChangesTotal(response.total || 0);
+      
+      if (response.items && response.items.length === 0) {
+        console.log("No changes found with current filters");
+      }
     } catch (error: any) {
       console.error("Failed to load audit changes:", error);
+      console.error("Error details:", {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+      });
       
       // Provide more specific error messages
       if (error.response?.status === 401) {
@@ -150,10 +227,33 @@ export default function AuditLogPage() {
       } else {
         toast.error(error.message || "Failed to load audit changes");
       }
+      
+      // Set empty state on error
+      setChanges([]);
+      setChangesTotal(0);
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Reset page when filters change and reload data
+  useEffect(() => {
+    if (activeTab === "events") {
+      setEventsPage(1);
+      // Load events when filters change
+      loadEvents();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, eventFilters]);
+
+  useEffect(() => {
+    if (activeTab === "changes") {
+      setChangesPage(1);
+      // Load changes when filters change
+      loadChanges();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, changeFilters]);
 
   // Load data when tab or page changes
   useEffect(() => {
@@ -164,19 +264,6 @@ export default function AuditLogPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, eventsPage, changesPage]);
-
-  // Reset page when filters change
-  useEffect(() => {
-    if (activeTab === "events") {
-      setEventsPage(1);
-    }
-  }, [activeTab, eventFilters]);
-
-  useEffect(() => {
-    if (activeTab === "changes") {
-      setChangesPage(1);
-    }
-  }, [activeTab, changeFilters]);
 
   const formatTimestamp = (timestamp: string) => {
     try {
@@ -359,11 +446,24 @@ export default function AuditLogPage() {
                   </div>
 
                   <div className="flex gap-2 mt-4">
-                    <Button onClick={handleResetFilters} variant="outline" size="sm">
+                    <Button 
+                      onClick={handleResetFilters} 
+                      variant="outline" 
+                      size="sm"
+                      disabled={isLoading}
+                    >
                       <RefreshCw className="w-4 h-4 mr-2" />
                       Reset
                     </Button>
-                    <Button onClick={loadEvents} variant="outline" size="sm">
+                    <Button 
+                      onClick={() => {
+                        setEventsPage(1);
+                        loadEvents();
+                      }} 
+                      variant="outline" 
+                      size="sm"
+                      disabled={isLoading}
+                    >
                       <Search className="w-4 h-4 mr-2" />
                       Apply Filters
                     </Button>
@@ -575,11 +675,24 @@ export default function AuditLogPage() {
                   </div>
 
                   <div className="flex gap-2 mt-4">
-                    <Button onClick={handleResetFilters} variant="outline" size="sm">
+                    <Button 
+                      onClick={handleResetFilters} 
+                      variant="outline" 
+                      size="sm"
+                      disabled={isLoading}
+                    >
                       <RefreshCw className="w-4 h-4 mr-2" />
                       Reset
                     </Button>
-                    <Button onClick={loadChanges} variant="outline" size="sm">
+                    <Button 
+                      onClick={() => {
+                        setChangesPage(1);
+                        loadChanges();
+                      }} 
+                      variant="outline" 
+                      size="sm"
+                      disabled={isLoading}
+                    >
                       <Search className="w-4 h-4 mr-2" />
                       Apply Filters
                     </Button>

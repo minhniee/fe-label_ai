@@ -736,6 +736,7 @@ export default function Home() {
               visibleColumns={visibleColumns}
               contextColumn={contextColumn}
               resultColumn={resultColumn}
+              projectId={parseInt(projectId)}
               onDataUpdate={(updatedRows) => {
                 // If updatedRows length matches allData length, replace entire dataset
                 if (updatedRows.length === data.length && updatedRows.length > 0) {
