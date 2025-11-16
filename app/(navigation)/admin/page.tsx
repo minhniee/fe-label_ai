@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { ExternalLink, Download, Users, BarChart3, LayoutDashboard } from "lucide-react"
+import { ExternalLink, Download, Users, BarChart3, LayoutDashboard, FileText } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default function AdminPage() {
@@ -80,6 +80,24 @@ export default function AdminPage() {
             <Link href="/admin/statistic">
               <Button className="w-full" variant="outline">
                 Go to Statistics
+                <ExternalLink className="w-4 h-4 ml-2" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-lg transition-shadow">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Audit Log
+            </CardTitle>
+            <CardDescription>Track system changes and user activities</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/admin/audit-log">
+              <Button className="w-full" variant="outline">
+                Go to Audit Log
                 <ExternalLink className="w-4 h-4 ml-2" />
               </Button>
             </Link>

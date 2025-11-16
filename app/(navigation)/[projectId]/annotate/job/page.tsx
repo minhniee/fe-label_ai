@@ -55,6 +55,7 @@ export default function ProjectJobPage() {
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [batchAssignments, setBatchAssignments] = useState<any[]>([]);
   const [assignmentHistory, setAssignmentHistory] = useState<any[]>([]);
+  const [csvRowCounts, setCsvRowCounts] = useState<{ [fileId: number]: number }>({});
 
   // Load job data on mount
   useEffect(() => {
@@ -102,6 +103,13 @@ export default function ProjectJobPage() {
       // Get instructions from batch metadata
       if (batch.batch_metadata?.instructions) {
         setInstructions(batch.batch_metadata.instructions);
+      }
+      
+      // Load CSV row counts from batch metadata (if available)
+      if (batch.batch_metadata?.csv_row_counts) {
+        const rowCounts = batch.batch_metadata.csv_row_counts;
+        setCsvRowCounts(rowCounts);
+        console.log("Loaded CSV row counts from metadata:", rowCounts);
       }
 
       // Load assignment history from batch metadata
@@ -168,6 +176,11 @@ export default function ProjectJobPage() {
       setUnannotatedFiles(unannotated);
       setAnnotatedFiles(annotated);
 
+      // Load CSV row counts for all files (only if not already loaded from metadata)
+      if (!batch.batch_metadata?.csv_row_counts) {
+        await loadCsvRowCounts([...unannotated, ...annotated]);
+      }
+
       // Load audit logs for this batch
       await loadAuditLogs(parseInt(batchId!));
 
@@ -222,6 +235,59 @@ export default function ProjectJobPage() {
     } catch (error: any) {
       console.error("Failed to load collaborators:", error);
     }
+  };
+
+  // Function to read CSV file and count rows from URL
+  const readCsvRowCountFromUrl = async (fileUrl: string): Promise<number> => {
+    try {
+      const response = await fetch(fileUrl);
+      const text = await response.text();
+      
+      if (!text) return 0;
+      
+      // Split by newlines and filter out empty lines
+      const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
+      
+      if (lines.length === 0) return 0;
+      
+      // Check if first line looks like a header
+      const firstLine = lines[0].toLowerCase();
+      const headerKeywords = ['id', 'name', 'text', 'label', 'content', 'data', 'value', 'title', 'description'];
+      const hasHeader = headerKeywords.some(keyword => firstLine.includes(keyword));
+      
+      // Count data rows (exclude header if detected)
+      return hasHeader ? lines.length - 1 : lines.length;
+    } catch (error) {
+      console.error("Error reading CSV file from URL:", error);
+      return 0;
+    }
+  };
+
+  // Load CSV row counts for all CSV files
+  const loadCsvRowCounts = async (files: any[]) => {
+    const DATA_EXTENSIONS = [".xlsx", ".json", ".csv"];
+    const newRowCounts: { [fileId: number]: number } = {};
+    
+    for (const file of files) {
+      if (file.filename && DATA_EXTENSIONS.some(ext => file.filename.toLowerCase().endsWith(ext))) {
+        // For CSV files, try to read from file_path or download
+        if (file.filename.toLowerCase().endsWith('.csv')) {
+          try {
+            // Try to get file URL from API
+            const fileUrl = file.file_path?.startsWith('http') 
+              ? file.file_path 
+              : `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/files/${file.file_id}/download`;
+            
+            const rowCount = await readCsvRowCountFromUrl(fileUrl);
+            newRowCounts[file.file_id] = rowCount;
+          } catch (error) {
+            console.error(`Failed to read CSV file ${file.filename}:`, error);
+          }
+        }
+      }
+    }
+    
+    setCsvRowCounts(newRowCounts);
   };
 
   const handleReassign = async () => {
@@ -713,6 +779,11 @@ export default function ProjectJobPage() {
                     <div key={file.file_id} className="group cursor-pointer">
                       <div className="aspect-square rounded-lg border bg-muted flex items-center justify-center relative overflow-hidden hover:border-primary transition-colors">
                         <FileText className="h-8 w-8 text-muted-foreground" />
+                        {file.filename && file.filename.toLowerCase().endsWith('.csv') && csvRowCounts[file.file_id] && (
+                          <Badge variant="secondary" className="absolute top-2 left-2 text-xs">
+                            {csvRowCounts[file.file_id]} câu
+                          </Badge>
+                        )}
                       </div>
                       <p className="text-xs truncate mt-2" title={file.filename}>
                         {file.filename}
@@ -741,6 +812,11 @@ export default function ProjectJobPage() {
                         >
                           ✓
                         </Badge>
+                        {file.filename && file.filename.toLowerCase().endsWith('.csv') && csvRowCounts[file.file_id] && (
+                          <Badge variant="secondary" className="absolute top-2 left-2 text-xs">
+                            {csvRowCounts[file.file_id]} câu
+                          </Badge>
+                        )}
                       </div>
                       <p className="text-xs truncate mt-2" title={file.filename}>
                         {file.filename}

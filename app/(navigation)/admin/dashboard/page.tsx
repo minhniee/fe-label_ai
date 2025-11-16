@@ -3,28 +3,78 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
-import { Database, Tag, Users, FileText, TrendingUp, Clock, CheckCircle, AlertCircle } from "lucide-react"
+import { Database, Tag, Users, FileText, TrendingUp, Clock, CheckCircle, AlertCircle, Loader2 } from "lucide-react"
 import { useEffect, useState } from "react"
+import { getBatchDashboard, getBatchStats } from "@/app/api/batch"
+import { viewAllProjects } from "@/app/api/project"
+import { toast } from "sonner"
+import { formatDistanceToNow } from "date-fns"
 
 export default function DashboardPage() {
-  // Mock data for statistics
+  const [isLoading, setIsLoading] = useState(true)
+  const [batchStats, setBatchStats] = useState<any>(null)
+  const [batchDashboard, setBatchDashboard] = useState<any>(null)
+  const [projects, setProjects] = useState<any[]>([])
+  
+  useEffect(() => {
+    loadDashboardData()
+  }, [])
+
+  const loadDashboardData = async () => {
+    try {
+      setIsLoading(true)
+      
+      // Load batch dashboard data
+      const [dashboardData, statsData, projectsData] = await Promise.all([
+        getBatchDashboard().catch(() => null),
+        getBatchStats().catch(() => null),
+        viewAllProjects().catch(() => [])
+      ])
+      
+      setBatchDashboard(dashboardData)
+      setBatchStats(statsData)
+      setProjects(projectsData)
+    } catch (error: any) {
+      console.error("Failed to load dashboard data:", error)
+      toast.error("Failed to load dashboard data")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Calculate statistics from API data
   const stats = {
-    totalDatasets: 12,
-    labelingProgress: 68,
-    activeLabelers: 8,
-    latestVersion: "v2.1",
-    completedBatches: 34,
-    pendingBatches: 16,
-    totalQuestions: 5000,
-    labeledQuestions: 3400,
+    totalDatasets: projects.length || 0,
+    labelingProgress: batchStats?.overall_progress || batchDashboard?.stats?.overall_progress || 0,
+    activeLabelers: batchDashboard?.user_assignments?.length || 0,
+    latestVersion: projects.length > 0 ? `v${projects.length}` : "v1.0",
+    completedBatches: batchStats?.completed_batches || batchDashboard?.stats?.completed_batches || 0,
+    pendingBatches: batchStats?.pending_batches || batchDashboard?.stats?.pending_batches || 0,
+    totalQuestions: batchStats?.total_files || batchDashboard?.stats?.total_files || 0,
+    labeledQuestions: batchStats?.completed_files || batchDashboard?.stats?.completed_files || 0,
   }
   
+  // Get recent batches from dashboard
+  const recentBatches = batchDashboard?.recent_batches || []
+  const overdueBatches = batchDashboard?.overdue_batches || []
+  
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading dashboard data...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <div>
         <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-        
+        <p className="text-muted-foreground mt-1">Overview of system statistics and recent activities</p>
       </div>
       
 
@@ -90,57 +140,67 @@ export default function DashboardPage() {
             <CardDescription>Các hoạt động mới nhất trong hệ thống</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="bg-primary/10 p-2 rounded-full">
-                  <FileText className="h-4 w-4 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Dữ liệu v2.1 được tải lên</p>
-                  <p className="text-xs text-muted-foreground">2 giờ trước</p>
-                </div>
+            {recentBatches.length === 0 && overdueBatches.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p className="text-sm">No recent activity</p>
               </div>
-              <Badge variant="secondary">Mới</Badge>
-            </div>
+            ) : (
+              <>
+                {/* Recent batches */}
+                {recentBatches.slice(0, 3).map((batch: any) => (
+                  <div key={batch.batch_id} className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-full ${
+                        batch.status === 'completed' ? 'bg-accent/10' : 
+                        batch.status === 'in_progress' ? 'bg-primary/10' : 
+                        'bg-muted'
+                      }`}>
+                        <Tag className={`h-4 w-4 ${
+                          batch.status === 'completed' ? 'text-accent' : 
+                          batch.status === 'in_progress' ? 'text-primary' : 
+                          'text-muted-foreground'
+                        }`} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{batch.batch_name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {batch.updated_at ? formatDistanceToNow(new Date(batch.updated_at), { addSuffix: true }) : 'Recently'}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge 
+                      variant={
+                        batch.status === 'completed' ? 'default' : 
+                        batch.status === 'in_progress' ? 'secondary' : 
+                        'outline'
+                      }
+                    >
+                      {batch.status === 'completed' ? 'Hoàn thành' : 
+                       batch.status === 'in_progress' ? 'Đang xử lý' : 
+                       batch.status}
+                    </Badge>
+                  </div>
+                ))}
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="bg-accent/10 p-2 rounded-full">
-                  <Tag className="h-4 w-4 text-accent" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Batch #34 hoàn thành gán nhãn</p>
-                  <p className="text-xs text-muted-foreground">4 giờ trước</p>
-                </div>
-              </div>
-              <Badge variant="outline">Hoàn thành</Badge>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="bg-chart-3/10 p-2 rounded-full">
-                  <TrendingUp className="h-4 w-4 text-chart-3" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Model v1.5 đạt accuracy 94.2%</p>
-                  <p className="text-xs text-muted-foreground">1 ngày trước</p>
-                </div>
-              </div>
-              <Badge className="bg-chart-3 text-white">Thành công</Badge>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="bg-destructive/10 p-2 rounded-full">
-                  <AlertCircle className="h-4 w-4 text-destructive" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Cần review batch #35</p>
-                  <p className="text-xs text-muted-foreground">2 ngày trước</p>
-                </div>
-              </div>
-              <Badge variant="destructive">Cần xử lý</Badge>
-            </div>
+                {/* Overdue batches */}
+                {overdueBatches.slice(0, 2).map((batch: any) => (
+                  <div key={batch.batch_id} className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-destructive/10 p-2 rounded-full">
+                        <AlertCircle className="h-4 w-4 text-destructive" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{batch.batch_name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {batch.updated_at ? formatDistanceToNow(new Date(batch.updated_at), { addSuffix: true }) : 'Overdue'}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge variant="destructive">Cần xử lý</Badge>
+                  </div>
+                ))}
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -166,11 +226,15 @@ export default function DashboardPage() {
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm font-medium">Batch đã hoàn thành</span>
                 <span className="text-sm text-muted-foreground">
-                  {Math.round((stats.completedBatches / (stats.completedBatches + stats.pendingBatches)) * 100)}%
+                  {stats.completedBatches + stats.pendingBatches > 0 
+                    ? Math.round((stats.completedBatches / (stats.completedBatches + stats.pendingBatches)) * 100)
+                    : 0}%
                 </span>
               </div>
               <Progress
-                value={(stats.completedBatches / (stats.completedBatches + stats.pendingBatches)) * 100}
+                value={stats.completedBatches + stats.pendingBatches > 0
+                  ? (stats.completedBatches / (stats.completedBatches + stats.pendingBatches)) * 100
+                  : 0}
                 className="h-2"
               />
             </div>
@@ -181,8 +245,26 @@ export default function DashboardPage() {
                 <div className="text-xs text-muted-foreground">Hoàn thành</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-accent">{stats.pendingBatches}</div>
+                <div className="text-2xl font-bold text-accent">
+                  {batchStats?.in_progress_batches || batchDashboard?.stats?.in_progress_batches || stats.pendingBatches}
+                </div>
                 <div className="text-xs text-muted-foreground">Đang xử lý</div>
+              </div>
+            </div>
+
+            {/* Additional stats */}
+            <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-primary">
+                  {batchStats?.total_batches || batchDashboard?.stats?.total_batches || 0}
+                </div>
+                <div className="text-xs text-muted-foreground">Tổng batch</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-accent">
+                  {batchStats?.pending_batches || batchDashboard?.stats?.pending_batches || 0}
+                </div>
+                <div className="text-xs text-muted-foreground">Chờ xử lý</div>
               </div>
             </div>
           </CardContent>

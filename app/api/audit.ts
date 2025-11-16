@@ -6,34 +6,31 @@ import api from './client'
 
 export interface AuditEventItem {
   event_id: number
+  occurred_at: string  // datetime from backend
   user_id?: number
-  username?: string
   action: string
   resource_type?: string
   resource_id?: number
   request_id?: string
   http_method?: string
-  endpoint?: string
+  path?: string  // endpoint path from backend
   status_code?: number
   ip_address?: string
   user_agent?: string
-  request_body?: any
-  response_body?: any
-  error_message?: string
-  timestamp: string
+  extra?: Record<string, any>
 }
 
 export interface AuditChangeItem {
   change_id: number
+  changed_at: string  // datetime from backend
   user_id?: number
-  username?: string
   table_name: string
   operation: string
-  record_id: number
-  old_values?: Record<string, any>
-  new_values?: Record<string, any>
+  primary_key: Record<string, any>  // primary key dict from backend
+  old_row?: Record<string, any>  // old values from backend
+  new_row?: Record<string, any>  // new values from backend
+  diff?: Record<string, any>
   request_id?: string
-  timestamp: string
 }
 
 export interface AuditEventQuery {
@@ -101,8 +98,19 @@ export async function listAuditEvents(query?: AuditEventQuery) {
     })
     return response.data
   } catch (error: any) {
-    const errorMessage = error.response?.data?.detail || error.message || 'Failed to list audit events'
-    throw new Error(errorMessage)
+    // Preserve the original error with status code and response data
+    if (error.response) {
+      const errorMessage = error.response?.data?.detail || error.message || 'Failed to list audit events'
+      const enhancedError = new Error(errorMessage)
+      ;(enhancedError as any).response = error.response
+      ;(enhancedError as any).status = error.response.status
+      throw enhancedError
+    }
+    // Network errors (CORS, connection refused, etc.)
+    const errorMessage = error.message || 'Failed to list audit events'
+    const enhancedError = new Error(errorMessage)
+    ;(enhancedError as any).isNetworkError = true
+    throw enhancedError
   }
 }
 
@@ -127,8 +135,19 @@ export async function listAuditChanges(query?: AuditChangeQuery) {
     })
     return response.data
   } catch (error: any) {
-    const errorMessage = error.response?.data?.detail || error.message || 'Failed to list audit changes'
-    throw new Error(errorMessage)
+    // Preserve the original error with status code and response data
+    if (error.response) {
+      const errorMessage = error.response?.data?.detail || error.message || 'Failed to list audit changes'
+      const enhancedError = new Error(errorMessage)
+      ;(enhancedError as any).response = error.response
+      ;(enhancedError as any).status = error.response.status
+      throw enhancedError
+    }
+    // Network errors (CORS, connection refused, etc.)
+    const errorMessage = error.message || 'Failed to list audit changes'
+    const enhancedError = new Error(errorMessage)
+    ;(enhancedError as any).isNetworkError = true
+    throw enhancedError
   }
 }
 

@@ -36,6 +36,7 @@ export function UploadForm() {
   const [projectFiles, setProjectFiles] = useState<any[]>([]);
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [csvRowCounts, setCsvRowCounts] = useState<{ [key: string]: number }>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
@@ -128,11 +129,68 @@ export function UploadForm() {
     });
   };
 
-  const addFiles = (newFiles: File[]) => {
+  // Function to read CSV file and count rows
+  const readCsvRowCount = async (file: File): Promise<number> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const text = e.target?.result as string;
+          if (!text) {
+            resolve(0);
+            return;
+          }
+          
+          // Split by newlines and filter out empty lines
+          const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
+          
+          if (lines.length === 0) {
+            resolve(0);
+            return;
+          }
+          
+          // Check if first line looks like a header (contains common CSV header keywords)
+          const firstLine = lines[0].toLowerCase();
+          const headerKeywords = ['id', 'name', 'text', 'label', 'content', 'data', 'value', 'title', 'description'];
+          const hasHeader = headerKeywords.some(keyword => firstLine.includes(keyword));
+          
+          // Count data rows (exclude header if detected)
+          const rowCount = hasHeader ? lines.length - 1 : lines.length;
+          
+          resolve(rowCount);
+        } catch (error) {
+          console.error("Error reading CSV file:", error);
+          reject(error);
+        }
+      };
+      reader.onerror = () => {
+        reject(new Error("Failed to read file"));
+      };
+      reader.readAsText(file, 'UTF-8');
+    });
+  };
+
+  const addFiles = async (newFiles: File[]) => {
     const validFiles = validateFiles(newFiles);
     const uniqueNewFiles = validFiles.filter(
       (file) => !selectedFiles.some((existingFile) => existingFile.name === file.name && existingFile.size === file.size)
     );
+    
+    // Read CSV files to count rows
+    const newRowCounts: { [key: string]: number } = {};
+    for (const file of uniqueNewFiles) {
+      if (file.name.toLowerCase().endsWith('.csv')) {
+        try {
+          const rowCount = await readCsvRowCount(file);
+          newRowCounts[file.name] = rowCount;
+        } catch (error) {
+          console.error(`Failed to read CSV file ${file.name}:`, error);
+          // Continue even if reading fails
+        }
+      }
+    }
+    
+    setCsvRowCounts((prev) => ({ ...prev, ...newRowCounts }));
     setSelectedFiles((prev) => [...prev, ...uniqueNewFiles]);
   };
 
@@ -146,20 +204,25 @@ export function UploadForm() {
     }
   };
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    addFiles(Array.from(e.dataTransfer.files));
+    await addFiles(Array.from(e.dataTransfer.files));
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    addFiles(Array.from(e.target.files || []));
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    await addFiles(Array.from(e.target.files || []));
     if (e.target) e.target.value = '';
   };
 
   const removeFile = (fileName: string) => {
     setSelectedFiles((prev) => prev.filter((file) => file.name !== fileName));
+    setCsvRowCounts((prev) => {
+      const newCounts = { ...prev };
+      delete newCounts[fileName];
+      return newCounts;
+    });
   };
 
   const getFilteredFiles = () => {
@@ -306,7 +369,29 @@ export function UploadForm() {
         }
       }
       
-      // Step 4: Create a batch with ONLY the newly uploaded files
+      // Step 4: Prepare batch metadata with file_ids and CSV row counts
+      const batchMetadata: any = {
+        file_ids: fileIds
+      };
+      
+      // Add CSV row counts to metadata
+      const csvRowCountsMetadata: { [fileId: number]: number } = {};
+      for (const file of uploadResponse.files || []) {
+        if (file.filename && file.filename.toLowerCase().endsWith('.csv')) {
+          const fileName = file.filename;
+          if (csvRowCounts[fileName]) {
+            csvRowCountsMetadata[file.file_id] = csvRowCounts[fileName];
+          }
+        }
+      }
+      
+      if (Object.keys(csvRowCountsMetadata).length > 0) {
+        batchMetadata.csv_row_counts = csvRowCountsMetadata;
+        const totalRows = Object.values(csvRowCountsMetadata).reduce((sum, count) => sum + count, 0);
+        batchMetadata.total_csv_rows = totalRows;
+      }
+      
+      // Step 5: Create a batch with ONLY the newly uploaded files
       if (uploadResponse?.success && fileIds.length > 0) {
         sonnerToast.success("Files uploaded successfully!", { id: toastId });
         
@@ -315,9 +400,7 @@ export function UploadForm() {
           name: batchName,
           description: `Batch created with ${fileIds.length} files`,
           file_ids: fileIds, // Use file_ids extracted from files array
-          batch_metadata: {
-            file_ids: fileIds // Explicitly store file_ids in metadata
-          }
+          batch_metadata: batchMetadata
         });
 
         console.log("Batch created response:", batchResponse);
@@ -481,6 +564,11 @@ export function UploadForm() {
                         <div className="flex flex-col items-center gap-2 p-2">
                           <FileIcon className="w-8 h-8 text-muted-foreground" />
                           <p className="text-xs text-muted-foreground break-all">{file.name}</p>
+                          {file.name.toLowerCase().endsWith('.csv') && csvRowCounts[file.name] && (
+                            <p className="text-xs font-medium text-primary">
+                              {csvRowCounts[file.name]} {csvRowCounts[file.name] === 1 ? 'câu' : 'câu'}
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>
