@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useParams, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -104,13 +104,6 @@ export default function Home() {
   const [newDatasetDescription, setNewDatasetDescription] = useState("")  // Dataset description
   const [isScrolled, setIsScrolled] = useState(false)  // Track scroll state for floating sidebar
 
-  // Load batch files when in batch mode
-  useEffect(() => {
-    if (batchId && fileIdsParam && projectId) {
-      loadBatchFiles()
-    }
-  }, [batchId, fileIdsParam, projectId])
-
   // Track scroll to show/hide floating sidebar
   useEffect(() => {
     const handleScroll = () => {
@@ -120,7 +113,29 @@ export default function Home() {
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
 
-  const loadBatchFiles = async () => {
+  // Sync originalData when data length changes significantly (likely a reload)
+  useEffect(() => {
+    // Only update originalData if length changed significantly and we have new rows
+    // This helps when data is reloaded from external sources
+    if (data.length > 0 && originalData.length > 0 && data.length !== originalData.length) {
+      const hasNewRows = data.some(row => 
+        !originalData.some(orig => orig._id === row._id)
+      )
+      // If we have completely new rows (not just modifications), update originalData
+      // Only update if change is significant (>10% difference)
+      if (hasNewRows && originalData.length > 0 && 
+          Math.abs(data.length - originalData.length) > originalData.length * 0.1) {
+        // This is likely a reload, update originalData but preserve modification flags
+        setOriginalData(data.map(row => {
+          const { _isModified, ...rest } = row
+          return rest
+        }))
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.length]) // Only watch length to avoid infinite loops
+
+  const loadBatchFiles = useCallback(async () => {
     try {
       setLoading(true)
       
@@ -156,7 +171,14 @@ export default function Home() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [batchId, fileIdsParam, projectId, toast])
+
+  // Load batch files when in batch mode
+  useEffect(() => {
+    if (batchId && fileIdsParam && projectId) {
+      loadBatchFiles()
+    }
+  }, [batchId, fileIdsParam, projectId, loadBatchFiles])
 
   const loadFileData = async (file: any, fileIndex: number) => {
     try {
@@ -293,16 +315,32 @@ export default function Home() {
         const cachedData = localStorage.getItem(cacheKey)
         if (cachedData) {
           const parsedCache = JSON.parse(cachedData)
-          // Check if cache is for same file (by checking row count)
-          if (parsedCache.rows && parsedCache.rows.length === transformedData.length) {
-            // Merge cached data with loaded data
-            const mergedData = transformedData.map((row, index) => {
-              const cachedRow = parsedCache.rows.find((r: RowData) => r._id === row._id)
+          
+          // Check cache version/compatibility: fileId and row count must match
+          if (parsedCache.fileId === file.file_id && 
+              parsedCache.rows && 
+              parsedCache.rows.length === transformedData.length) {
+            
+            // Create a map for faster lookup
+            const cacheMap = new Map(parsedCache.rows.map((r: RowData) => [r._id, r]))
+            
+            // Merge cached meta fields with loaded data, preserving original data columns
+            const mergedData = transformedData.map((row) => {
+              const cachedRow = cacheMap.get(row._id)
               if (cachedRow) {
-                return { ...row, ...cachedRow, _isModified: true }
+                // Only merge meta fields (starting with _), preserve original data columns
+                const { _id, _ai_suggestion, _ai_reasoning, _confirmed, _isModified, ...userData } = cachedRow
+                return {
+                  ...row, // Start with fresh loaded data
+                  _ai_suggestion: cachedRow._ai_suggestion,
+                  _ai_reasoning: cachedRow._ai_reasoning,
+                  _confirmed: cachedRow._confirmed,
+                  _isModified: true
+                }
               }
               return row
             })
+            
             setData(mergedData)
             setOriginalData(transformedData)  // Keep original for comparison
             toast({
@@ -310,6 +348,8 @@ export default function Home() {
               description: `Restored ${parsedCache.rows.filter((r: RowData) => r._isModified).length} modified rows from cache`,
             })
           } else {
+            // Cache incompatible, clear it
+            localStorage.removeItem(cacheKey)
             setData(transformedData)
             setOriginalData(transformedData)
           }
@@ -319,6 +359,12 @@ export default function Home() {
         }
       } catch (error) {
         console.error("Failed to restore from cache:", error)
+        // Clear invalid cache
+        try {
+          localStorage.removeItem(cacheKey)
+        } catch (e) {
+          // Ignore
+        }
         setData(transformedData)
         setOriginalData(transformedData)
       }
@@ -1090,19 +1136,28 @@ export default function Home() {
                       // Check if row has been modified compared to original
                       const isModified = isRowModified(originalRow, updatedRow)
                       
-                      const updatedIsTrue = String(updatedRow._ai_suggestion || "").toLowerCase() === "true"
-                      const existingIsTrue = String(existingRow._ai_suggestion || "").toLowerCase() === "true"
-                      if (updatedIsTrue || existingIsTrue) {
-                        // Merge only meta fields (keys starting with "_") to preserve user data
-                        const metaOnly: any = {}
-                        Object.keys(updatedRow).forEach((k) => {
-                          if (k.startsWith("_") && k !== "_id") {
-                            ;(metaOnly as any)[k] = (updatedRow as any)[k]
-                          }
-                        })
-                        newData[index] = { ...existingRow, ...metaOnly, _isModified: isModified || existingRow._isModified }
-                      } else {
-                        newData[index] = { ...updatedRow, _isModified: isModified || updatedRow._isModified }
+                      // Always preserve user-modified data columns (non-meta columns that differ from original)
+                      const userData: any = {}
+                      Object.keys(existingRow).forEach((k) => {
+                        if (!k.startsWith("_") && existingRow[k] !== originalRow?.[k]) {
+                          userData[k] = existingRow[k] // Preserve user changes
+                        }
+                      })
+                      
+                      // Extract meta fields from updated row
+                      const metaFields: any = {}
+                      Object.keys(updatedRow).forEach((k) => {
+                        if (k.startsWith("_")) {
+                          metaFields[k] = (updatedRow as any)[k]
+                        }
+                      })
+                      
+                      // Merge: AI meta fields + user data + modification flag
+                      newData[index] = {
+                        ...updatedRow, // Start with updated row (includes all columns from AI)
+                        ...userData, // Override with user-modified data columns
+                        ...metaFields, // Ensure meta fields are from updated row
+                        _isModified: isModified || existingRow._isModified
                       }
                     }
                   })
@@ -1151,18 +1206,29 @@ export default function Home() {
                     // Check if row has been modified compared to original
                     const isModified = isRowModified(originalRow, newRow)
                     
-                    const oldIsTrue = String(oldRow._ai_suggestion || "").toLowerCase() === "true"
-                    const newIsTrue = String(newRow._ai_suggestion || "").toLowerCase() === "true"
-                    if (oldIsTrue || newIsTrue) {
-                      const metaOnly: any = {}
-                      Object.keys(newRow).forEach((k) => {
-                        if (k.startsWith("_") && k !== "_id") {
-                          ;(metaOnly as any)[k] = (newRow as any)[k]
-                        }
-                      })
-                      return { ...oldRow, ...metaOnly, _isModified: isModified || oldRow._isModified }
+                    // Always preserve user-modified data columns (non-meta columns that differ from original)
+                    const userData: any = {}
+                    Object.keys(oldRow).forEach((k) => {
+                      if (!k.startsWith("_") && oldRow[k] !== originalRow?.[k]) {
+                        userData[k] = oldRow[k] // Preserve user changes
+                      }
+                    })
+                    
+                    // Extract meta fields from updated row
+                    const metaFields: any = {}
+                    Object.keys(newRow).forEach((k) => {
+                      if (k.startsWith("_")) {
+                        metaFields[k] = (newRow as any)[k]
+                      }
+                    })
+                    
+                    // Merge: AI meta fields + user data + modification flag
+                    return {
+                      ...newRow, // Start with updated row (includes all columns)
+                      ...userData, // Override with user-modified data columns
+                      ...metaFields, // Ensure meta fields are from updated row
+                      _isModified: isModified || oldRow._isModified
                     }
-                    return { ...newRow, _isModified: isModified || newRow._isModified }
                   })
                   setData(merged)
                   saveToCache(merged)
@@ -1176,18 +1242,29 @@ export default function Home() {
                     // Check if row has been modified compared to original
                     const isModified = isRowModified(originalRow, updated)
                     
-                    const rowIsTrue = String(row._ai_suggestion || "").toLowerCase() === "true"
-                    const updatedIsTrue = String(updated._ai_suggestion || "").toLowerCase() === "true"
-                    if (rowIsTrue || updatedIsTrue) {
-                      const metaOnly: any = {}
-                      Object.keys(updated).forEach((k) => {
-                        if (k.startsWith("_") && k !== "_id") {
-                          ;(metaOnly as any)[k] = (updated as any)[k]
-                        }
-                      })
-                      return { ...row, ...metaOnly, _isModified: isModified || row._isModified }
+                    // Always preserve user-modified data columns (non-meta columns that differ from original)
+                    const userData: any = {}
+                    Object.keys(row).forEach((k) => {
+                      if (!k.startsWith("_") && row[k] !== originalRow?.[k]) {
+                        userData[k] = row[k] // Preserve user changes
+                      }
+                    })
+                    
+                    // Extract meta fields from updated row
+                    const metaFields: any = {}
+                    Object.keys(updated).forEach((k) => {
+                      if (k.startsWith("_")) {
+                        metaFields[k] = (updated as any)[k]
+                      }
+                    })
+                    
+                    // Merge: AI meta fields + user data + modification flag
+                    return {
+                      ...updated, // Start with updated row (includes all columns)
+                      ...userData, // Override with user-modified data columns
+                      ...metaFields, // Ensure meta fields are from updated row
+                      _isModified: isModified || row._isModified
                     }
-                    return { ...updated, _isModified: isModified || updated._isModified }
                   })
                   setData(newData)
                   saveToCache(newData)

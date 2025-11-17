@@ -136,22 +136,20 @@ export function DataGrid({
   }
 
   const handleCellEdit = (rowId: string, field: string, value: string) => {
-    const updatedData = data.map((row) => 
-      row._id === rowId 
-        ? { ...row, [field]: value }
-        : row
-    )
-    // Update allData as well to keep it in sync
+    // Update allData first (full dataset)
     const updatedAllData = allData.map((row) =>
       row._id === rowId
-        ? { ...row, [field]: value }
+        ? { ...row, [field]: value, _isModified: true }
         : row
     )
-    onDataUpdate(updatedData)
-    // Also update parent's allData through onDataUpdate with all rows
-    if (updatedAllData.length > 0) {
-      onDataUpdate(updatedAllData.filter((row) => data.some((d) => d._id === row._id)))
-    }
+    
+    // Then update current page data for display
+    const updatedData = updatedAllData.filter((row) => 
+      data.some((d) => d._id === row._id)
+    )
+    
+    // Always pass full updatedAllData to parent to keep everything in sync
+    onDataUpdate(updatedAllData)
   }
 
   const handleConfirm = (rowId: string) => {

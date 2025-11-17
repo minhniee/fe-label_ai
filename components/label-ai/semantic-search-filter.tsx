@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { X, Search, Sparkles, Loader2 } from "lucide-react"
@@ -24,26 +24,45 @@ export function SemanticSearchFilter({
   const [isIndexed, setIsIndexed] = useState<boolean | null>(null)
   const [isIndexing, setIsIndexing] = useState(false)
   const { toast } = useToast()
+  const checkingRef = useRef(false) // Prevent concurrent checks
+  const lastCheckedFileIdRef = useRef<number | null>(null) // Track last checked fileId
 
-  // Check index status when fileId changes
-  useEffect(() => {
-    if (fileId) {
-      checkIndexStatus()
-    } else {
-      setIsIndexed(null)
+  // Memoize checkIndexStatus to prevent unnecessary re-renders and ensure stable reference
+  const checkIndexStatus = useCallback(async () => {
+    if (!fileId || checkingRef.current) return
+    
+    // Skip if we already checked this fileId
+    if (lastCheckedFileIdRef.current === fileId) {
+      return
     }
-  }, [fileId])
-
-  const checkIndexStatus = async () => {
-    if (!fileId) return
+    
+    checkingRef.current = true
+    lastCheckedFileIdRef.current = fileId
     
     try {
       const status = await getSemanticSearchIndexStatus(fileId)
       setIsIndexed(status.is_indexed || false)
     } catch (error) {
       setIsIndexed(false)
+    } finally {
+      checkingRef.current = false
     }
-  }
+  }, [fileId])
+
+  // Check index status when fileId changes
+  useEffect(() => {
+    if (fileId) {
+      // Reset check status when fileId changes to a different value
+      if (lastCheckedFileIdRef.current !== fileId) {
+        lastCheckedFileIdRef.current = null
+        setIsIndexed(null)
+      }
+      checkIndexStatus()
+    } else {
+      setIsIndexed(null)
+      lastCheckedFileIdRef.current = null
+    }
+  }, [fileId, checkIndexStatus])
 
   const handleIndex = async () => {
     if (!fileId) {

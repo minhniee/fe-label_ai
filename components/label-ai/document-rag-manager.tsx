@@ -54,6 +54,26 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
     loadDocuments()
   }, [projectId])
 
+  // Reset model when provider changes
+  useEffect(() => {
+    // Reset model when provider changes to avoid invalid combinations
+    if (embeddingProvider === "local") {
+      setEmbeddingModel("")
+    } else {
+      // Set default model for non-local providers if not set
+      const defaultModels: Record<string, string> = {
+        openai: "text-embedding-3-small",
+        gemini: "models/text-embedding-004",
+        qwen: "text-embedding-v2"
+      }
+      // Only set default if model is empty (to avoid overwriting user selection)
+      if (embeddingModel === "" && defaultModels[embeddingProvider]) {
+        setEmbeddingModel(defaultModels[embeddingProvider])
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [embeddingProvider])
+
   useEffect(() => {
     // Notify parent of embedding config changes
     onEmbeddingConfigChange?.({
@@ -66,7 +86,16 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
   useEffect(() => {
     // Notify parent of selected documents changes
     onSelectedDocumentsChange?.(selectedDocumentIds)
-  }, [selectedDocumentIds, onSelectedDocumentsChange])
+    
+    // Save selection to localStorage when it changes
+    if (selectedDocumentIds.length > 0) {
+      try {
+        localStorage.setItem(`doc_selection_${projectId}`, JSON.stringify(selectedDocumentIds))
+      } catch (e) {
+        // Ignore localStorage errors
+      }
+    }
+  }, [selectedDocumentIds, onSelectedDocumentsChange, projectId])
 
   const loadDocuments = async () => {
     setIsLoading(true)
@@ -77,7 +106,26 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
         setDocuments(docs)
         // Notify parent about documents status
         onDocumentsChange?.(docs.length > 0)
-        // Auto-select all indexed documents
+        
+        // Try to restore previous selection from localStorage
+        try {
+          const previousSelection = localStorage.getItem(`doc_selection_${projectId}`)
+          if (previousSelection) {
+            const savedIds = JSON.parse(previousSelection)
+            // Only use saved IDs that still exist and are indexed
+            const validIds = savedIds.filter((id: number) => 
+              docs.some(d => d.document_id === id && d.status === 'indexed')
+            )
+            if (validIds.length > 0) {
+              setSelectedDocumentIds(validIds)
+              return
+            }
+          }
+        } catch (e) {
+          // Invalid saved selection, continue to auto-select
+        }
+        
+        // Auto-select all indexed documents only if no previous selection exists
         const indexedDocIds = docs.filter(d => d.status === 'indexed').map(d => d.document_id)
         setSelectedDocumentIds(indexedDocIds)
       }
@@ -123,6 +171,26 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
   }
 
   const handleIndexDocuments = async () => {
+    // Validate embedding config for non-local providers
+    if (embeddingProvider !== "local") {
+      if (!embeddingApiKey) {
+        toast({
+          title: "Validation Error",
+          description: "API Key is required for non-local embedding providers",
+          variant: "destructive",
+        })
+        return
+      }
+      if (!embeddingModel) {
+        toast({
+          title: "Validation Error",
+          description: "Model is required for non-local embedding providers",
+          variant: "destructive",
+        })
+        return
+      }
+    }
+
     setIsIndexing(true)
     try {
       await indexProjectDocuments(
@@ -132,11 +200,15 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
         embeddingModel || undefined,
         false
       )
+      
+      // Reload documents to get updated statuses
+      // loadDocuments() will auto-select all indexed documents
+      await loadDocuments()
+      
       toast({
         title: "Documents indexed",
         description: `Documents indexed using ${embeddingProvider}`,
       })
-      await loadDocuments()
     } catch (error) {
       toast({
         title: "Indexing failed",
@@ -383,17 +455,22 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
             {embeddingProvider !== "local" && (
               <>
                 <div>
-                  <Label>API Key</Label>
+                  <Label>API Key *</Label>
                   <Input
                     type="password"
                     value={embeddingApiKey}
                     onChange={(e) => setEmbeddingApiKey(e.target.value)}
                     placeholder="Enter API key"
+                    required
                   />
                 </div>
                 <div>
-                  <Label>Model</Label>
-                  <Select value={embeddingModel} onValueChange={setEmbeddingModel}>
+                  <Label>Model *</Label>
+                  <Select 
+                    value={embeddingModel} 
+                    onValueChange={setEmbeddingModel}
+                    required
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select model" />
                     </SelectTrigger>
@@ -405,6 +482,9 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
                       ))}
                     </SelectContent>
                   </Select>
+                  {!embeddingModel && (
+                    <p className="text-xs text-destructive mt-1">Please select a model</p>
+                  )}
                 </div>
               </>
             )}
