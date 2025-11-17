@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, ChangeEvent } from "react";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import {
@@ -38,10 +37,10 @@ import {
   ChevronLeft,
   ChevronRight,
   FileText,
+  Upload,
 } from "lucide-react";
 import { useProjectFromSlug } from "@/hooks/use-project-from-slug";
-import { getProjectFiles, generateDatasetFromProject } from "@/app/api/project";
-import { getDatasets, getVersionCompleteInfo, getDatasetVersions, type Dataset } from "@/app/api/dataset";
+import { getDatasets, getDatasetVersions, exportDatasetVersion, uploadFileToDataset, type Dataset, type DatasetVersion } from "@/app/api/dataset";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 
@@ -54,7 +53,6 @@ export default function ProjectDatasetPage() {
   const [filteredDatasets, setFilteredDatasets] = useState<Dataset[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedDatasets, setSelectedDatasets] = useState<Set<number>>(new Set());
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [sortBy, setSortBy] = useState("newest");
   const [currentPage, setCurrentPage] = useState(1);
@@ -63,8 +61,13 @@ export default function ProjectDatasetPage() {
   // Export dialog state
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [selectedDatasetId, setSelectedDatasetId] = useState<number | null>(null);
+  const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null);
   const [exportFormat, setExportFormat] = useState<"csv" | "xlsx" | "json">("csv");
   const [isExporting, setIsExporting] = useState(false);
+  const [datasetVersions, setDatasetVersions] = useState<Record<number, DatasetVersion[]>>({});
+  const [versionsLoading, setVersionsLoading] = useState<Record<number, boolean>>({});
+  const [uploadingDatasetId, setUploadingDatasetId] = useState<number | null>(null);
+  const fileInputsRef = useRef<Record<number, HTMLInputElement | null>>({});
 
   useEffect(() => {
     loadDatasets();
@@ -79,11 +82,31 @@ export default function ProjectDatasetPage() {
       setIsLoading(true);
       const datasetsList = await getDatasets();
       setDatasets(datasetsList);
+      const versionsMap: Record<number, DatasetVersion[]> = {};
+      for (const dataset of datasetsList) {
+        versionsMap[dataset.dataset_id] = await fetchDatasetVersions(dataset.dataset_id);
+      }
+      setDatasetVersions(versionsMap);
     } catch (error: any) {
       console.error("Failed to load datasets:", error);
       toast.error("Failed to load datasets");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchDatasetVersions = async (datasetId: number) => {
+    try {
+      setVersionsLoading(prev => ({ ...prev, [datasetId]: true }));
+      const versions = await getDatasetVersions(datasetId);
+      setDatasetVersions(prev => ({ ...prev, [datasetId]: versions }));
+      return versions;
+    } catch (error: any) {
+      console.error(`Failed to load versions for dataset ${datasetId}:`, error);
+      toast.error(`Failed to load versions for dataset ${datasetId}`);
+      return [];
+    } finally {
+      setVersionsLoading(prev => ({ ...prev, [datasetId]: false }));
     }
   };
 
@@ -117,125 +140,163 @@ export default function ProjectDatasetPage() {
     setCurrentPage(1); // Reset to first page when filtering
   };
 
-  const handleDatasetSelect = (datasetId: number, checked: boolean) => {
-    setSelectedDatasets(prev => {
-      const newSet = new Set(prev);
-      if (checked) {
-        newSet.add(datasetId);
-      } else {
-        newSet.delete(datasetId);
-      }
-      return newSet;
-    });
-  };
-
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      const allIds = new Set(paginatedDatasets.map(d => d.dataset_id));
-      setSelectedDatasets(allIds);
-    } else {
-      setSelectedDatasets(new Set());
-    }
-  };
-
-  const handleExportClick = (dataset: Dataset) => {
-    setSelectedDatasetId(dataset.dataset_id);
+  const handleExportClick = (datasetId: number, versionId: number) => {
+    setSelectedDatasetId(datasetId);
+    setSelectedVersionId(versionId);
     setIsExportOpen(true);
   };
 
-  const exportToCSV = (data: any[], filename: string) => {
-    if (data.length === 0) return;
-    
-    const headers = Object.keys(data[0]);
-    const csvContent = [
-      headers.join(','),
-      ...data.map(row => headers.map(header => {
-        const value = row[header];
-        // Escape commas and quotes in CSV
-        if (typeof value === 'string' && (value.includes(',') || value.includes('"') || value.includes('\n'))) {
-          return `"${value.replace(/"/g, '""')}"`;
-        }
-        return value ?? '';
-      }).join(','))
-    ].join('\n');
-    
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `${filename}.csv`;
-    link.click();
+  const triggerFileInput = (datasetId: number) => {
+    const input = fileInputsRef.current[datasetId];
+    input?.click();
   };
 
-  const exportToJSON = (data: any[], filename: string) => {
-    const jsonContent = JSON.stringify(data, null, 2);
-    const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `${filename}.json`;
-    link.click();
-  };
+  const handleFileChange = async (datasetId: number, event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      toast.error("Only CSV files are supported for upload");
+      event.target.value = "";
+      return;
+    }
 
-  const exportToXLSX = async (data: any[], filename: string) => {
+    setUploadingDatasetId(datasetId);
     try {
-      // Dynamic import for xlsx library
-      const XLSX = await import('xlsx');
-      const worksheet = XLSX.utils.json_to_sheet(data);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
-      XLSX.writeFile(workbook, `${filename}.xlsx`);
-    } catch (error) {
-      console.error("Failed to export to XLSX:", error);
-      toast.error("XLSX export requires xlsx library. Please install it: npm install xlsx");
+      await uploadFileToDataset(datasetId, file, "text/csv");
+      toast.success("File uploaded and new version created!");
+      await fetchDatasetVersions(datasetId);
+    } catch (error: any) {
+      console.error("Failed to upload file:", error);
+      toast.error(error.message || "Failed to upload file");
+    } finally {
+      setUploadingDatasetId(null);
+      event.target.value = "";
     }
   };
 
+  const renderVersionList = (dataset: Dataset) => {
+    const versions = datasetVersions[dataset.dataset_id] || [];
+    const isLoadingVersions = versionsLoading[dataset.dataset_id];
+    return (
+      <div className="mt-4 border-t pt-4">
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <p className="text-sm font-semibold">Versions</p>
+            <p className="text-xs text-muted-foreground">Latest uploads appear first</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                fetchDatasetVersions(dataset.dataset_id);
+              }}
+              disabled={isLoadingVersions}
+            >
+              {isLoadingVersions ? "Refreshing..." : "Refresh"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                triggerFileInput(dataset.dataset_id);
+              }}
+              disabled={uploadingDatasetId === dataset.dataset_id}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              {uploadingDatasetId === dataset.dataset_id ? "Uploading..." : "Upload CSV"}
+            </Button>
+          </div>
+        </div>
+        <input
+          type="file"
+          accept=".csv"
+          className="hidden"
+          ref={(el) => {
+            fileInputsRef.current[dataset.dataset_id] = el;
+          }}
+          onChange={(event) => handleFileChange(dataset.dataset_id, event)}
+        />
+        <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+          {isLoadingVersions ? (
+            <p className="text-xs text-muted-foreground">Loading versions...</p>
+          ) : versions.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No versions yet. Upload a CSV to create one.</p>
+          ) : (
+            versions
+              .sort((a, b) => b.version_number - a.version_number)
+              .map((version) => (
+                <div
+                  key={version.version_id}
+                  className="flex items-center justify-between rounded-md border p-2 bg-muted/40"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">v{version.version_number}</Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(version.created_at).toLocaleString()}
+                      </span>
+                    </div>
+                    {version.changelog && (
+                      <p className="text-xs text-muted-foreground line-clamp-2">{version.changelog}</p>
+                    )}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleExportClick(dataset.dataset_id, version.version_id);
+                    }}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Export
+                  </Button>
+                </div>
+              ))
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const handleExport = async () => {
-    if (!selectedDatasetId) {
-      toast.error("Please select a dataset");
+    if (!selectedDatasetId || !selectedVersionId) {
+      toast.error("Please select a dataset version");
       return;
     }
 
     setIsExporting(true);
     try {
-      // Get dataset versions first to find the latest version
-      const { getDatasetVersions } = await import("@/app/api/dataset");
-      const versions = await getDatasetVersions(selectedDatasetId);
-      
-      if (!versions || versions.length === 0) {
-        toast.error("Dataset has no versions");
-        return;
-      }
-
-      // Get the latest version (highest version_number)
-      const latestVersion = versions.sort((a, b) => b.version_number - a.version_number)[0];
-      
-      // Get dataset version data
-      const datasetInfo = await getVersionCompleteInfo(selectedDatasetId, latestVersion.version_id);
-      
-      if (!datasetInfo.success || !datasetInfo.data || datasetInfo.data.length === 0) {
-        toast.error("Dataset is empty or not found");
-        return;
-      }
-
-      const data = Array.isArray(datasetInfo.data) ? datasetInfo.data : [];
       const dataset = datasets.find(d => d.dataset_id === selectedDatasetId);
-      const filename = dataset?.name || `dataset_${selectedDatasetId}`;
+      const exportResponse = await exportDatasetVersion(
+        selectedDatasetId,
+        selectedVersionId,
+        exportFormat,
+        dataset?.name
+      );
 
-      switch (exportFormat) {
-        case 'csv':
-          exportToCSV(data, filename);
-          break;
-        case 'json':
-          exportToJSON(data, filename);
-          break;
-        case 'xlsx':
-          await exportToXLSX(data, filename);
-          break;
+      if (!exportResponse?.download_url) {
+        toast.error("Failed to generate download link");
+        return;
       }
 
-      toast.success(`Dataset exported as ${exportFormat.toUpperCase()} successfully!`);
+      const link = document.createElement("a");
+      link.href = exportResponse.download_url;
+      link.target = "_blank";
+      if (exportResponse.file_name) {
+        link.download = exportResponse.file_name;
+      }
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast.success(`Dataset export ready! Downloading ${exportFormat.toUpperCase()} file from storage.`);
       setIsExportOpen(false);
       setSelectedDatasetId(null);
+      setSelectedVersionId(null);
     } catch (error: any) {
       console.error("Failed to export dataset:", error);
       toast.error(error.message || "Failed to export dataset");
@@ -249,7 +310,6 @@ export default function ProjectDatasetPage() {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const paginatedDatasets = filteredDatasets.slice(startIndex, endIndex);
-  const allSelected = paginatedDatasets.length > 0 && paginatedDatasets.every(d => selectedDatasets.has(d.dataset_id));
 
   if (isLoading) {
     return (
@@ -297,6 +357,16 @@ export default function ProjectDatasetPage() {
                     </p>
                   </div>
                 )}
+                {selectedVersionId && (
+                  <div className="space-y-2">
+                    <Label>Selected Version</Label>
+                    <p className="text-sm font-medium">
+                      {datasetVersions[selectedDatasetId || 0]?.find(v => v.version_id === selectedVersionId)?.version_number
+                        ? `v${datasetVersions[selectedDatasetId || 0]?.find(v => v.version_id === selectedVersionId)?.version_number}`
+                        : selectedVersionId}
+                    </p>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="export-format">Export Format *</Label>
                   <Select
@@ -323,12 +393,13 @@ export default function ProjectDatasetPage() {
                   onClick={() => {
                     setIsExportOpen(false);
                     setSelectedDatasetId(null);
+                    setSelectedVersionId(null);
                   }}
                   disabled={isExporting}
                 >
                   Cancel
                 </Button>
-                <Button onClick={handleExport} disabled={isExporting || !selectedDatasetId}>
+                <Button onClick={handleExport} disabled={isExporting || !selectedDatasetId || !selectedVersionId}>
                   {isExporting ? "Exporting..." : "Export Dataset"}
                 </Button>
               </DialogFooter>
@@ -419,12 +490,17 @@ export default function ProjectDatasetPage() {
             {paginatedDatasets.map((dataset) => (
               <Card
                 key={dataset.dataset_id}
-                className={`group cursor-pointer hover:border-primary transition-colors ${
-                  viewMode === "list" ? "p-4" : ""
+                className={`group hover:border-primary transition-colors ${
+                  viewMode === "list" ? "p-4" : "p-4"
                 }`}
               >
-                {viewMode === "grid" ? (
-                  <div className="p-4">
+                <div className={viewMode === "list" ? "flex gap-4" : ""}>
+                  {viewMode === "list" && (
+                    <div className="w-12 h-12 rounded border bg-muted flex items-center justify-center flex-shrink-0">
+                      <FileText className="h-6 w-6 text-muted-foreground" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1 min-w-0">
                         <h3 className="font-semibold truncate" title={dataset.name}>
@@ -437,51 +513,13 @@ export default function ProjectDatasetPage() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center justify-between mt-4">
-                      <div className="text-xs text-muted-foreground">
-                        <p>Created: {new Date(dataset.created_at).toLocaleDateString()}</p>
-                        <p>By: {dataset.created_by_username}</p>
-                      </div>
-                      <Button
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleExportClick(dataset);
-                        }}
-                      >
-                        <Download className="h-4 w-4 mr-2" />
-                        Export
-                      </Button>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <p>Created: {new Date(dataset.created_at).toLocaleDateString()}</p>
+                      <p>By: {dataset.created_by_username}</p>
                     </div>
+                    {renderVersionList(dataset)}
                   </div>
-                ) : (
-                  <div className="flex items-center gap-4 p-4">
-                    <div className="w-12 h-12 rounded border bg-muted flex items-center justify-center flex-shrink-0">
-                      <FileText className="h-6 w-6 text-muted-foreground" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold truncate">{dataset.name}</h3>
-                      {dataset.description && (
-                        <p className="text-sm text-muted-foreground truncate mt-1">
-                          {dataset.description}
-                        </p>
-                      )}
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Created: {new Date(dataset.created_at).toLocaleDateString()} • By: {dataset.created_by_username}
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleExportClick(dataset);
-                      }}
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      Export
-                    </Button>
-                  </div>
-                )}
+                </div>
               </Card>
             ))}
           </div>

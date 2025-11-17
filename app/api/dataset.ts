@@ -89,6 +89,16 @@ export interface VersionCompleteResponse {
   data_count: number
 }
 
+export interface DatasetExportResponse {
+  success: boolean
+  download_url: string
+  storage_key: string
+  file_name: string
+  content_type: string
+  size: number
+  expires_in?: number
+}
+
 export interface DatasetUpdateRequest {
   name?: string
   description?: string
@@ -408,6 +418,29 @@ export async function getVersionCompleteInfo(datasetId: number, versionId: numbe
     return response.data
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to get version complete info'
+    throw new Error(errorMessage)
+  }
+}
+
+// Export dataset version via backend-generated file
+export async function exportDatasetVersion(
+  datasetId: number,
+  versionId: number,
+  exportFormat: "csv" | "json" | "xlsx",
+  fileName?: string
+): Promise<DatasetExportResponse> {
+  try {
+    const response = await api.post<DatasetExportResponse>(
+      `/datasets/${datasetId}/versions/${versionId}/export`,
+      {
+        export_format: exportFormat,
+        file_name: fileName,
+      },
+      {}
+    )
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to export dataset'
     throw new Error(errorMessage)
   }
 }

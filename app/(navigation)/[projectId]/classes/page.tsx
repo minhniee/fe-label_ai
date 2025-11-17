@@ -18,8 +18,19 @@ import {
 } from "@/components/ui/popover";
 import { Plus, Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
-import { HexColorPicker } from "react-colorful";
+import dynamic from "next/dynamic";
 import { useProjectFromSlug } from "@/hooks/use-project-from-slug";
+
+// Lazy load HexColorPicker để giảm initial bundle size
+const HexColorPicker = dynamic(
+  () => import("react-colorful").then((mod) => mod.HexColorPicker),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="w-[200px] h-[200px] bg-muted animate-pulse rounded" />
+    ),
+  }
+);
 
 interface Label {
   id: string;
@@ -108,28 +119,30 @@ export default function ProjectClassesPage() {
                         />
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-3">
-                        <div className="space-y-3">
-                          <HexColorPicker
-                            color={tempColor}
-                            onChange={setTempColor}
-                          />
-                          <Input
-                            value={tempColor}
-                            onChange={(e) => setTempColor(e.target.value)}
-                            placeholder="#000000"
-                            className="font-mono text-sm"
-                          />
-                          <Button
-                            size="sm"
-                            className="w-full"
-                            onClick={() => {
-                              handleColorChange(label.id, tempColor);
-                              setEditingColor(null);
-                            }}
-                          >
-                            Apply
-                          </Button>
-                        </div>
+                        {editingColor === label.id && (
+                          <div className="space-y-3">
+                            <HexColorPicker
+                              color={tempColor}
+                              onChange={setTempColor}
+                            />
+                            <Input
+                              value={tempColor}
+                              onChange={(e) => setTempColor(e.target.value)}
+                              placeholder="#000000"
+                              className="font-mono text-sm"
+                            />
+                            <Button
+                              size="sm"
+                              className="w-full"
+                              onClick={() => {
+                                handleColorChange(label.id, tempColor);
+                                setEditingColor(null);
+                              }}
+                            >
+                              Apply
+                            </Button>
+                          </div>
+                        )}
                       </PopoverContent>
                     </Popover>
                     <span className="text-sm text-muted-foreground font-mono">

@@ -24,7 +24,7 @@ import { ColumnVisibility } from "@/components/label-ai/column-visibility"
 import { DataManager } from "@/components/label-ai/data-manager"
 import { ColumnManager } from "@/components/label-ai/column-manager"
 import { getDatasetVersionData } from "@/app/api/labelai"
-import { getVersionFiles } from "@/app/api/dataset"
+import { getVersionFiles, uploadFileToDataset } from "@/app/api/dataset"
 import { getProjectFiles, generateDatasetFromProject } from "@/app/api/project"
 import { getFilePreview } from "@/app/api/dataset"
 import { slugToProjectId } from "@/types/project"
@@ -747,7 +747,8 @@ export default function Home() {
 
   // Handle complete project and create dataset
   const handleComplete = async () => {
-    if (!newDatasetName.trim()) {
+    const trimmedName = newDatasetName.trim()
+    if (!trimmedName) {
       toast({
         title: "Error",
         description: "Please enter a dataset name",
@@ -756,32 +757,78 @@ export default function Home() {
       return
     }
 
+    if (data.length === 0) {
+      toast({
+        title: "Error",
+        description: "No labeled data available to export",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const exportableColumns = columns.filter((col) => !col.startsWith("_"))
+    if (exportableColumns.length === 0) {
+      toast({
+        title: "Error",
+        description: "No exportable columns were found",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
       setCompleting(true)
-      
-      const result = await generateDatasetFromProject(parseInt(projectId), {
-        dataset_name: newDatasetName.trim(),
+
+      // Step 1: create dataset & link it to the project
+      const datasetResult = await generateDatasetFromProject(parseInt(projectId), {
+        dataset_name: trimmedName,
         dataset_description: newDatasetDescription.trim() || undefined,
         export_type: "full",
         copy_permissions: true,
       })
-      
+
+      if (!datasetResult?.dataset_id) {
+        throw new Error("Dataset was created but no dataset_id was returned")
+      }
+
+      // Step 2: build CSV from current labeling state
+      const csvContent = convertDataToCSV(data, columns, fileDelimiter || ",")
+      if (!csvContent) {
+        throw new Error("Failed to build dataset CSV content")
+      }
+
+      const safeDatasetSlug = trimmedName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "") || `dataset-${datasetResult.dataset_id}`
+
+      const csvFile = new File(
+        [csvContent],
+        `${safeDatasetSlug}-labelai-export.csv`,
+        { type: "text/csv" }
+      )
+
+      // Step 3: upload CSV to dataset -> auto-creates version
+      await uploadFileToDataset(
+        datasetResult.dataset_id,
+        csvFile,
+        "text/csv",
+        `LabelAI completion export - ${new Date().toISOString()}`
+      )
+
       toast({
         title: "Success",
-        description: `Dataset created successfully! Dataset ID: ${result.dataset_id}`,
+        description: `Dataset and first version created (Dataset ID: ${datasetResult.dataset_id}).`,
       })
-      
+
       setShowCompleteDialog(false)
       setNewDatasetName("")
       setNewDatasetDescription("")
-      
-      // Optionally redirect to dataset page
-      // window.location.href = `/datasets/${result.dataset_id}`
     } catch (error) {
-      console.error("Failed to create dataset:", error)
+      console.error("Failed to complete dataset workflow:", error)
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create dataset. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to create dataset version. Please try again.",
         variant: "destructive",
       })
     } finally {
