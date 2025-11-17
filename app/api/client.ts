@@ -42,6 +42,13 @@ api.interceptors.request.use(
         console.error("Could not get access token from localStorage", error);
       }
     }
+    
+    // If the request body is FormData, let the browser set Content-Type automatically
+    // Don't override with application/json header
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
+    }
+    
     return config;
   },
   (error) => {

@@ -160,13 +160,7 @@ export async function uploadDocument(projectId: number, file: File) {
 
     const response = await api.post(
       `/documents/upload?project_id=${projectId}`,
-      formData,
-      {
-        headers: {
-          ...getAuthHeaders(),
-          'Content-Type': 'multipart/form-data',
-        },
-      }
+      formData
     )
     return response.data
   } catch (error: any) {
@@ -180,9 +174,7 @@ export async function uploadDocument(projectId: number, file: File) {
  */
 export async function getProjectDocuments(projectId: number) {
   try {
-    const response = await api.get(`/documents/project/${projectId}`, {
-      headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
-    })
+    const response = await api.get(`/documents/project/${projectId}`)
     return response.data
   } catch (error: any) {
     const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || error.message || "Failed to get documents"
@@ -218,9 +210,7 @@ export async function searchDocuments(
       params.append('embedding_model', embeddingModel)
     }
 
-    const response = await api.post(`/documents/search?${params.toString()}`, {}, {
-      headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
-    })
+    const response = await api.post(`/documents/search?${params.toString()}`, {})
     return response.data
   } catch (error: any) {
     const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || error.message || "Failed to search documents"
@@ -252,9 +242,7 @@ export async function indexProjectDocuments(
       params.append('embedding_model', embeddingModel)
     }
 
-    const response = await api.post(`/documents/index-project?${params.toString()}`, {}, {
-      headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
-    })
+    const response = await api.post(`/documents/index-project?${params.toString()}`, {})
     return response.data
   } catch (error: any) {
     const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || error.message || "Failed to index documents"
@@ -267,9 +255,7 @@ export async function indexProjectDocuments(
  */
 export async function deleteDocument(documentId: number) {
   try {
-    const response = await api.delete(`/documents/${documentId}`, {
-      headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
-    })
+    const response = await api.delete(`/documents/${documentId}`)
     return response.data
   } catch (error: any) {
     const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || error.message || "Failed to delete document"
