@@ -48,8 +48,25 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     
     return segments.map((segment, index) => {
       const isLast = index === segments.length - 1
-      const label = ROUTE_TITLES[segment] ?? segment.replace(/[-_]/g, " ")
-      const href = `/${segments.slice(0, index + 1).join("/")}`
+      
+      // Check if segment is in format "ID-Name" (project segment)
+      // Pattern: starts with digits, followed by hyphen, then name
+      const projectMatch = segment.match(/^(\d+)-(.+)$/)
+      let label: string
+      let href: string
+      let isProject = false
+      
+      if (projectMatch) {
+        // This is a project segment (format: "123-Label")
+        const [, projectId, projectName] = projectMatch
+        label = projectName // Only show the name in breadcrumb
+        href = "/projects" // Redirect to /projects when clicked
+        isProject = true
+      } else {
+        // Regular segment
+        label = ROUTE_TITLES[segment] ?? segment.replace(/[-_]/g, " ")
+        href = `/${segments.slice(0, index + 1).join("/")}`
+      }
       
       return (
         <React.Fragment key={index}>
