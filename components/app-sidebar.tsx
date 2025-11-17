@@ -34,6 +34,7 @@ import {
   getSelectedProject,
   setSelectedProject,
   projectToSlug,
+  slugToProjectId,
   type Project,
 } from "@/types/project";
 import { viewAllProjects } from "@/app/api/project";
@@ -93,7 +94,17 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
     }
   }, []);
 
-  // Load projects and selected project
+  // Check if pathname indicates we're inside a project
+  const isInsideProject = React.useMemo(() => {
+    if (!pathname || pathname === "/projects") return false;
+    const segments = pathname.split("/").filter(Boolean);
+    if (segments.length === 0) return false;
+    // Check if first segment matches project pattern: "ID-Name"
+    const firstSegment = segments[0];
+    return /^\d+-.+/.test(firstSegment);
+  }, [pathname]);
+
+  // Load projects and sync selected project with pathname
   React.useEffect(() => {
     const loadProjects = async () => {
       try {
@@ -115,8 +126,48 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
       }
     };
 
-    loadProjects();
-    setSelectedProjectState(getSelectedProject());
+    // Sync selected project with pathname
+    if (isInsideProject) {
+      const segments = pathname.split("/").filter(Boolean);
+      const projectSlug = segments[0];
+      const projectId = slugToProjectId(projectSlug);
+      
+      // Try to find project from localStorage first
+      const storedProject = getSelectedProject();
+      if (storedProject && storedProject.id === projectId) {
+        setSelectedProjectState(storedProject);
+      }
+      
+      // Load projects and find the matching project
+      loadProjects().then(async () => {
+        try {
+          const apiProjects = await viewAllProjects();
+          const convertedProjects: Project[] = apiProjects.map((p) => ({
+            id: p.project_id.toString(),
+            name: p.name,
+            description: p.description,
+            labeling_type: p.labeling_type,
+            status: p.status,
+            created_by: p.created_by,
+            created_at: p.created_at,
+            updated_at: p.updated_at,
+          }));
+          
+          // Find project by ID
+          const foundProject = convertedProjects.find(p => p.id === projectId);
+          if (foundProject) {
+            setSelectedProject(foundProject);
+            setSelectedProjectState(foundProject);
+          }
+        } catch (error) {
+          console.warn("Failed to load project from pathname:", error);
+        }
+      });
+    } else {
+      // Clear selected project when not inside a project
+      setSelectedProject(null);
+      setSelectedProjectState(null);
+    }
 
     const handleProjectChange = () => {
       setSelectedProjectState(getSelectedProject());
@@ -128,7 +179,7 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
     return () =>
       window.removeEventListener("project-changed", handleProjectChange);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [pathname, isInsideProject]);
 
   // Load user role for navigation filtering
   React.useEffect(() => {
@@ -283,13 +334,13 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        {/* Show FPT Logo when no project is selected */}
-        {!selectedProject ? (
+        {/* Show FPT Logo when not inside a project */}
+        {!isInsideProject || !selectedProject ? (
           <div className="px-2 py-1.5 pr-2.5 flex items-center justify-center">
             <FPTLogo size="sm" showText={true} />
           </div>
         ) : (
-          /* Show Project Switcher when a project is selected */
+          /* Show Project Switcher when inside a project */
           <ProjectSwitcher
             projects={projects}
             activeProject={selectedProject}
@@ -299,7 +350,7 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
         )}
       </SidebarHeader>
       <SidebarContent>
-        {selectedProject ? (
+        {isInsideProject && selectedProject ? (
           <>
             {/* Data group  */}
             <NavMain groupTitle="Data" items={dataItems} />
