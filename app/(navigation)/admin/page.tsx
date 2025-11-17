@@ -35,24 +35,6 @@ export default function AdminPage() {
         <Card className="hover:shadow-lg transition-shadow">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Download className="h-5 w-5" />
-              Export Data
-            </CardTitle>
-            <CardDescription>Export labeled data for Machine Learning</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link href="/admin/export-data">
-              <Button className="w-full" variant="outline">
-                Go to Export Data
-                <ExternalLink className="w-4 h-4 ml-2" />
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
               User Management
             </CardTitle>

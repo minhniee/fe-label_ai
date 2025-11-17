@@ -235,22 +235,28 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
   }, [pathname, selectedProject]);
 
   // Filter navigation items based on user role
+  // Role mapping: 1=Admin, 2=User, 3=Owner, 4=Co-Owner, 5=Labeler, 6=Viewer
   const flatItems = React.useMemo(() => {
     if (!me) return allNavItems;
 
-    // Manager (role_id=3) and Labeler (role_id=4) restrictions
-    if (me.role_id === 3 || me.role_id === 4) {
-      let items = allNavItems.filter((item) => item.title !== "Administrator");
+    const roleId = me.role_id;
 
-      // Labeler (role_id=4) additional restrictions
-      if (me.role_id === 4) {
-        items = items.filter((item) => item.title !== "Data Management");
-      }
-
-      return items;
+    // Admin (role_id=1) - full access, show all routes
+    if (roleId === 1) {
+      return allNavItems;
     }
 
-    // Admin/SuperAdmin - full access
+    // User (2), Owner (3), Co-Owner (4), Labeler (5) - CRUD all but hide Admin
+    if (roleId === 2 || roleId === 3 || roleId === 4 || roleId === 5) {
+      return allNavItems.filter((item) => item.title !== "Administrator");
+    }
+
+    // Viewer (role_id=6) - Read only, hide Admin, can export data
+    if (roleId === 6) {
+      return allNavItems.filter((item) => item.title !== "Administrator");
+    }
+
+    // Default: show all items
     return allNavItems;
   }, [me, allNavItems]);
 

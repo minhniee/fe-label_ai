@@ -14,6 +14,7 @@ import { createProjectBatch, distributeFileToUsers } from "@/app/api/batch"
 import { getMe } from "@/app/api/auth"
 import { useProjectFromSlug } from "@/hooks/use-project-from-slug"
 import { projectToSlug } from "@/types/project"
+import { useUserPermissions } from "@/hooks/use-user-permissions"
 
 // Define supported file formats
 const IMAGE_EXTENSIONS = [".jpg", ".png", ".bmp", ".webp", ".avif"];
@@ -27,6 +28,7 @@ export function UploadForm() {
   const router = useRouter();
   const { toast } = useToast();
   const { project } = useProjectFromSlug();
+  const { canCreate } = useUserPermissions();
   const [batchName, setBatchName] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [dragActive, setDragActive] = useState(false);
@@ -485,9 +487,28 @@ export function UploadForm() {
             </div>
             <h2 className="text-xl font-semibold">Drag and drop file(s) to upload, or:</h2>
             <div className="flex gap-3 justify-center">
-              <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} className="gap-2"><FileUp className="w-4 h-4" />Select File(s)</Button>
-              <Button type="button" variant="outline" onClick={() => folderInputRef.current?.click()} className="gap-2"><FolderOpen className="w-4 h-4" />Select Folder</Button>
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => fileInputRef.current?.click()} 
+                className="gap-2"
+                disabled={!canCreate}
+              >
+                <FileUp className="w-4 h-4" />Select File(s)
+              </Button>
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => folderInputRef.current?.click()} 
+                className="gap-2"
+                disabled={!canCreate}
+              >
+                <FolderOpen className="w-4 h-4" />Select Folder
+              </Button>
             </div>
+            {!canCreate && (
+              <p className="text-sm text-muted-foreground">Viewer role cannot upload files</p>
+            )}
             <div className="pt-6">
                 <h3 className="text-sm font-semibold text-muted-foreground mb-4">Supported Formats</h3>
                 <Card className="p-6">
@@ -528,7 +549,7 @@ export function UploadForm() {
                     variant="outline" 
                     onClick={() => fileInputRef.current?.click()} 
                     className="gap-2"
-                    disabled={isUploading}
+                    disabled={isUploading || !canCreate}
                   >
                     <FileUp className="w-4 h-4" />Select Files
                   </Button>
@@ -537,14 +558,14 @@ export function UploadForm() {
                     variant="outline" 
                     onClick={() => folderInputRef.current?.click()} 
                     className="gap-2"
-                    disabled={isUploading}
+                    disabled={isUploading || !canCreate}
                   >
                     <FolderOpen className="w-4 h-4" />Select Folder
                   </Button>
                   <Button 
                     type="submit" 
                     className="gap-2"
-                    disabled={isUploading}
+                    disabled={isUploading || !canCreate}
                   >
                     {isUploading ? "Uploading..." : "Save and Continue"}
                   </Button>
@@ -555,9 +576,11 @@ export function UploadForm() {
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 pt-6">
                   {filteredFiles.map((file) => (
                     <div key={file.name} className="relative group rounded-lg overflow-hidden bg-muted aspect-video flex items-center justify-center text-center">
-                      <button type="button" onClick={() => removeFile(file.name)} className="absolute top-1 right-1 z-10 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                        <X className="w-3 h-3" />
-                      </button>
+                      {canCreate && (
+                        <button type="button" onClick={() => removeFile(file.name)} className="absolute top-1 right-1 z-10 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
                       {IMAGE_EXTENSIONS.some(ext => file.name.toLowerCase().endsWith(ext)) ? (
                         <img src={filePreviewUrls[file.name]} alt={file.name} className="w-full h-full object-cover" />
                       ) : (

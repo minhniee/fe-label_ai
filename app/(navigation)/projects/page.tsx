@@ -285,14 +285,6 @@ export default function ProjectsPage() {
                     </div>
                   </div>
                   
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t">
-                    {project.labeling_type && (
-                      <Badge variant="outline" className="text-xs">
-                        {project.labeling_type}
-                      </Badge>
-                    )}
-                  </div>
-                  
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>Created {new Date(project.created_at).toLocaleDateString()}</span>
                     <span>Updated {new Date(project.updated_at).toLocaleDateString()}</span>

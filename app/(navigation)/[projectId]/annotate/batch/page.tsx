@@ -54,7 +54,7 @@ export default function ProjectBatchPage() {
   const [instructions, setInstructions] = useState("");
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<"Owner" | "Co-Owner" | "Labeler" | "Viewer">("Labeler");
+  const [inviteRole, setInviteRole] = useState<"Co-Owner" | "Labeler" | "Viewer">("Labeler");
   const [isAssigning, setIsAssigning] = useState(false);
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -268,7 +268,6 @@ export default function ProjectBatchPage() {
   // Helper function to get role name from role_id
   const getRoleName = (roleId: number): string => {
     const roleNames: Record<number, string> = {
-      3: "Owner",
       4: "Co-Owner",
       5: "Labeler",
       6: "Viewer",
@@ -427,7 +426,6 @@ export default function ProjectBatchPage() {
     try {
       // Map role names to role_ids
       const roleMap: Record<string, number> = {
-        "Owner": 3,
         "Co-Owner": 4,
         "Labeler": 5,
         "Viewer": 6,
@@ -781,7 +779,6 @@ export default function ProjectBatchPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Owner">Owner</SelectItem>
                         <SelectItem value="Co-Owner">Co-Owner</SelectItem>
                         <SelectItem value="Labeler">Labeler</SelectItem>
                         <SelectItem value="Viewer">Viewer</SelectItem>

@@ -64,6 +64,8 @@ import {
   Shield,
   Mail,
   Briefcase,
+  Eye,
+  Tag,
 } from "lucide-react";
 import {
   getUsers,
@@ -74,9 +76,9 @@ import {
 } from "@/app/api/users";
 
 // ===== Roles from DB =====
-// 1: SuperAdmin, 2: Admin, 3: Manager, 4: Labeler
+// 1: Admin, 2: User, 3: Owner, 4: Co-Owner, 5: Labeler, 6: Viewer
 
-type UiRole = "superadmin" | "admin" | "manager" | "labeler";
+type UiRole = "admin" | "user" | "owner" | "co-owner" | "labeler" | "viewer";
 
 type UserManagementProps = { currentUserId?: number };
 
@@ -99,7 +101,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
   const [newUser, setNewUser] = useState({
     username: "",
     email: "",
-    role_id: 4 as number, // default Labeler
+    role_id: 2 as number, // default User
     password: "",
   });
 
@@ -109,9 +111,9 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
   const [editForm, setEditForm] = useState({
     username: "",
     email: "",
-    role_id: 4 as number,
+    role_id: 2 as number,
   });
-  const [editOriginalRoleId, setEditOriginalRoleId] = useState<number>(4);
+  const [editOriginalRoleId, setEditOriginalRoleId] = useState<number>(2);
 
   // Delete confirm state
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -121,22 +123,31 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
   } | null>(null);
 
   function mapRoleIdToUiRole(roleId: number): UiRole {
-    if (roleId === 1) return "superadmin";
-    if (roleId === 2) return "admin";
-    if (roleId === 3) return "manager";
-    return "labeler";
+    if (roleId === 1) return "admin";
+    if (roleId === 2) return "user";
+    if (roleId === 3) return "owner";
+    if (roleId === 4) return "co-owner";
+    if (roleId === 5) return "labeler";
+    if (roleId === 6) return "viewer";
+    return "user"; // default
   }
 
   function mapUiRoleToRoleId(role: UiRole): number {
     switch (role) {
-      case "superadmin":
-        return 1;
       case "admin":
+        return 1;
+      case "user":
         return 2;
-      case "manager":
+      case "owner":
         return 3;
-      default:
+      case "co-owner":
         return 4;
+      case "labeler":
+        return 5;
+      case "viewer":
+        return 6;
+      default:
+        return 2; // default to User
     }
   }
 
@@ -242,7 +253,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
 
   // ====== Delete ======
   const requestDeleteUser = (userId: number, name: string, role: UiRole) => {
-    if (role === "superadmin") return;
+    if (role === "admin") return; // Prevent deleting Admin users
     if (currentUserId && userId === currentUserId) return;
     setDeleteTarget({ id: userId, name, role });
   };
@@ -263,26 +274,40 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
 
   const getRoleBadge = (role: UserManagementUser["role"]) => {
     switch (role) {
-      case "superadmin":
-        return (
-          <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">
-            SuperAdmin
-          </Badge>
-        );
       case "admin":
         return (
           <Badge className="bg-red-100 text-red-800 hover:bg-red-100">
             Admin
           </Badge>
         );
-      case "manager":
+      case "user":
         return (
           <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
-            Manager
+            User
+          </Badge>
+        );
+      case "owner":
+        return (
+          <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">
+            Owner
+          </Badge>
+        );
+      case "co-owner":
+        return (
+          <Badge className="bg-indigo-100 text-indigo-800 hover:bg-indigo-100">
+            Co-Owner
           </Badge>
         );
       case "labeler":
         return <Badge variant="secondary">Labeler</Badge>;
+      case "viewer":
+        return (
+          <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100">
+            Viewer
+          </Badge>
+        );
+      default:
+        return <Badge variant="secondary">{role}</Badge>;
     }
   };
 
@@ -294,7 +319,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
         <h1 className="text-3xl font-bold text-foreground">User Management</h1>
       </div>
       {/* User Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-4">
         <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Users</CardTitle>
@@ -303,17 +328,6 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
           <CardContent>
             <div className="text-2xl font-bold">{users.length}</div>
             <p className="text-xs text-muted-foreground">Users in system</p>
-          </CardContent>
-        </Card>
-
-        <Card className=" ">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">SuperAdmin</CardTitle>
-            <Shield className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{countBy("superadmin")}</div>
-            <p className="text-xs text-muted-foreground">Highest privileges</p>
           </CardContent>
         </Card>
 
@@ -330,23 +344,56 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
 
         <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Manager</CardTitle>
+            <CardTitle className="text-sm font-medium">User</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{countBy("user")}</div>
+            <p className="text-xs text-muted-foreground">Users</p>
+          </CardContent>
+        </Card>
+
+        <Card className=" ">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Owner</CardTitle>
+            <Shield className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{countBy("owner")}</div>
+            <p className="text-xs text-muted-foreground">Owners</p>
+          </CardContent>
+        </Card>
+
+        <Card className=" ">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Co-Owner</CardTitle>
             <Briefcase className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{countBy("manager")}</div>
-            <p className="text-xs text-muted-foreground">Managers</p>
+            <div className="text-2xl font-bold">{countBy("co-owner")}</div>
+            <p className="text-xs text-muted-foreground">Co-Owners</p>
           </CardContent>
         </Card>
 
         <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Labeler</CardTitle>
-            <Mail className="h-4 w-4 text-muted-foreground" />
+            <Tag className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{countBy("labeler")}</div>
             <p className="text-xs text-muted-foreground">Labelers</p>
+          </CardContent>
+        </Card>
+
+        <Card className=" ">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Viewer</CardTitle>
+            <Eye className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{countBy("viewer")}</div>
+            <p className="text-xs text-muted-foreground">Viewers</p>
           </CardContent>
         </Card>
       </div>
@@ -449,10 +496,12 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
                         <SelectValue placeholder="Select role" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="1">SuperAdmin</SelectItem>
-                        <SelectItem value="2">Admin</SelectItem>
-                        <SelectItem value="3">Manager</SelectItem>
-                        <SelectItem value="4">Labeler</SelectItem>
+                        <SelectItem value="1">Admin</SelectItem>
+                        <SelectItem value="2">User</SelectItem>
+                        <SelectItem value="3">Owner</SelectItem>
+                        <SelectItem value="4">Co-Owner</SelectItem>
+                        <SelectItem value="5">Labeler</SelectItem>
+                        <SelectItem value="6">Viewer</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -519,7 +568,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
                           onClick={() =>
                             requestDeleteUser(user.id, user.name, user.role)
                           }
-                          disabled={user.role === "superadmin" ? true : false}
+                          disabled={user.role === "admin" ? true : false}
                         >
                           <Trash2 className="mr-2 h-4 w-4" />
                           Delete User

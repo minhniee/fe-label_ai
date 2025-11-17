@@ -45,9 +45,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { Plus, Search, Edit, Trash2, FileText, History, GitCompare, Upload, Download, CheckCircle2, XCircle, AlertCircle, Loader2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useUserPermissions } from "@/hooks/use-user-permissions";
 
 export default function ProjectSchemaPage() {
   const { project } = useProjectFromSlug();
+  const { canCreate, canUpdate, canDelete } = useUserPermissions();
   const [schemas, setSchemas] = useState<SchemaResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -355,7 +357,10 @@ export default function ProjectSchemaPage() {
             Manage schemas and ontologies for project: {project?.name || "Loading..."}
           </p>
         </div>
-        <Button onClick={() => setCreateDialogOpen(true)}>
+        <Button 
+          onClick={() => setCreateDialogOpen(true)}
+          disabled={!canCreate}
+        >
           <Plus className="mr-2 h-4 w-4" />
           Create Schema
         </Button>
@@ -469,6 +474,7 @@ export default function ProjectSchemaPage() {
                               variant="ghost"
                               size="icon"
                               onClick={() => handleEditSchema(schema)}
+                              disabled={!canUpdate}
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
@@ -483,12 +489,13 @@ export default function ProjectSchemaPage() {
                               variant="ghost"
                               size="icon"
                               onClick={() => handleLoadFiles(schema.schema_id)}
+                              disabled={!canCreate}
                             >
                               <Upload className="h-4 w-4" />
                             </Button>
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon">
+                                <Button variant="ghost" size="icon" disabled={!canDelete}>
                                   <Trash2 className="h-4 w-4 text-destructive" />
                                 </Button>
                               </AlertDialogTrigger>
@@ -644,7 +651,7 @@ export default function ProjectSchemaPage() {
             <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCreateSchema} disabled={!schemaName || !ontologyJson.trim()}>
+            <Button onClick={handleCreateSchema} disabled={!schemaName || !ontologyJson.trim() || !canCreate}>
               Create Schema
             </Button>
           </DialogFooter>
@@ -720,7 +727,7 @@ export default function ProjectSchemaPage() {
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleUpdateSchema} disabled={!schemaName || !ontologyJson.trim()}>
+            <Button onClick={handleUpdateSchema} disabled={!schemaName || !ontologyJson.trim() || !canUpdate}>
               Update Schema
             </Button>
           </DialogFooter>
@@ -833,7 +840,7 @@ export default function ProjectSchemaPage() {
                   className="font-mono text-sm"
                 />
               </div>
-              <Button onClick={handleCreateVersion} disabled={!ontologyJson.trim()}>
+              <Button onClick={handleCreateVersion} disabled={!ontologyJson.trim() || !canCreate}>
                 Create Version
               </Button>
             </TabsContent>
@@ -876,7 +883,7 @@ export default function ProjectSchemaPage() {
                     <SelectItem value="txt">TXT</SelectItem>
                   </SelectContent>
                 </Select>
-                <Button onClick={handleUploadFile} disabled={!uploadFile}>
+                <Button onClick={handleUploadFile} disabled={!uploadFile || !canCreate}>
                   <Upload className="mr-2 h-4 w-4" />
                   Upload
                 </Button>
@@ -904,7 +911,7 @@ export default function ProjectSchemaPage() {
                       <TableCell>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon">
+                            <Button variant="ghost" size="icon" disabled={!canDelete}>
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
                           </AlertDialogTrigger>

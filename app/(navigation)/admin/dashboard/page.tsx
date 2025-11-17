@@ -245,7 +245,7 @@ export default function DashboardPage() {
                 <div className="text-xs text-muted-foreground">Hoàn thành</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-accent">
+                <div className="text-2xl font-bold text-primary">
                   {batchStats?.in_progress_batches || batchDashboard?.stats?.in_progress_batches || stats.pendingBatches}
                 </div>
                 <div className="text-xs text-muted-foreground">Đang xử lý</div>
@@ -261,7 +261,7 @@ export default function DashboardPage() {
                 <div className="text-xs text-muted-foreground">Tổng batch</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-accent">
+                <div className="text-2xl font-bold text-primary">
                   {batchStats?.pending_batches || batchDashboard?.stats?.pending_batches || 0}
                 </div>
                 <div className="text-xs text-muted-foreground">Chờ xử lý</div>
