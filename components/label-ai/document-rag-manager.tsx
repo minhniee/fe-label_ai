@@ -102,7 +102,7 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
     try {
       const result = await getProjectDocuments(projectId)
       if (result.success) {
-        const docs = result.documents || []
+        const docs: Document[] = result.documents || []
         setDocuments(docs)
         // Notify parent about documents status
         onDocumentsChange?.(docs.length > 0)
@@ -114,7 +114,7 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
             const savedIds = JSON.parse(previousSelection)
             // Only use saved IDs that still exist and are indexed
             const validIds = savedIds.filter((id: number) => 
-              docs.some(d => d.document_id === id && d.status === 'indexed')
+              docs.some((d: Document) => d.document_id === id && d.status === 'indexed')
             )
             if (validIds.length > 0) {
               setSelectedDocumentIds(validIds)
@@ -126,7 +126,7 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
         }
         
         // Auto-select all indexed documents only if no previous selection exists
-        const indexedDocIds = docs.filter(d => d.status === 'indexed').map(d => d.document_id)
+        const indexedDocIds = docs.filter((d: Document) => d.status === 'indexed').map((d: Document) => d.document_id)
         setSelectedDocumentIds(indexedDocIds)
       }
     } catch (error) {

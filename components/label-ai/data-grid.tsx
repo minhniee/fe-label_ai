@@ -420,9 +420,9 @@ export function DataGrid({
   }
 
   // Show only context and result by default: exclude internal/meta and also remove context/result from generic list
-  const internalColumns = ["_id", "_ai_suggestion", "_ai_reasoning", "_confirmed", "_validation_status", "_corrected_value", "_is_new"]
+  const internalColumns = ["_id", "_ai_suggestion", "_ai_reasoning", "_confirmed", "_validation_status", "_corrected_value", "__corrected_value", "_is_new"]
   const displayColumns = (visibleColumns.length > 0 ? visibleColumns : columns).filter(
-    (col) => !internalColumns.includes(col) && col !== contextColumn && col !== resultColumn
+    (col) => !internalColumns.includes(col) && !col.startsWith("_validation_status") && !col.startsWith("_corrected_value") && !col.startsWith("__corrected_value") && col !== contextColumn && col !== resultColumn
   )
 
   const getCellColor = (status: string) => {
