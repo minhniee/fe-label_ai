@@ -89,19 +89,39 @@ export function LoginForm({
       const token = await loginUser(formData.identifier, formData.password)
       persistAuth(token)
       
+      // Clear any old redirect_after_login from previous sessions
+      try {
+        localStorage.removeItem('redirect_after_login')
+      } catch {}
+      
       toast({
         title: "Login successful",
         description: "Welcome back!",
       })
 
-      // Use callbackUrl prop if provided, otherwise redirect to /projects
+      // Validate callbackUrl based on user role
+      let redirectUrl = "/projects"; // Default redirect
+      
       if (callbackUrl) {
-        // If a callback_url is present, redirect there (already decoded from login page)
-        window.location.href = callbackUrl;
-      } else {
-        // Otherwise, redirect to the default projects page
-        window.location.href = "/projects";
+        // Check if callbackUrl is an admin route
+        const isAdminRoute = callbackUrl.includes('/admin/');
+        
+        // Get user role from token
+        const userRoleId = token?.user?.role_id;
+        const isAdmin = userRoleId === 1; // Admin role_id = 1
+        
+        // Only allow redirect to admin routes if user is admin
+        if (isAdminRoute && !isAdmin) {
+          // User is not admin but trying to access admin route, redirect to projects
+          console.warn("Non-admin user attempted to access admin route, redirecting to /projects");
+          redirectUrl = "/projects";
+        } else {
+          // Safe to redirect to callbackUrl
+          redirectUrl = callbackUrl;
+        }
       }
+      
+      window.location.href = redirectUrl;
     } catch (error: any) {
       toast({
         title: "Login failed",

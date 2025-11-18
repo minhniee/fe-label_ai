@@ -36,10 +36,27 @@ export default function LoginPage() {
         if (token) {
           // Verify token is valid by calling /auth/me
           try {
-            await getMe();
-            // User is already authenticated, redirect to callback_url if present, otherwise /projects
+            const me = await getMe();
+            // User is already authenticated, validate callback_url based on user role
             setIsAuthenticated(true);
-            const redirectUrl = cbUrl ? decodeURIComponent(cbUrl) : "/projects";
+            
+            let redirectUrl = "/projects"; // Default redirect
+            if (cbUrl) {
+              const decodedUrl = decodeURIComponent(cbUrl);
+              // Check if callbackUrl is an admin route
+              const isAdminRoute = decodedUrl.includes('/admin/');
+              const isAdmin = me?.role_id === 1; // Admin role_id = 1
+              
+              // Only allow redirect to admin routes if user is admin
+              if (isAdminRoute && !isAdmin) {
+                // User is not admin but trying to access admin route, redirect to projects
+                console.warn("Non-admin user attempted to access admin route, redirecting to /projects");
+                redirectUrl = "/projects";
+              } else {
+                redirectUrl = decodedUrl;
+              }
+            }
+            
             router.replace(redirectUrl);
             return;
           } catch (error) {
@@ -48,6 +65,7 @@ export default function LoginPage() {
             localStorage.removeItem("access_token");
             localStorage.removeItem("refresh_token");
             localStorage.removeItem("user");
+            localStorage.removeItem("redirect_after_login");
           }
         }
         

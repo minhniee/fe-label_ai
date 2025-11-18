@@ -210,6 +210,9 @@ export default function ProjectBatchPage() {
   // Helper function to get role name from role_id
   const getRoleName = (roleId: number): string => {
     const roleNames: Record<number, string> = {
+      1: "Admin",
+      2: "User",
+      3: "Owner",
       4: "Co-Owner",
       5: "Labeler",
       6: "Viewer",

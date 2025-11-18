@@ -22,6 +22,7 @@ export function AuthGuard({ children, allowedRoleIds }: AuthGuardProps) {
   const [user, setUser] = useState<BackendUser | null>(null)
   const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
+  const [hasAccess, setHasAccess] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -66,6 +67,8 @@ export function AuthGuard({ children, allowedRoleIds }: AuthGuardProps) {
             localStorage.removeItem('access_token')
             localStorage.removeItem('refresh_token')
             localStorage.removeItem('user')
+            // Clear redirect URL to prevent redirecting to previous user's path
+            localStorage.removeItem('redirect_after_login')
           } catch {}
           redirectToLogin()
           return
@@ -75,12 +78,20 @@ export function AuthGuard({ children, allowedRoleIds }: AuthGuardProps) {
         if (allowedRoleIds && allowedRoleIds.length > 0 && me) {
           const isAllowed = allowedRoleIds.includes(me.role_id)
           if (!isAllowed) {
-            if (!cancelled) router.push("/projects") 
+            // User doesn't have required role - redirect immediately and don't set user
+            if (!cancelled) {
+              setHasAccess(false)
+              router.replace("/projects")
+            }
             return
           }
         }
 
-        if (!cancelled) setUser(me)
+        // If no role restriction or user has required role, grant access
+        if (!cancelled) {
+          setUser(me)
+          setHasAccess(true)
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -98,7 +109,10 @@ export function AuthGuard({ children, allowedRoleIds }: AuthGuardProps) {
     )
   }
 
-  if (!user) return null
+  // Don't render children if user is not authenticated or doesn't have required role
+  if (!user || !hasAccess) {
+    return null
+  }
 
   return <>{children}</>
 }
@@ -134,6 +148,8 @@ export function useAuth() {
         localStorage.removeItem("user_email")
         localStorage.removeItem('access_token')
         localStorage.removeItem('refresh_token')
+        // Clear redirect URL to prevent redirecting to previous user's path
+        localStorage.removeItem('redirect_after_login')
       } catch {}
       
       const callbackUrl = window.location.href

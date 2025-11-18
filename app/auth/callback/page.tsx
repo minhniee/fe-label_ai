@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { getMe } from "@/app/api/auth";
 
 export default function AuthCallbackPage() {
   const router = useRouter();
@@ -46,34 +47,63 @@ export default function AuthCallbackPage() {
         return;
       }
 
-      // Check for saved redirect URL from Google login
-      const redirectAfterLogin = localStorage.getItem("redirect_after_login");
-      if (redirectAfterLogin) {
-        // Remove the saved redirect URL
-        localStorage.removeItem("redirect_after_login");
-        
-        // Extract path + search from URL if it's a full URL, otherwise use as-is
-        let redirectPath: string;
+      // Async function to handle user info and redirect
+      const handleRedirect = async () => {
+        // Get user info to validate redirect URL
+        let userRoleId: number | null = null;
         try {
-          // Try to parse as full URL (with protocol)
-          if (redirectAfterLogin.startsWith('http://') || redirectAfterLogin.startsWith('https://')) {
-            const url = new URL(redirectAfterLogin);
-            redirectPath = url.pathname + url.search;
-          } else {
-            // Already a path + search (relative URL)
+          const me = await getMe();
+          userRoleId = me?.role_id || null;
+          // Update localStorage with user info
+          if (me) {
+            localStorage.setItem("user", JSON.stringify(me));
+          }
+        } catch (e) {
+          console.error("Failed to get user info:", e);
+        }
+
+        // Check for saved redirect URL from Google login
+        const redirectAfterLogin = localStorage.getItem("redirect_after_login");
+        if (redirectAfterLogin) {
+          // Remove the saved redirect URL
+          localStorage.removeItem("redirect_after_login");
+          
+          // Extract path + search from URL if it's a full URL, otherwise use as-is
+          let redirectPath: string;
+          try {
+            // Try to parse as full URL (with protocol)
+            if (redirectAfterLogin.startsWith('http://') || redirectAfterLogin.startsWith('https://')) {
+              const url = new URL(redirectAfterLogin);
+              redirectPath = url.pathname + url.search;
+            } else {
+              // Already a path + search (relative URL)
+              redirectPath = redirectAfterLogin;
+            }
+          } catch {
+            // If parsing fails, assume it's already a path + search
             redirectPath = redirectAfterLogin;
           }
-        } catch {
-          // If parsing fails, assume it's already a path + search
-          redirectPath = redirectAfterLogin;
+          
+          // Validate redirect path based on user role
+          const isAdminRoute = redirectPath.includes('/admin/');
+          const isAdmin = userRoleId === 1; // Admin role_id = 1
+          
+          // Only allow redirect to admin routes if user is admin
+          if (isAdminRoute && !isAdmin) {
+            // User is not admin but trying to access admin route, redirect to projects
+            console.warn("Non-admin user attempted to access admin route, redirecting to /projects");
+            router.replace("/projects");
+          } else {
+            // Safe to redirect to saved URL
+            router.replace(redirectPath);
+          }
+        } else {
+          // Default redirect to projects
+          router.replace("/projects");
         }
-        
-        // Redirect to the saved URL (includes query params)
-        router.replace(redirectPath);
-      } else {
-        // Default redirect to projects
-        router.replace("/projects");
-      }
+      };
+
+      handleRedirect();
     } else {
       // Handle case where no token is provided
       router.replace("/login?error=no_token");

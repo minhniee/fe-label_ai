@@ -164,7 +164,7 @@ export default function RegisterPage() {
       persistAuth(loginData)
 
       // Redirect to dashboard after successful login
-      window.location.href = "/dashboard"
+      window.location.href = "/projects"
     } catch (err: any) {
       setServerError(err?.message || "An error occurred. Please try again.")
     } finally {

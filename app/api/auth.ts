@@ -98,6 +98,8 @@ export async function logout() {
       localStorage.removeItem('user_picture');
       localStorage.removeItem('user_name');
       localStorage.removeItem('user_email');
+      // Clear redirect URL to prevent redirecting to previous user's path
+      localStorage.removeItem('redirect_after_login');
     } catch (error) {
       console.error("Failed to clear auth tokens from storage:", error);
     }
@@ -150,6 +152,8 @@ export async function isAuthenticated(): Promise<boolean> {
         localStorage.removeItem("access_token");
         localStorage.removeItem("refresh_token");
         localStorage.removeItem("user");
+        // Clear redirect URL to prevent redirecting to previous user's path
+        localStorage.removeItem("redirect_after_login");
       }
     } catch {}
     
