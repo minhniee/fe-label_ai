@@ -427,6 +427,12 @@ export default function ProjectJobPage() {
   const userCompletedFiles = userProgress?.completed_batches || 0;
   const userAssignedFiles = userProgress?.assigned_batches || 0;
 
+  // Check if current user is Owner (3) or Co-Owner (4) in this project
+  const currentUserProjectRole = currentUser?.user_id 
+    ? collaborators.find(c => c.user_id === currentUser.user_id)?.role_id 
+    : null;
+  const canReassign = currentUserProjectRole === 3 || currentUserProjectRole === 4; // Owner or Co-Owner
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -511,16 +517,28 @@ export default function ProjectJobPage() {
           </div>
         )}
 
+        {/* Row Summary */}
+        {totalCsvRows > 0 && (
+          <div className="p-6 border-b">
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm font-medium text-blue-900">
+                Total rows to label: <span className="font-bold">{totalCsvRows} rows</span>
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Assignment */}
         <div className="p-6 border-b">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold">Assignment</h3>
-            <Drawer open={isReassignDrawerOpen} onOpenChange={setIsReassignDrawerOpen} direction="right">
-              <DrawerTrigger asChild>
-                <Button variant="outline" size="sm">
-                  Reassign
-                </Button>
-              </DrawerTrigger>
+            {canReassign && (
+              <Drawer open={isReassignDrawerOpen} onOpenChange={setIsReassignDrawerOpen} direction="right">
+                <DrawerTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    Reassign
+                  </Button>
+                </DrawerTrigger>
               <DrawerContent className="max-h-[100vh] h-full" data-vaul-drawer-direction="right">
                 <DrawerHeader>
                   <DrawerTitle>Reassign Job</DrawerTitle>
@@ -604,6 +622,7 @@ export default function ProjectJobPage() {
                 </DrawerFooter>
               </DrawerContent>
             </Drawer>
+            )}
           </div>
           <div className="space-y-2">
             {/* Display assigned user */}

@@ -285,25 +285,43 @@ export default function ProjectBatchPage() {
               continue;
             }
 
-            const chunkSize = Math.max(10, Math.ceil(rowsForFile / actualUserIds.length));
-            console.log(`Distributing ${rowsForFile} rows from ${csvFile.filename} to ${actualUserIds.length} users, chunk_size: ${chunkSize}`);
+            // Calculate chunk size so each user gets exactly 1 chunk (1 job per user)
+            // We want: numChunks = numUsers, so chunkSize = rowsPerMember
+            const numUsers = actualUserIds.length;
+            const rowsPerMember = Math.ceil(rowsForFile / numUsers);
+            
+            // Calculate chunk size to ensure we get exactly numUsers chunks
+            // chunkSize = rowsPerMember ensures: Math.ceil(rowsForFile / chunkSize) = numUsers
+            // Example: rowsForFile = 30, numUsers = 2 → rowsPerMember = 15 → chunkSize = 15 → 2 chunks ✓
+            // Example: rowsForFile = 31, numUsers = 2 → rowsPerMember = 16 → chunkSize = 16 → 2 chunks (16+15) ✓
+            // Example: rowsForFile = 10, numUsers = 2 → rowsPerMember = 5 → chunkSize = 5 → 2 chunks (5+5) ✓
+            // Minimum chunk size is 1 (allow small chunks if file is small)
+            const finalChunkSize = Math.max(1, rowsPerMember);
+            const expectedChunks = Math.ceil(rowsForFile / finalChunkSize);
+            
+            console.log(`Distributing ${rowsForFile} rows from ${csvFile.filename} to ${numUsers} users, chunk_size: ${finalChunkSize}, expected_chunks: ${expectedChunks} (should equal ${numUsers})`);
 
             try {
               const distributeResponse = await distributeFileToUsers({
                 project_id: parseInt(project!.id),
                 file_id: csvFile.file_id,
-                chunk_size: chunkSize,
+                chunk_size: finalChunkSize,
                 user_ids: actualUserIds,
-                distribution_method: 'round_robin',
+                // Use first_takes_remainder to ensure each user gets consecutive chunks
+                // This ensures each user gets 1 job with their chunk when numChunks = numUsers
+                distribution_method: 'first_takes_remainder',
                 notes: instructions || undefined,
               });
 
               console.log(`Distribution response for ${csvFile.filename}:`, distributeResponse);
               
-              totalJobsCreated += distributeResponse.batches_created || actualUserIds.length;
+              // Each user should get 1 batch (1 job), so total jobs = number of users
+              const jobsCreated = distributeResponse.batches_created || actualUserIds.length;
+              totalJobsCreated += jobsCreated;
               
+              const actualRowsPerMember = Math.ceil(rowsForFile / numUsers);
               toast.success(
-                `File ${csvFile.filename}: ${chunkSize} câu per member • ${distributeResponse.batches_created || actualUserIds.length} job(s)`
+                `File ${csvFile.filename}: ${actualRowsPerMember} rows per member • ${jobsCreated} job(s) created (1 job per member)`
               );
             } catch (error: any) {
               console.error(`Failed to distribute CSV file ${csvFile.filename}:`, error);
@@ -671,11 +689,11 @@ export default function ProjectBatchPage() {
               {totalRows > 0 && (
                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <p className="text-sm font-medium text-blue-900">
-                    Tổng số câu cần label: <span className="font-bold">{totalRows} câu</span>
+                  Total rows to label: <span className="font-bold">{totalRows} rows</span>
                   </p>
                   {selectedMembers.length > 0 && (
                     <p className="text-xs text-blue-700 mt-1">
-                      Mỗi member sẽ được assign: <span className="font-semibold">{rowsPerMember} câu</span>
+                      Each member will be assigned: <span className="font-semibold">{rowsPerMember} rows</span>
                     </p>
                   )}
                 </div>

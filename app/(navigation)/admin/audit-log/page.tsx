@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Card,
   CardContent,
@@ -29,553 +29,491 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  listAuditEvents,
-  listAuditChanges,
-  type AuditEventItem,
-  type AuditChangeItem,
-  type AuditEventQuery,
-  type AuditChangeQuery,
-} from "@/app/api/audit";
-import { getUsers, type User } from "@/app/api/users";
-import {
   Activity,
-  Database,
-  Search,
   Filter,
   RefreshCw,
-  Calendar,
+  Search,
   User as UserIcon,
-  FileText,
-  AlertCircle,
-  CheckCircle,
-  XCircle,
-  Clock,
+  Upload,
+  Server,
+  Loader2,
+  FileSearch,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import {
+  getAllAuditLogs,
+  getUserAuditLogs,
+  searchAuditLogs,
+  uploadAuditLocalFile,
+  scanAndUploadAuditLogs,
+  triggerAuditUpload,
+  getAuditUploadStatus,
+  type AuditLogRecord,
+  type AdminAuditFilters,
+} from "@/app/api/audit";
+import { getUsers, type User } from "@/app/api/users";
+
+const WORKSPACE_PAGE_SIZE = 25;
+const USER_PAGE_SIZE = 20;
+const SEARCH_PAGE_SIZE = 20;
+
+type TabKey = "workspace" | "user" | "search" | "upload";
 
 export default function AuditLogPage() {
-  const [activeTab, setActiveTab] = useState<"events" | "changes">("events");
-  const [events, setEvents] = useState<AuditEventItem[]>([]);
-  const [changes, setChanges] = useState<AuditChangeItem[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabKey>("workspace");
   const [users, setUsers] = useState<User[]>([]);
 
-  // Pagination
-  const [eventsPage, setEventsPage] = useState(1);
-  const [changesPage, setChangesPage] = useState(1);
-  const [eventsTotal, setEventsTotal] = useState(0);
-  const [changesTotal, setChangesTotal] = useState(0);
-  const pageSize = 20;
-
-  // Filters for Events
-  const [eventFilters, setEventFilters] = useState<AuditEventQuery>({
-    page: 1,
-    page_size: pageSize,
+  const [workspaceLogs, setWorkspaceLogs] = useState<AuditLogRecord[]>([]);
+  const [workspaceTotal, setWorkspaceTotal] = useState(0);
+  const [workspacePage, setWorkspacePage] = useState(1);
+  const [workspaceFilters, setWorkspaceFilters] = useState({
+    tenantId: "",
+    eventType: "",
+    actorUserId: "",
+    fromDate: "",
+    toDate: "",
   });
+  const [workspaceLoading, setWorkspaceLoading] = useState(false);
 
-  // Filters for Changes
-  const [changeFilters, setChangeFilters] = useState<AuditChangeQuery>({
-    page: 1,
-    page_size: pageSize,
-  });
+  const [selectedUserId, setSelectedUserId] = useState("all");
+  const [userLogs, setUserLogs] = useState<AuditLogRecord[]>([]);
+  const [userTotal, setUserTotal] = useState(0);
+  const [userPage, setUserPage] = useState(1);
+  const [userLoading, setUserLoading] = useState(false);
 
-  // Load users for filter dropdown
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchLogs, setSearchLogs] = useState<AuditLogRecord[]>([]);
+  const [searchTotal, setSearchTotal] = useState(0);
+  const [searchPage, setSearchPage] = useState(1);
+  const [searchLoading, setSearchLoading] = useState(false);
+
+  const [localPath, setLocalPath] = useState("");
+  const [scanRoot, setScanRoot] = useState("");
+  const [scanPattern, setScanPattern] = useState("**/*.parquet,**/*.log");
+  const [uploadStatus, setUploadStatus] = useState<Record<string, any> | null>(null);
+  const [uploadBusy, setUploadBusy] = useState(false);
+
+  const numericUserId = useMemo(() => {
+    if (selectedUserId === "all") return undefined;
+    const parsed = Number(selectedUserId);
+    return Number.isNaN(parsed) ? undefined : parsed;
+  }, [selectedUserId]);
+
   useEffect(() => {
-    const loadUsers = async () => {
+    const fetchUsers = async () => {
       try {
-        const usersData = await getUsers();
-        setUsers(usersData);
+        const list = await getUsers();
+        setUsers(list);
       } catch (error: any) {
         console.error("Failed to load users:", error);
+        toast.error("Failed to load users");
       }
     };
-    loadUsers();
+    fetchUsers();
   }, []);
 
-  // Load audit events
-  const loadEvents = async () => {
-    setIsLoading(true);
+  const loadWorkspaceLogs = useCallback(async () => {
+    if (activeTab !== "workspace") return;
+    setWorkspaceLoading(true);
     try {
-      // Build query with filters, but only include defined filters
-      const query: AuditEventQuery = {
-        page: eventsPage,
-        page_size: pageSize,
+      const filters: AdminAuditFilters = {
+        tenant_id: workspaceFilters.tenantId || undefined,
+        event_type: workspaceFilters.eventType || undefined,
+        actor_user_id: workspaceFilters.actorUserId || undefined,
+        from_date: workspaceFilters.fromDate || undefined,
+        to_date: workspaceFilters.toDate || undefined,
+        limit: WORKSPACE_PAGE_SIZE,
+        offset: (workspacePage - 1) * WORKSPACE_PAGE_SIZE,
       };
-      
-      // Only add filters that are actually set
-      if (eventFilters.user_id) {
-        query.user_id = eventFilters.user_id;
-      }
-      if (eventFilters.action) {
-        query.action = eventFilters.action;
-      }
-      if (eventFilters.resource_type) {
-        query.resource_type = eventFilters.resource_type;
-      }
-      if (eventFilters.resource_id) {
-        query.resource_id = eventFilters.resource_id;
-      }
-      if (eventFilters.request_id) {
-        query.request_id = eventFilters.request_id;
-      }
-      if (eventFilters.http_method) {
-        query.http_method = eventFilters.http_method;
-      }
-      if (eventFilters.status_code) {
-        query.status_code = eventFilters.status_code;
-      }
-      if (eventFilters.ip_address) {
-        query.ip_address = eventFilters.ip_address;
-      }
-      if (eventFilters.from_time) {
-        query.from_time = eventFilters.from_time;
-      }
-      if (eventFilters.to_time) {
-        query.to_time = eventFilters.to_time;
-      }
-      
-      console.log("Loading audit events with query:", query);
-      
-      const response = await listAuditEvents(query);
-      console.log("Audit events response:", response);
-      
-      setEvents(response.items || []);
-      setEventsTotal(response.total || 0);
+      const response = await getAllAuditLogs(filters);
+      setWorkspaceLogs(response?.data || []);
+      setWorkspaceTotal(response?.total || 0);
     } catch (error: any) {
-      console.error("Failed to load audit events:", error);
-      
-      // Provide more specific error messages
-      if (error.response?.status === 401) {
-        toast.error("Authentication required. Please login again.");
-      } else if (error.response?.status === 403) {
-        toast.error("Access denied. Admin privileges required to view audit logs.");
-      } else if (error.response?.status === 500) {
-        toast.error("Server error. Please check backend logs or contact administrator.");
-      } else if (error.message?.includes("Network Error") || error.message?.includes("CORS")) {
-        toast.error("Network error. Please ensure backend server is running and CORS is configured.");
-      } else {
-        toast.error(error.message || "Failed to load audit events");
-      }
-      
-      // Set empty state on error
-      setEvents([]);
-      setEventsTotal(0);
+      console.error("Failed to load workspace logs:", error);
+      toast.error(error.message || "Failed to load workspace logs");
+      setWorkspaceLogs([]);
+      setWorkspaceTotal(0);
     } finally {
-      setIsLoading(false);
+      setWorkspaceLoading(false);
     }
-  };
+  }, [activeTab, workspaceFilters, workspacePage]);
 
-  // Load audit changes
-  const loadChanges = async () => {
-    setIsLoading(true);
+  useEffect(() => {
+    loadWorkspaceLogs();
+  }, [loadWorkspaceLogs]);
+
+  const loadUserLogs = useCallback(async () => {
+    if (activeTab !== "user" || !numericUserId) {
+      setUserLogs([]);
+      setUserTotal(0);
+      return;
+    }
+    setUserLoading(true);
     try {
-      // Build query with filters, but only include defined filters
-      const query: AuditChangeQuery = {
-        page: changesPage,
-        page_size: pageSize,
-      };
-      
-      // Only add filters that are actually set
-      if (changeFilters.user_id) {
-        query.user_id = changeFilters.user_id;
-      }
-      if (changeFilters.table_name) {
-        query.table_name = changeFilters.table_name;
-      }
-      if (changeFilters.operation) {
-        query.operation = changeFilters.operation;
-      }
-      if (changeFilters.request_id) {
-        query.request_id = changeFilters.request_id;
-      }
-      if (changeFilters.from_time) {
-        query.from_time = changeFilters.from_time;
-      }
-      if (changeFilters.to_time) {
-        query.to_time = changeFilters.to_time;
-      }
-      
-      console.log("Loading audit changes with query:", query);
-      
-      const response = await listAuditChanges(query);
-      console.log("Audit changes response:", response);
-      
-      setChanges(response.items || []);
-      setChangesTotal(response.total || 0);
-      
-      if (response.items && response.items.length === 0) {
-        console.log("No changes found with current filters");
-      }
-    } catch (error: any) {
-      console.error("Failed to load audit changes:", error);
-      console.error("Error details:", {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
+      const response = await getUserAuditLogs(numericUserId, {
+        limit: USER_PAGE_SIZE,
+        offset: (userPage - 1) * USER_PAGE_SIZE,
       });
-      
-      // Provide more specific error messages
-      if (error.response?.status === 401) {
-        toast.error("Authentication required. Please login again.");
-      } else if (error.response?.status === 403) {
-        toast.error("Access denied. Admin privileges required to view audit logs.");
-      } else if (error.response?.status === 500) {
-        toast.error("Server error. Please check backend logs or contact administrator.");
-      } else if (error.message?.includes("Network Error") || error.message?.includes("CORS")) {
-        toast.error("Network error. Please ensure backend server is running and CORS is configured.");
-      } else {
-        toast.error(error.message || "Failed to load audit changes");
-      }
-      
-      // Set empty state on error
-      setChanges([]);
-      setChangesTotal(0);
+      setUserLogs(response?.data || []);
+      setUserTotal(response?.total || 0);
+    } catch (error: any) {
+      console.error("Failed to load user logs:", error);
+      toast.error(error.message || "Failed to load user logs");
+      setUserLogs([]);
+      setUserTotal(0);
     } finally {
-      setIsLoading(false);
+      setUserLoading(false);
     }
-  };
-
-  // Reset page when filters change and reload data
-  useEffect(() => {
-    if (activeTab === "events") {
-      setEventsPage(1);
-      // Load events when filters change
-      loadEvents();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, eventFilters]);
+  }, [activeTab, numericUserId, userPage]);
 
   useEffect(() => {
-    if (activeTab === "changes") {
-      setChangesPage(1);
-      // Load changes when filters change
-      loadChanges();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, changeFilters]);
+    loadUserLogs();
+  }, [loadUserLogs]);
 
-  // Load data when tab or page changes
+  const loadSearchLogs = useCallback(
+    async (notifyOnEmpty = false) => {
+      if (activeTab !== "search") return;
+      if (!searchQuery.trim()) {
+        if (notifyOnEmpty) toast.error("Enter a keyword to search");
+        setSearchLogs([]);
+        setSearchTotal(0);
+        return;
+      }
+      setSearchLoading(true);
+      try {
+        const response = await searchAuditLogs({
+          q: searchQuery.trim(),
+          limit: SEARCH_PAGE_SIZE,
+          offset: (searchPage - 1) * SEARCH_PAGE_SIZE,
+        });
+        setSearchLogs(response?.data || []);
+        setSearchTotal(response?.total || 0);
+      } catch (error: any) {
+        console.error("Failed to search logs:", error);
+        toast.error(error.message || "Failed to search audit logs");
+        setSearchLogs([]);
+        setSearchTotal(0);
+      } finally {
+        setSearchLoading(false);
+      }
+    },
+    [activeTab, searchQuery, searchPage]
+  );
+
   useEffect(() => {
-    if (activeTab === "events") {
-      loadEvents();
-    } else {
-      loadChanges();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, eventsPage, changesPage]);
+    loadSearchLogs();
+  }, [loadSearchLogs]);
 
-  const formatTimestamp = (timestamp: string) => {
+  const refreshUploadStatus = useCallback(async () => {
     try {
-      return format(new Date(timestamp), "yyyy-MM-dd HH:mm:ss");
+      const status = await getAuditUploadStatus();
+      setUploadStatus(status);
+    } catch (error) {
+      console.error("Failed to fetch upload status:", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "upload") {
+      refreshUploadStatus();
+    }
+  }, [activeTab, refreshUploadStatus]);
+
+  const formatTimestamp = (value?: string) => {
+    if (!value) return "-";
+    try {
+      return format(new Date(value), "yyyy-MM-dd HH:mm:ss");
     } catch {
-      return timestamp;
+      return value;
     }
   };
 
-  const getStatusBadge = (statusCode?: number) => {
-    if (!statusCode) return null;
-    if (statusCode >= 200 && statusCode < 300) {
-      return (
-        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-          <CheckCircle className="w-3 h-3 mr-1" />
-          {statusCode}
-        </Badge>
-      );
-    } else if (statusCode >= 400 && statusCode < 500) {
-      return (
-        <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
-          <AlertCircle className="w-3 h-3 mr-1" />
-          {statusCode}
-        </Badge>
-      );
-    } else if (statusCode >= 500) {
-      return (
-        <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-          <XCircle className="w-3 h-3 mr-1" />
-          {statusCode}
-        </Badge>
-      );
+  const renderRows = (logs: AuditLogRecord[]) =>
+    logs.map((log, idx) => (
+      <TableRow key={`${log.event_id ?? idx}-${log.req_trace_id ?? idx}`}>
+        <TableCell className="font-mono text-xs">{formatTimestamp(log.ts)}</TableCell>
+        <TableCell>
+          {log.actor_user_id ? (
+            <Badge variant="outline">User #{log.actor_user_id}</Badge>
+          ) : (
+            <span className="text-muted-foreground">System</span>
+          )}
+        </TableCell>
+        <TableCell>
+          <div className="flex flex-col gap-1">
+            <Badge variant="outline">{log.event_type || "event"}</Badge>
+            <span className="text-xs text-muted-foreground">
+              {log.event_action || "-"}
+            </span>
+          </div>
+        </TableCell>
+        <TableCell>
+          {log.req_method ? (
+            <Badge variant="outline">{log.req_method}</Badge>
+          ) : (
+            <span className="text-muted-foreground">-</span>
+          )}
+        </TableCell>
+        <TableCell className="font-mono text-xs max-w-xs truncate">
+          {log.req_path || "-"}
+        </TableCell>
+        <TableCell className="font-mono text-xs max-w-xs truncate">
+          {typeof log.ctx_json === "object" && log.ctx_json
+            ? JSON.stringify(log.ctx_json).slice(0, 120)
+            : typeof log.ctx_json === "string"
+            ? log.ctx_json.slice(0, 120)
+            : "-"}
+        </TableCell>
+      </TableRow>
+    ));
+
+  const handleResetWorkspaceFilters = () => {
+    setWorkspaceFilters({
+      tenantId: "",
+      eventType: "",
+      actorUserId: "",
+      fromDate: "",
+      toDate: "",
+    });
+    setWorkspacePage(1);
+  };
+
+  const handleUploadLocal = async () => {
+    if (!localPath.trim()) {
+      toast.error("Enter a file path");
+      return;
     }
-    return <Badge variant="outline">{statusCode}</Badge>;
+    setUploadBusy(true);
+    try {
+      await uploadAuditLocalFile(localPath.trim());
+      toast.success("File upload scheduled");
+      setLocalPath("");
+      await refreshUploadStatus();
+    } catch (error: any) {
+      console.error("Failed to upload file:", error);
+      toast.error(error.message || "Failed to upload file");
+    } finally {
+      setUploadBusy(false);
+    }
   };
 
-  const getOperationBadge = (operation: string) => {
-    const colors: Record<string, string> = {
-      INSERT: "bg-green-50 text-green-700 border-green-200",
-      UPDATE: "bg-blue-50 text-blue-700 border-blue-200",
-      DELETE: "bg-red-50 text-red-700 border-red-200",
-    };
-    const color = colors[operation] || "bg-gray-50 text-gray-700 border-gray-200";
-    return (
-      <Badge variant="outline" className={color}>
-        {operation}
-      </Badge>
-    );
+  const handleScanUpload = async () => {
+    setUploadBusy(true);
+    try {
+      await scanAndUploadAuditLogs({
+        root: scanRoot || undefined,
+        pattern: scanPattern || undefined,
+      });
+      toast.success("Directory scan scheduled");
+      await refreshUploadStatus();
+    } catch (error: any) {
+      console.error("Failed to scan directory:", error);
+      toast.error(error.message || "Failed to scan/upload logs");
+    } finally {
+      setUploadBusy(false);
+    }
   };
 
-  const handleResetFilters = () => {
-    if (activeTab === "events") {
-      setEventFilters({ page: 1, page_size: pageSize });
-      setEventsPage(1);
-    } else {
-      setChangeFilters({ page: 1, page_size: pageSize });
-      setChangesPage(1);
+  const handleTriggerUpload = async () => {
+    setUploadBusy(true);
+    try {
+      await triggerAuditUpload();
+      toast.success("Upload triggered");
+      await refreshUploadStatus();
+    } catch (error: any) {
+      console.error("Failed to trigger upload:", error);
+      toast.error(error.message || "Failed to trigger upload");
+    } finally {
+      setUploadBusy(false);
     }
   };
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Audit Log</h1>
-        <p className="text-muted-foreground mt-2">
-          Track all system changes and user activities
+        <h1 className="text-3xl font-bold tracking-tight">Audit Center</h1>
+        <p className="text-muted-foreground">
+          Review workspace activity, inspect user actions, run searches, and manage audit uploads.
         </p>
       </div>
 
-      {/* Main Content */}
       <Card>
         <CardHeader>
-          <CardTitle>System Audit Trail</CardTitle>
+          <CardTitle>Audit Overview</CardTitle>
           <CardDescription>
-            Monitor events and database changes across the system
+            Switch between workspace feed, individual users, full-text search, and upload control.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "events" | "changes")}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="events" className="flex items-center gap-2">
-                <Activity className="w-4 h-4" />
-                Events ({eventsTotal})
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabKey)}>
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="workspace" className="flex items-center gap-2">
+                <Activity className="h-4 w-4" />
+                Workspace
               </TabsTrigger>
-              <TabsTrigger value="changes" className="flex items-center gap-2">
-                <Database className="w-4 h-4" />
-                Changes ({changesTotal})
+              <TabsTrigger value="user" className="flex items-center gap-2">
+                <UserIcon className="h-4 w-4" />
+                User
+              </TabsTrigger>
+              <TabsTrigger value="search" className="flex items-center gap-2">
+                <FileSearch className="h-4 w-4" />
+                Search
+              </TabsTrigger>
+              <TabsTrigger value="upload" className="flex items-center gap-2">
+                <Upload className="h-4 w-4" />
+                Upload
               </TabsTrigger>
             </TabsList>
 
-            {/* Events Tab */}
-            <TabsContent value="events" className="space-y-4 mt-6">
-              {/* Filters */}
+            <TabsContent value="workspace" className="mt-6 space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Filter className="w-4 h-4" />
-                    Filters
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Filter className="h-4 w-4" />
+                    Workspace filters
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
                     <div className="space-y-2">
-                      <Label htmlFor="event-user">User</Label>
-                      <Select
-                        value={eventFilters.user_id?.toString() || "all"}
-                        onValueChange={(value) =>
-                          setEventFilters({
-                            ...eventFilters,
-                            user_id: value === "all" ? undefined : parseInt(value),
-                          })
-                        }
-                      >
-                        <SelectTrigger id="event-user">
-                          <SelectValue placeholder="All users" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All users</SelectItem>
-                          {users.map((user) => (
-                            <SelectItem key={user.user_id} value={user.user_id.toString()}>
-                              {user.username} ({user.email})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="event-action">Action</Label>
+                      <Label>Tenant</Label>
                       <Input
-                        id="event-action"
-                        placeholder="Filter by action"
-                        value={eventFilters.action || ""}
+                        placeholder="tenant-a"
+                        value={workspaceFilters.tenantId}
                         onChange={(e) =>
-                          setEventFilters({ ...eventFilters, action: e.target.value || undefined })
+                          setWorkspaceFilters((prev) => ({ ...prev, tenantId: e.target.value }))
                         }
                       />
                     </div>
-
                     <div className="space-y-2">
-                      <Label htmlFor="event-resource">Resource Type</Label>
+                      <Label>Event type</Label>
                       <Input
-                        id="event-resource"
-                        placeholder="e.g., batch, project"
-                        value={eventFilters.resource_type || ""}
+                        placeholder="project.created"
+                        value={workspaceFilters.eventType}
                         onChange={(e) =>
-                          setEventFilters({
-                            ...eventFilters,
-                            resource_type: e.target.value || undefined,
-                          })
+                          setWorkspaceFilters((prev) => ({ ...prev, eventType: e.target.value }))
                         }
                       />
                     </div>
-
                     <div className="space-y-2">
-                      <Label htmlFor="event-method">HTTP Method</Label>
-                      <Select
-                        value={eventFilters.http_method || "all"}
-                        onValueChange={(value) =>
-                          setEventFilters({
-                            ...eventFilters,
-                            http_method: value === "all" ? undefined : value,
-                          })
+                      <Label>Actor user ID</Label>
+                      <Input
+                        placeholder="42"
+                        value={workspaceFilters.actorUserId}
+                        onChange={(e) =>
+                          setWorkspaceFilters((prev) => ({ ...prev, actorUserId: e.target.value }))
                         }
-                      >
-                        <SelectTrigger id="event-method">
-                          <SelectValue placeholder="All methods" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All methods</SelectItem>
-                          <SelectItem value="GET">GET</SelectItem>
-                          <SelectItem value="POST">POST</SelectItem>
-                          <SelectItem value="PUT">PUT</SelectItem>
-                          <SelectItem value="PATCH">PATCH</SelectItem>
-                          <SelectItem value="DELETE">DELETE</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>From date</Label>
+                      <Input
+                        type="date"
+                        value={workspaceFilters.fromDate}
+                        onChange={(e) =>
+                          setWorkspaceFilters((prev) => ({ ...prev, fromDate: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>To date</Label>
+                      <Input
+                        type="date"
+                        value={workspaceFilters.toDate}
+                        onChange={(e) =>
+                          setWorkspaceFilters((prev) => ({ ...prev, toDate: e.target.value }))
+                        }
+                      />
                     </div>
                   </div>
-
-                  <div className="flex gap-2 mt-4">
-                    <Button 
-                      onClick={handleResetFilters} 
-                      variant="outline" 
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
                       size="sm"
-                      disabled={isLoading}
+                      onClick={handleResetWorkspaceFilters}
+                      disabled={workspaceLoading}
                     >
-                      <RefreshCw className="w-4 h-4 mr-2" />
+                      <RefreshCw className="mr-2 h-4 w-4" />
                       Reset
                     </Button>
-                    <Button 
-                      onClick={() => {
-                        setEventsPage(1);
-                        loadEvents();
-                      }} 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       size="sm"
-                      disabled={isLoading}
+                      onClick={() => {
+                        setWorkspacePage(1);
+                        loadWorkspaceLogs();
+                      }}
+                      disabled={workspaceLoading}
                     >
-                      <Search className="w-4 h-4 mr-2" />
-                      Apply Filters
+                      <Search className="mr-2 h-4 w-4" />
+                      Apply
                     </Button>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Events Table */}
               <div className="rounded-md border">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Timestamp</TableHead>
-                      <TableHead>User</TableHead>
-                      <TableHead>Action</TableHead>
-                      <TableHead>Resource</TableHead>
+                      <TableHead>Actor</TableHead>
+                      <TableHead>Event</TableHead>
                       <TableHead>Method</TableHead>
-                      <TableHead>Status</TableHead>
                       <TableHead>Endpoint</TableHead>
+                      <TableHead>Context</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {isLoading ? (
+                    {workspaceLoading ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8">
-                          <div className="flex items-center justify-center gap-2">
-                            <RefreshCw className="w-4 h-4 animate-spin" />
-                            Loading...
+                        <TableCell colSpan={6} className="py-8 text-center">
+                          <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Loading workspace feed...
                           </div>
                         </TableCell>
                       </TableRow>
-                    ) : events.length === 0 ? (
+                    ) : workspaceLogs.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                          No events found
+                        <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                          No workspace logs found
                         </TableCell>
                       </TableRow>
                     ) : (
-                      events.map((event) => (
-                        <TableRow key={event.event_id}>
-                          <TableCell className="font-mono text-sm">
-                            <div className="flex items-center gap-2">
-                              <Clock className="w-4 h-4 text-muted-foreground" />
-                              {formatTimestamp(event.occurred_at)}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {event.user_id ? (
-                              <div className="flex items-center gap-2">
-                                <UserIcon className="w-4 h-4 text-muted-foreground" />
-                                <Badge variant="outline" className="text-xs">
-                                  User ID: {event.user_id}
-                                </Badge>
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{event.action}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            {event.resource_type && event.resource_id ? (
-                              <div className="flex items-center gap-2">
-                                <FileText className="w-4 h-4 text-muted-foreground" />
-                                <span>{event.resource_type}</span>
-                                <Badge variant="outline" className="text-xs">
-                                  #{event.resource_id}
-                                </Badge>
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {event.http_method ? (
-                              <Badge variant="outline">{event.http_method}</Badge>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell>{getStatusBadge(event.status_code)}</TableCell>
-                          <TableCell className="font-mono text-sm max-w-xs truncate">
-                            {event.path || "-"}
-                          </TableCell>
-                        </TableRow>
-                      ))
+                      renderRows(workspaceLogs)
                     )}
                   </TableBody>
                 </Table>
               </div>
 
-              {/* Pagination */}
-              <div className="flex items-center justify-between">
-                <div className="text-sm text-muted-foreground">
-                  Showing {(eventsPage - 1) * pageSize + 1} to{" "}
-                  {Math.min(eventsPage * pageSize, eventsTotal)} of {eventsTotal} events
-                </div>
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
+                <span>
+                  Showing {(workspacePage - 1) * WORKSPACE_PAGE_SIZE + 1} to{" "}
+                  {Math.min(workspacePage * WORKSPACE_PAGE_SIZE, workspaceTotal)} of{" "}
+                  {workspaceTotal} events
+                </span>
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setEventsPage((p) => Math.max(1, p - 1))}
-                    disabled={eventsPage === 1 || isLoading}
+                    onClick={() => setWorkspacePage((prev) => Math.max(1, prev - 1))}
+                    disabled={workspacePage === 1 || workspaceLoading}
                   >
                     Previous
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setEventsPage((p) => p + 1)}
-                    disabled={eventsPage * pageSize >= eventsTotal || isLoading}
+                    onClick={() =>
+                      setWorkspacePage((prev) =>
+                        prev * WORKSPACE_PAGE_SIZE >= workspaceTotal ? prev : prev + 1
+                      )
+                    }
+                    disabled={
+                      workspacePage * WORKSPACE_PAGE_SIZE >= workspaceTotal || workspaceLoading
+                    }
                   >
                     Next
                   </Button>
@@ -583,255 +521,308 @@ export default function AuditLogPage() {
               </div>
             </TabsContent>
 
-            {/* Changes Tab */}
-            <TabsContent value="changes" className="space-y-4 mt-6">
-              {/* Filters */}
+            <TabsContent value="user" className="mt-6 space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Filter className="w-4 h-4" />
-                    Filters
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <UserIcon className="h-4 w-4" />
+                    Select user
                   </CardTitle>
+                  <CardDescription>Inspect audit events generated by one collaborator.</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="change-user">User</Label>
-                      <Select
-                        value={changeFilters.user_id?.toString() || "all"}
-                        onValueChange={(value) =>
-                          setChangeFilters({
-                            ...changeFilters,
-                            user_id: value === "all" ? undefined : parseInt(value),
-                          })
-                        }
-                      >
-                        <SelectTrigger id="change-user">
-                          <SelectValue placeholder="All users" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All users</SelectItem>
-                          {users.map((user) => (
-                            <SelectItem key={user.user_id} value={user.user_id.toString()}>
-                              {user.username} ({user.email})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="change-table">Table Name</Label>
-                      <Input
-                        id="change-table"
-                        placeholder="e.g., batches, projects"
-                        value={changeFilters.table_name || ""}
-                        onChange={(e) =>
-                          setChangeFilters({
-                            ...changeFilters,
-                            table_name: e.target.value || undefined,
-                          })
-                        }
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="change-operation">Operation</Label>
-                      <Select
-                        value={changeFilters.operation || "all"}
-                        onValueChange={(value) =>
-                          setChangeFilters({
-                            ...changeFilters,
-                            operation: value === "all" ? undefined : value,
-                          })
-                        }
-                      >
-                        <SelectTrigger id="change-operation">
-                          <SelectValue placeholder="All operations" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All operations</SelectItem>
-                          <SelectItem value="INSERT">INSERT</SelectItem>
-                          <SelectItem value="UPDATE">UPDATE</SelectItem>
-                          <SelectItem value="DELETE">DELETE</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="change-request-id">Request ID</Label>
-                      <Input
-                        id="change-request-id"
-                        placeholder="Filter by request ID"
-                        value={changeFilters.request_id || ""}
-                        onChange={(e) =>
-                          setChangeFilters({
-                            ...changeFilters,
-                            request_id: e.target.value || undefined,
-                          })
-                        }
-                      />
-                    </div>
+                <CardContent className="flex flex-col gap-4 lg:flex-row lg:items-end">
+                  <div className="flex-1 space-y-2">
+                    <Label>User</Label>
+                    <Select
+                      value={selectedUserId}
+                      onValueChange={(value) => {
+                        setSelectedUserId(value);
+                        setUserPage(1);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose a user" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All users</SelectItem>
+                        {users.map((user) => (
+                          <SelectItem key={user.user_id} value={user.user_id.toString()}>
+                            {user.username} ({user.email})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-
-                  <div className="flex gap-2 mt-4">
-                    <Button 
-                      onClick={handleResetFilters} 
-                      variant="outline" 
-                      size="sm"
-                      disabled={isLoading}
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      disabled={userLoading}
+                      onClick={() => setSelectedUserId("all")}
                     >
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                      Reset
+                      Clear
                     </Button>
-                    <Button 
+                    <Button
+                      disabled={!numericUserId || userLoading}
                       onClick={() => {
-                        setChangesPage(1);
-                        loadChanges();
-                      }} 
-                      variant="outline" 
-                      size="sm"
-                      disabled={isLoading}
+                        setUserPage(1);
+                        loadUserLogs();
+                      }}
                     >
-                      <Search className="w-4 h-4 mr-2" />
-                      Apply Filters
+                      Fetch logs
                     </Button>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Changes Table */}
               <div className="rounded-md border">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Timestamp</TableHead>
-                      <TableHead>User</TableHead>
-                      <TableHead>Table</TableHead>
-                      <TableHead>Operation</TableHead>
-                      <TableHead>Record ID</TableHead>
-                      <TableHead>Changes</TableHead>
+                      <TableHead>Actor</TableHead>
+                      <TableHead>Event</TableHead>
+                      <TableHead>Method</TableHead>
+                      <TableHead>Endpoint</TableHead>
+                      <TableHead>Context</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {isLoading ? (
+                    {userLoading ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8">
-                          <div className="flex items-center justify-center gap-2">
-                            <RefreshCw className="w-4 h-4 animate-spin" />
-                            Loading...
-                          </div>
+                        <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                          <Loader2 className="h-4 w-4 animate-spin" />
                         </TableCell>
                       </TableRow>
-                    ) : changes.length === 0 ? (
+                    ) : userLogs.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                          No changes found
+                        <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                          {numericUserId
+                            ? "No logs for this user"
+                            : "Select a user to load audit data"}
                         </TableCell>
                       </TableRow>
                     ) : (
-                      changes.map((change) => (
-                        <TableRow key={change.change_id}>
-                          <TableCell className="font-mono text-sm">
-                            <div className="flex items-center gap-2">
-                              <Clock className="w-4 h-4 text-muted-foreground" />
-                              {formatTimestamp(change.changed_at)}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {change.user_id ? (
-                              <div className="flex items-center gap-2">
-                                <UserIcon className="w-4 h-4 text-muted-foreground" />
-                                <Badge variant="outline" className="text-xs">
-                                  User ID: {change.user_id}
-                                </Badge>
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{change.table_name}</Badge>
-                          </TableCell>
-                          <TableCell>{getOperationBadge(change.operation)}</TableCell>
-                          <TableCell>
-                            {change.primary_key ? (
-                              <Badge variant="outline">
-                                {(() => {
-                                  // Extract record ID from primary_key
-                                  const pk = change.primary_key;
-                                  if (typeof pk === 'object' && pk !== null) {
-                                    // Try to find an ID field
-                                    for (const [key, value] of Object.entries(pk)) {
-                                      if (key.toLowerCase().includes('id') || key === 'id') {
-                                        return `#${value}`;
-                                      }
-                                    }
-                                    // If no ID found, show first value
-                                    const firstValue = Object.values(pk)[0];
-                                    return `#${firstValue}`;
-                                  }
-                                  return `#${pk}`;
-                                })()}
-                              </Badge>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="max-w-md">
-                            {change.old_row || change.new_row ? (
-                              <div className="space-y-1 text-xs">
-                                {change.old_row && Object.keys(change.old_row).length > 0 && (
-                                  <div className="text-red-600">
-                                    <strong>Old:</strong>{" "}
-                                    {JSON.stringify(change.old_row, null, 2).substring(0, 100)}
-                                    {JSON.stringify(change.old_row, null, 2).length > 100 && "..."}
-                                  </div>
-                                )}
-                                {change.new_row && Object.keys(change.new_row).length > 0 && (
-                                  <div className="text-green-600">
-                                    <strong>New:</strong>{" "}
-                                    {JSON.stringify(change.new_row, null, 2).substring(0, 100)}
-                                    {JSON.stringify(change.new_row, null, 2).length > 100 && "..."}
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))
+                      renderRows(userLogs)
                     )}
                   </TableBody>
                 </Table>
               </div>
 
-              {/* Pagination */}
-              <div className="flex items-center justify-between">
-                <div className="text-sm text-muted-foreground">
-                  Showing {(changesPage - 1) * pageSize + 1} to{" "}
-                  {Math.min(changesPage * pageSize, changesTotal)} of {changesTotal} changes
-                </div>
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
+                <span>
+                  Showing {(userPage - 1) * USER_PAGE_SIZE + 1} to{" "}
+                  {Math.min(userPage * USER_PAGE_SIZE, userTotal)} of {userTotal} events
+                </span>
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setChangesPage((p) => Math.max(1, p - 1))}
-                    disabled={changesPage === 1 || isLoading}
+                    onClick={() => setUserPage((prev) => Math.max(1, prev - 1))}
+                    disabled={userPage === 1 || userLoading}
                   >
                     Previous
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setChangesPage((p) => p + 1)}
-                    disabled={changesPage * pageSize >= changesTotal || isLoading}
+                    onClick={() =>
+                      setUserPage((prev) =>
+                        prev * USER_PAGE_SIZE >= userTotal ? prev : prev + 1
+                      )
+                    }
+                    disabled={userPage * USER_PAGE_SIZE >= userTotal || userLoading}
                   >
                     Next
                   </Button>
                 </div>
               </div>
+            </TabsContent>
+
+            <TabsContent value="search" className="mt-6 space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <FileSearch className="h-4 w-4" />
+                    Full-text search
+                  </CardTitle>
+                  <CardDescription>
+                    Search across the entire audit index by request ID, path, or payload.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4 lg:flex-row lg:items-end">
+                  <div className="flex-1 space-y-2">
+                    <Label>Keyword</Label>
+                    <Input
+                      placeholder="trace id, endpoint, etc."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setSearchQuery("");
+                        setSearchLogs([]);
+                        setSearchTotal(0);
+                        setSearchPage(1);
+                      }}
+                      disabled={searchLoading}
+                    >
+                      Clear
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setSearchPage(1);
+                        loadSearchLogs(true);
+                      }}
+                      disabled={searchLoading}
+                    >
+                      Search
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Timestamp</TableHead>
+                      <TableHead>Actor</TableHead>
+                      <TableHead>Event</TableHead>
+                      <TableHead>Method</TableHead>
+                      <TableHead>Endpoint</TableHead>
+                      <TableHead>Context</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {searchLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        </TableCell>
+                      </TableRow>
+                    ) : searchLogs.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                          {searchQuery.trim()
+                            ? "No matching logs"
+                            : "Enter a keyword to run a search"}
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      renderRows(searchLogs)
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
+                <span>
+                  Showing {(searchPage - 1) * SEARCH_PAGE_SIZE + 1} to{" "}
+                  {Math.min(searchPage * SEARCH_PAGE_SIZE, searchTotal)} of {searchTotal} events
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSearchPage((prev) => Math.max(1, prev - 1))}
+                    disabled={searchPage === 1 || searchLoading}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setSearchPage((prev) =>
+                        prev * SEARCH_PAGE_SIZE >= searchTotal ? prev : prev + 1
+                      )
+                    }
+                    disabled={searchPage * SEARCH_PAGE_SIZE >= searchTotal || searchLoading}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="upload" className="mt-6 grid gap-4 lg:grid-cols-3">
+              <Card className="col-span-full lg:col-span-1">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Upload className="h-4 w-4" />
+                    Upload local file
+                  </CardTitle>
+                  <CardDescription>Schedule a `.log` or `.parquet` file for ingestion.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Input
+                    placeholder="C:\\logs\\audit-2025-01-05.parquet"
+                    value={localPath}
+                    onChange={(e) => setLocalPath(e.target.value)}
+                  />
+                  <Button onClick={handleUploadLocal} disabled={uploadBusy} className="w-full">
+                    Upload file
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card className="col-span-full lg:col-span-1">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Activity className="h-4 w-4" />
+                    Scan directory
+                  </CardTitle>
+                  <CardDescription>Scan and upload every matching file.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Input
+                    placeholder="C:\\logs"
+                    value={scanRoot}
+                    onChange={(e) => setScanRoot(e.target.value)}
+                  />
+                  <Input
+                    placeholder="**/*.parquet,**/*.log"
+                    value={scanPattern}
+                    onChange={(e) => setScanPattern(e.target.value)}
+                  />
+                  <Button onClick={handleScanUpload} disabled={uploadBusy} className="w-full">
+                    Scan & upload
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card className="col-span-full lg:col-span-1">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Server className="h-4 w-4" />
+                    Upload status
+                  </CardTitle>
+                  <CardDescription>Trigger the scheduler or refresh its status.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <span className="text-muted-foreground">Running:</span>
+                    <span>{uploadStatus?.is_running ? "Yes" : "No"}</span>
+                    <span className="text-muted-foreground">Interval (min):</span>
+                    <span>{uploadStatus?.upload_interval_minutes ?? "—"}</span>
+                    <span className="text-muted-foreground">Auto upload:</span>
+                    <span>{uploadStatus?.auto_upload_enabled ? "Enabled" : "Disabled"}</span>
+                    <span className="text-muted-foreground">GCS upload:</span>
+                    <span>{uploadStatus?.gcs_upload_enabled ? "Enabled" : "Disabled"}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={refreshUploadStatus} disabled={uploadBusy}>
+                      Refresh
+                    </Button>
+                    <Button onClick={handleTriggerUpload} disabled={uploadBusy}>
+                      Trigger now
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
           </Tabs>
         </CardContent>
