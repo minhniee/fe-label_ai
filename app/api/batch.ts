@@ -172,26 +172,30 @@ export interface UserBatchProgressResponse {
 export interface SplitFileRequest {
   project_id: number
   file_id: number
-  chunk_size: number
-  create_batches?: boolean
+  chunk_size?: number
+  auto_create_batches?: boolean
 }
 
 export interface ChunkMetadata {
-  chunk_id: number
+  chunk_number: number
   start_row: number
   end_row: number
   row_count: number
-  batch_id?: number
+  file_id?: number
+  file_name?: string
+  storage_key?: string
 }
 
 export interface SplitFileResponse {
+  success: boolean
   project_id: number
-  file_id: number
+  original_file_id: number
+  original_filename: string
   total_rows: number
-  chunk_size: number
   total_chunks: number
-  chunks: ChunkMetadata[]
-  batches_created: boolean
+  chunk_size: number
+  chunks_created: ChunkMetadata[]
+  batches_created?: number[]
 }
 
 export interface CreateProjectBatchRequest {

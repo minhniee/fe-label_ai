@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
 import { ArrowLeft, Play, FileText, Search, X, Zap } from "lucide-react";
 import { useProjectFromSlug } from "@/hooks/use-project-from-slug";
 import { getBatch, updateBatch, getBatchAssignments, getUserBatchProgress, createBatchAssignment, deleteBatchAssignment } from "@/app/api/batch";
@@ -37,7 +38,10 @@ export default function ProjectJobPage() {
 
   const [batchData, setBatchData] = useState<any>(null);
   const [batchName, setBatchName] = useState("");
-  const [activeTab, setActiveTab] = useState("unannotated");
+  const initialTab = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState(
+    initialTab === "annotated" ? "annotated" : "unannotated"
+  );
   const [unannotatedFiles, setUnannotatedFiles] = useState<any[]>([]);
   const [annotatedFiles, setAnnotatedFiles] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -56,6 +60,13 @@ export default function ProjectJobPage() {
   const [batchAssignments, setBatchAssignments] = useState<any[]>([]);
   const [assignmentHistory, setAssignmentHistory] = useState<any[]>([]);
   const [csvRowCounts, setCsvRowCounts] = useState<{ [fileId: number]: number }>({});
+
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam === "annotated" || tabParam === "unannotated") {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
 
   // Load job data on mount
   useEffect(() => {
@@ -110,6 +121,8 @@ export default function ProjectJobPage() {
         const rowCounts = batch.batch_metadata.csv_row_counts;
         setCsvRowCounts(rowCounts);
         console.log("Loaded CSV row counts from metadata:", rowCounts);
+      } else {
+        setCsvRowCounts({});
       }
 
       // Load assignment history from batch metadata
@@ -176,11 +189,6 @@ export default function ProjectJobPage() {
       setUnannotatedFiles(unannotated);
       setAnnotatedFiles(annotated);
 
-      // Load CSV row counts for all files (only if not already loaded from metadata)
-      if (!batch.batch_metadata?.csv_row_counts) {
-        await loadCsvRowCounts([...unannotated, ...annotated]);
-      }
-
       // Load audit logs for this batch
       await loadAuditLogs(parseInt(batchId!));
 
@@ -237,58 +245,10 @@ export default function ProjectJobPage() {
     }
   };
 
-  // Function to read CSV file and count rows from URL
-  const readCsvRowCountFromUrl = async (fileUrl: string): Promise<number> => {
-    try {
-      const response = await fetch(fileUrl);
-      const text = await response.text();
-      
-      if (!text) return 0;
-      
-      // Split by newlines and filter out empty lines
-      const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
-      
-      if (lines.length === 0) return 0;
-      
-      // Check if first line looks like a header
-      const firstLine = lines[0].toLowerCase();
-      const headerKeywords = ['id', 'name', 'text', 'label', 'content', 'data', 'value', 'title', 'description'];
-      const hasHeader = headerKeywords.some(keyword => firstLine.includes(keyword));
-      
-      // Count data rows (exclude header if detected)
-      return hasHeader ? lines.length - 1 : lines.length;
-    } catch (error) {
-      console.error("Error reading CSV file from URL:", error);
-      return 0;
-    }
-  };
-
-  // Load CSV row counts for all CSV files
-  const loadCsvRowCounts = async (files: any[]) => {
-    const DATA_EXTENSIONS = [".xlsx", ".json", ".csv"];
-    const newRowCounts: { [fileId: number]: number } = {};
-    
-    for (const file of files) {
-      if (file.filename && DATA_EXTENSIONS.some(ext => file.filename.toLowerCase().endsWith(ext))) {
-        // For CSV files, try to read from file_path or download
-        if (file.filename.toLowerCase().endsWith('.csv')) {
-          try {
-            // Try to get file URL from API
-            const fileUrl = file.file_path?.startsWith('http') 
-              ? file.file_path 
-              : `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/files/${file.file_id}/download`;
-            
-            const rowCount = await readCsvRowCountFromUrl(fileUrl);
-            newRowCounts[file.file_id] = rowCount;
-          } catch (error) {
-            console.error(`Failed to read CSV file ${file.filename}:`, error);
-          }
-        }
-      }
-    }
-    
-    setCsvRowCounts(newRowCounts);
-  };
+  const totalCsvRows = Object.values(csvRowCounts || {}).reduce(
+    (sum, count) => sum + (count || 0),
+    0
+  );
 
   const handleReassign = async () => {
     if (!selectedReassignUserId && !selectedReassignEmail) {

@@ -36,39 +36,55 @@ export default function DatasetSection() {
   const loadDatasetJobs = async () => {
     try {
       setIsLoading(true);
-      // Get batches with completed status
-      const response = await getProjectBatches(parseInt(project!.id), {
-        status: 'completed',
-        page: 1,
-        page_size: 100
-      });
+      const projectId = parseInt(project!.id);
 
-      // Get project files to calculate annotated count
-      const projectFiles = await getProjectFiles(parseInt(project!.id));
-      
-      // Map batches to dataset jobs
-      const jobsWithCounts = await Promise.all(response.batches.map(async (batch: any) => {
-        const fileIds = batch.batch_metadata?.file_ids || [];
-        const batchFiles = projectFiles.filter(f => fileIds.includes(f.file_id));
-        
-        const annotated = batchFiles.filter(f => 
-          f.annotation_status === 'completed' || f.annotation_status === 'verified'
-        ).length;
+      const [response, projectFiles] = await Promise.all([
+        getProjectBatches(projectId, {
+          page: 1,
+          page_size: 100,
+        }),
+        getProjectFiles(projectId),
+      ]);
 
-        return {
-          batch_id: batch.batch_id,
-          name: batch.name,
-          created_at: batch.created_at,
-          labeler: batch.creator_username || 'Unknown',
-          annotatedCount: annotated,
-          file_ids: fileIds
-        };
-      }));
-      
+      const fileStatusMap = new Map(projectFiles.map((file) => [file.file_id, file.annotation_status]));
+
+      const jobsWithCounts = response.batches
+        .map((batch: any) => {
+          const fileIds: number[] = batch.batch_metadata?.file_ids || [];
+          if (!fileIds.length) {
+            return null;
+          }
+
+          const statuses = fileIds.map((fileId) => fileStatusMap.get(fileId));
+          const totalFiles = statuses.filter(Boolean).length;
+          if (totalFiles === 0) {
+            return null;
+          }
+
+          const completedCount = statuses.filter(
+            (status) => status === "completed" || status === "verified"
+          ).length;
+
+          // Only move job to Dataset when every file has been completed/verified
+          if (completedCount !== totalFiles) {
+            return null;
+          }
+
+          return {
+            batch_id: batch.batch_id,
+            name: batch.name,
+            created_at: batch.created_at,
+            labeler: batch.creator_username || "Unknown",
+            annotatedCount: completedCount,
+            file_ids: fileIds,
+          };
+        })
+        .filter(Boolean) as DatasetJob[];
+
       setJobs(jobsWithCounts);
     } catch (error: any) {
-      console.error('Failed to load dataset jobs:', error);
-      toast.error('Failed to load dataset jobs');
+      console.error("Failed to load dataset jobs:", error);
+      toast.error("Failed to load dataset jobs");
     } finally {
       setIsLoading(false);
     }
@@ -77,7 +93,7 @@ export default function DatasetSection() {
   const handleViewJob = (job: DatasetJob) => {
     // Redirect to job page showing only annotated files
     const fileIdsParam = encodeURIComponent(JSON.stringify(job.file_ids || []));
-    router.push(`/${projectSlug}/annotate/job?jobId=${job.batch_id}&fileIds=${fileIdsParam}`);
+    router.push(`/${projectSlug}/annotate/job?jobId=${job.batch_id}&fileIds=${fileIdsParam}&tab=annotated`);
   };
 
   return (

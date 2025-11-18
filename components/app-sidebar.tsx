@@ -50,6 +50,7 @@ interface NavItem {
   url: string;
   icon: LucideIcon;
   isActive: boolean;
+  requiresProject?: boolean;
 }
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
@@ -239,48 +240,56 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
         url: `${projectPrefix}/upload-file`,
         icon: Upload,
         isActive: pathname === `${projectPrefix}/upload-file`,
+        requiresProject: true,
       },
       {
         title: "Annotate",
         url: `${projectPrefix}/annotate`,
         icon: Tag,
         isActive: pathname.startsWith(`${projectPrefix}/annotate`),
+        requiresProject: true,
       },
       {
         title: "Labeling with AI",
         url: `${projectPrefix}/labelai`,
         icon: Tag,
         isActive: pathname === `${projectPrefix}/labelai`,
+        requiresProject: true,
       },
       {
         title: "Dataset",
         url: `${projectPrefix}/dataset`,
         icon: FileText,
         isActive: pathname === `${projectPrefix}/dataset`,
+        requiresProject: true,
       },
       {
         title: "Schema",
         url: `${projectPrefix}/schema`,
         icon: FileCode,
         isActive: pathname === `${projectPrefix}/schema`,
+        requiresProject: true,
       },
       {
         title: "Classes",
         url: `${projectPrefix}/classes`,
         icon: ListOrdered,
         isActive: pathname === `${projectPrefix}/classes`,
+        requiresProject: true,
       },
       {
         title: "Administrator",
         url: "/admin",
         icon: Shield,
         isActive: pathname.startsWith("/admin"),
+        requiresProject: false,
       },
       {
         title: "Comparison Tool",
         url: `${projectPrefix}/comparison-tool`,
         icon: GitCompare,
         isActive: pathname === `${projectPrefix}/comparison-tool`,
+        requiresProject: true,
       },
     ];
   }, [pathname, selectedProject]);
@@ -354,16 +363,19 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
           <>
             {/* Data group  */}
             <NavMain groupTitle="Data" items={dataItems} />
-            {/* Admin group  */}
-            <NavMain groupTitle="Admin" items={adminItems} />
             {/* Platform group  */}
             <NavMain groupTitle="Tool" items={toolItems} />
           </>
         ) : (
-          <div className="flex flex-col items-center justify-center p-6 text-center text-muted-foreground text-sm">
-            <FolderOpen className="h-12 w-12 mb-3 opacity-20" />
-            <p>Select a project or create new project to view navigation</p>
-          </div>
+          <>
+            <div className="flex flex-col items-center justify-center p-6 text-center text-muted-foreground text-sm">
+              <FolderOpen className="h-12 w-12 mb-3 opacity-20" />
+              <p>Select a project or create new project to view workspace navigation.</p>
+            </div>
+            {adminItems.length > 0 && (
+              <NavMain groupTitle="Admin" items={adminItems} />
+            )}
+          </>
         )}
       </SidebarContent>
       <SidebarFooter>

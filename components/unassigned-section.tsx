@@ -16,6 +16,7 @@ interface Batch {
   created_at: string
   total_files: number
   file_ids?: number[]
+  unannotatedCount: number
 }
 
 export default function UnassignedSection() {
@@ -37,35 +38,44 @@ export default function UnassignedSection() {
   const loadUnassignedBatches = async () => {
     try {
       setIsLoading(true)
-      
-      // Get batches with pending status (unassigned)
-      const response = await getProjectBatches(parseInt(project!.id), {
-        status: 'pending',
-        page: 1,
-        page_size: 100
-      })
-      
-      console.log("Unassigned batches response:", response);
-      console.log("Total batches found:", response.batches?.length || 0);
-      console.log("Total count from API:", response.total);
-      
-      // Get file IDs from batch metadata
-      const batchesWithFiles = response.batches.map((batch: any) => {
-        const fileIds = batch.batch_metadata?.file_ids || [];
-        console.log(`Batch ${batch.batch_id} (${batch.name}):`, {
-          status: batch.status,
-          metadata: batch.batch_metadata,
-          file_ids: fileIds,
-          file_count: fileIds.length
-        });
-        return {
-          ...batch,
-          file_ids: fileIds
-        };
-      })
-      
-      console.log("Setting batches state with:", batchesWithFiles.length, "batches");
-      setBatches(batchesWithFiles)
+      const projectId = parseInt(project!.id)
+
+      const [response, projectFiles] = await Promise.all([
+        getProjectBatches(projectId, {
+          page: 1,
+          page_size: 100,
+        }),
+        getProjectFiles(projectId),
+      ])
+
+      const fileStatusMap = new Map(projectFiles.map((file) => [file.file_id, file.annotation_status]))
+
+      const unassignedBatches = response.batches
+        .map((batch: any) => {
+          const fileIds: number[] = batch.batch_metadata?.file_ids || []
+          if (!fileIds.length) {
+            return null
+          }
+
+          // Only keep batches where every file is still unannotated
+          const allUnannotated = fileIds.every(
+            (fileId) => fileStatusMap.get(fileId) === "unannotated"
+          )
+
+          if (!allUnannotated) {
+            return null
+          }
+
+          return {
+            ...batch,
+            file_ids: fileIds,
+            unannotatedCount: fileIds.length,
+            total_files: fileIds.length,
+          }
+        })
+        .filter(Boolean) as Batch[]
+
+      setBatches(unassignedBatches)
     } catch (error: any) {
       console.error('Failed to load unassigned batches:', error)
       toast.error('Failed to load batches')
@@ -143,7 +153,7 @@ export default function UnassignedSection() {
             <div className="flex items-start justify-between mb-2">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground truncate">{batch.name}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{batch.total_files} unassigned files</p>
+                  <p className="text-xs text-muted-foreground mt-1">{batch.unannotatedCount} unassigned files</p>
               </div>
                 <button className="text-muted-foreground hover:text-foreground flex-shrink-0">
                 <MoreVertical className="w-4 h-4" />

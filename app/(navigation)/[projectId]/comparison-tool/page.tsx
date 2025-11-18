@@ -1,6 +1,6 @@
 "use client";
 
-import ComparisonTool from "@/components/comparison-tool";
+import { CSVComparison } from "@/components/csv-compare/csv-comparison";
 import { useProjectFromSlug } from "@/hooks/use-project-from-slug";
 
 export default function ProjectComparisonToolPage() {
@@ -16,7 +16,7 @@ export default function ProjectComparisonToolPage() {
           </p>
         </div>
       </div>
-      <ComparisonTool />
+      <CSVComparison />
     </div>
   );
 }

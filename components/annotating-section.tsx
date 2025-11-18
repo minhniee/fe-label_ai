@@ -22,6 +22,7 @@ interface AnnotatingJob {
   total_files: number;
   annotatedCount: number;
   unannotatedCount: number;
+  annotatingCount: number;
   file_ids?: number[];
 }
 
@@ -43,39 +44,51 @@ export default function AnnotatingSection() {
   const loadAnnotatingJobs = async () => {
     try {
       setIsLoading(true);
-      // Get batches with in_progress status
-      const response = await getProjectBatches(parseInt(project!.id), {
-        status: 'in_progress',
-        page: 1,
-        page_size: 100
-      });
-
-      // Get project files to calculate annotated/unannotated counts
-      const projectFiles = await getProjectFiles(parseInt(project!.id));
+      const projectId = parseInt(project!.id);
+      const [response, projectFiles] = await Promise.all([
+        getProjectBatches(projectId, {
+          page: 1,
+          page_size: 100,
+        }),
+        getProjectFiles(projectId),
+      ]);
       
-      // Map batches to jobs with file counts
-      const jobsWithCounts = await Promise.all(response.batches.map(async (batch: any) => {
-        const fileIds = batch.batch_metadata?.file_ids || [];
-        const batchFiles = projectFiles.filter(f => fileIds.includes(f.file_id));
-        
-        const annotated = batchFiles.filter(f => 
-          f.annotation_status === 'completed' || f.annotation_status === 'verified'
-        ).length;
-        const unannotated = batchFiles.filter(f => 
-          f.annotation_status === 'unannotated' || f.annotation_status === 'annotating'
-        ).length;
+      const jobsWithCounts = response.batches
+        .map((batch: any) => {
+          const fileIds: number[] = batch.batch_metadata?.file_ids || [];
+          if (!fileIds.length) {
+            return null;
+          }
 
-        return {
-          batch_id: batch.batch_id,
-          name: batch.name,
-          created_at: batch.created_at,
-          labeler: batch.creator_username || 'Unknown',
-          total_files: batch.total_files,
-          annotatedCount: annotated,
-          unannotatedCount: unannotated,
-          file_ids: fileIds
-        };
-      }));
+          const batchFiles = projectFiles.filter((f) => fileIds.includes(f.file_id));
+          if (!batchFiles.length) {
+            return null;
+          }
+
+          const annotated = batchFiles.filter((f) =>
+            f.annotation_status === "completed" || f.annotation_status === "verified"
+          ).length;
+          const annotating = batchFiles.filter((f) => f.annotation_status === "annotating").length;
+          const unannotated = batchFiles.filter((f) => f.annotation_status === "unannotated").length;
+
+          // Only show jobs that currently have files in annotating state
+          if (annotating === 0) {
+            return null;
+          }
+
+          return {
+            batch_id: batch.batch_id,
+            name: batch.name,
+            created_at: batch.created_at,
+            labeler: batch.creator_username || "Unknown",
+            total_files: batchFiles.length,
+            annotatedCount: annotated,
+            unannotatedCount: unannotated,
+            annotatingCount: annotating,
+            file_ids: fileIds,
+          };
+        })
+        .filter(Boolean) as AnnotatingJob[];
       
       setJobs(jobsWithCounts);
     } catch (error: any) {
@@ -165,6 +178,7 @@ export default function AnnotatingSection() {
                   {job.total_files} Files
                 </span>
                 <span>Annotated: {job.annotatedCount}</span>
+                <span>Annotating: {job.annotatingCount}</span>
                 <span>Unannotated: {job.unannotatedCount}</span>
             </div>
 

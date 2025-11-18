@@ -10,8 +10,7 @@ import { FileUp, FolderOpen, File as FileIcon, X, Upload, Image as ImageIcon, Fi
 import { useToast } from "@/hooks/use-toast"
 import { toast as sonnerToast } from "sonner"
 import { uploadFilesToProject, getProjectFiles } from "@/app/api/project"
-import { createProjectBatch, distributeFileToUsers } from "@/app/api/batch"
-import { getMe } from "@/app/api/auth"
+import { createProjectBatch, splitProjectFile } from "@/app/api/batch"
 import { useProjectFromSlug } from "@/hooks/use-project-from-slug"
 import { projectToSlug } from "@/types/project"
 import { useUserPermissions } from "@/hooks/use-user-permissions"
@@ -38,7 +37,6 @@ export function UploadForm() {
   const [projectFiles, setProjectFiles] = useState<any[]>([]);
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [csvRowCounts, setCsvRowCounts] = useState<{ [key: string]: number }>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
@@ -131,69 +129,35 @@ export function UploadForm() {
     });
   };
 
-  // Function to read CSV file and count rows
-  const readCsvRowCount = async (file: File): Promise<number> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const text = e.target?.result as string;
-          if (!text) {
-            resolve(0);
-            return;
-          }
-          
-          // Split by newlines and filter out empty lines
-          const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
-          
-          if (lines.length === 0) {
-            resolve(0);
-            return;
-          }
-          
-          // Check if first line looks like a header (contains common CSV header keywords)
-          const firstLine = lines[0].toLowerCase();
-          const headerKeywords = ['id', 'name', 'text', 'label', 'content', 'data', 'value', 'title', 'description'];
-          const hasHeader = headerKeywords.some(keyword => firstLine.includes(keyword));
-          
-          // Count data rows (exclude header if detected)
-          const rowCount = hasHeader ? lines.length - 1 : lines.length;
-          
-          resolve(rowCount);
-        } catch (error) {
-          console.error("Error reading CSV file:", error);
-          reject(error);
-        }
-      };
-      reader.onerror = () => {
-        reject(new Error("Failed to read file"));
-      };
-      reader.readAsText(file, 'UTF-8');
-    });
-  };
-
   const addFiles = async (newFiles: File[]) => {
     const validFiles = validateFiles(newFiles);
     const uniqueNewFiles = validFiles.filter(
       (file) => !selectedFiles.some((existingFile) => existingFile.name === file.name && existingFile.size === file.size)
     );
-    
-    // Read CSV files to count rows
-    const newRowCounts: { [key: string]: number } = {};
-    for (const file of uniqueNewFiles) {
-      if (file.name.toLowerCase().endsWith('.csv')) {
+    setSelectedFiles((prev) => [...prev, ...uniqueNewFiles]);
+  };
+
+  const fetchCsvRowCountsFromApi = async (uploadedFiles: any[]) => {
+    if (!project) return {};
+    const counts: Record<number, number> = {};
+
+    for (const file of uploadedFiles || []) {
+      const name: string | undefined = file?.file_name || file?.filename;
+      if (name && name.toLowerCase().endsWith(".csv")) {
         try {
-          const rowCount = await readCsvRowCount(file);
-          newRowCounts[file.name] = rowCount;
+          const splitResponse = await splitProjectFile({
+            project_id: parseInt(project.id),
+            file_id: file.file_id,
+            auto_create_batches: false,
+          });
+          counts[file.file_id] = splitResponse.total_rows;
         } catch (error) {
-          console.error(`Failed to read CSV file ${file.name}:`, error);
-          // Continue even if reading fails
+          console.error(`Failed to fetch row count for ${name}:`, error);
         }
       }
     }
-    
-    setCsvRowCounts((prev) => ({ ...prev, ...newRowCounts }));
-    setSelectedFiles((prev) => [...prev, ...uniqueNewFiles]);
+
+    return counts;
   };
 
   const handleDrag = (e: React.DragEvent<HTMLDivElement>) => {
@@ -220,11 +184,6 @@ export function UploadForm() {
 
   const removeFile = (fileName: string) => {
     setSelectedFiles((prev) => prev.filter((file) => file.name !== fileName));
-    setCsvRowCounts((prev) => {
-      const newCounts = { ...prev };
-      delete newCounts[fileName];
-      return newCounts;
-    });
   };
 
   const getFilteredFiles = () => {
@@ -308,88 +267,15 @@ export function UploadForm() {
       console.log("Upload response:", uploadResponse);
       console.log("Extracted file IDs:", fileIds);
       
-      // Step 3: Distribute Unannotated data files (CSV/Excel/JSON) to split into chunks
-      // Only process Unannotated files (not Annotated files)
-      // Reload project files to get annotation_status
-      let projectFilesAfterUpload: any[] = [];
-      try {
-        projectFilesAfterUpload = await getProjectFiles(parseInt(project.id));
-      } catch (error) {
-        console.error("Failed to reload project files:", error);
-      }
-
-      // Filter: Only data files (CSV/Excel/JSON) that are Unannotated
-      const unannotatedDataFiles = uploadResponse?.files?.filter(file => {
-        // Check if file and filename exist
-        if (!file || !file.filename || typeof file.filename !== 'string') {
-          return false;
-        }
-        
-        const fileName = file.filename.toLowerCase();
-        const isDataFile = DATA_EXTENSIONS.some(ext => fileName.endsWith(ext));
-        
-        if (!isDataFile) return false;
-        
-        // Check annotation_status from project files
-        const projectFile = projectFilesAfterUpload.find(pf => 
-          pf && pf.file_id && file.file_id && pf.file_id === file.file_id
-        );
-        // Newly uploaded files are always unannotated, but check to be safe
-        const isUnannotated = !projectFile || 
-          projectFile.annotation_status === 'unannotated' || 
-          projectFile.annotation_status === 'annotating';
-        
-        return isUnannotated;
-      }) || [];
-
-      if (unannotatedDataFiles.length > 0) {
-        try {
-          // Get current user ID for distribution
-          const currentUser = await getMe();
-          const currentUserId = currentUser.user_id;
-
-          // Distribute each unannotated data file
-          for (const file of unannotatedDataFiles) {
-            try {
-              await distributeFileToUsers({
-                project_id: parseInt(project.id),
-                file_id: file.file_id,
-                user_ids: [currentUserId], // Assign to Owner for "Label myself" case
-                // chunk_size is optional - API will auto-calculate if not provided
-                distribution_method: 'round_robin'
-              });
-              console.log(`File ${file.filename} distributed successfully`);
-            } catch (distributeError: any) {
-              console.error(`Failed to distribute file ${file.filename}:`, distributeError);
-              // Don't throw - continue with other files
-              // The file is still uploaded, just not distributed
-            }
-          }
-        } catch (userError: any) {
-          console.error("Failed to get current user for distribution:", userError);
-          // Continue with batch creation even if distribution fails
-        }
-      }
-      
-      // Step 4: Prepare batch metadata with file_ids and CSV row counts
+      // Step 3: Prepare batch metadata with file_ids and CSV row counts from API
+      const csvRowCountsFromApi = await fetchCsvRowCountsFromApi(uploadResponse?.files || []);
       const batchMetadata: any = {
         file_ids: fileIds
       };
       
-      // Add CSV row counts to metadata
-      const csvRowCountsMetadata: { [fileId: number]: number } = {};
-      for (const file of uploadResponse.files || []) {
-        if (file.filename && file.filename.toLowerCase().endsWith('.csv')) {
-          const fileName = file.filename;
-          if (csvRowCounts[fileName]) {
-            csvRowCountsMetadata[file.file_id] = csvRowCounts[fileName];
-          }
-        }
-      }
-      
-      if (Object.keys(csvRowCountsMetadata).length > 0) {
-        batchMetadata.csv_row_counts = csvRowCountsMetadata;
-        const totalRows = Object.values(csvRowCountsMetadata).reduce((sum, count) => sum + count, 0);
+      if (Object.keys(csvRowCountsFromApi).length > 0) {
+        batchMetadata.csv_row_counts = csvRowCountsFromApi;
+        const totalRows = Object.values(csvRowCountsFromApi).reduce((sum, count) => sum + count, 0);
         batchMetadata.total_csv_rows = totalRows;
       }
       
@@ -587,11 +473,6 @@ export function UploadForm() {
                         <div className="flex flex-col items-center gap-2 p-2">
                           <FileIcon className="w-8 h-8 text-muted-foreground" />
                           <p className="text-xs text-muted-foreground break-all">{file.name}</p>
-                          {file.name.toLowerCase().endsWith('.csv') && csvRowCounts[file.name] && (
-                            <p className="text-xs font-medium text-primary">
-                              {csvRowCounts[file.name]} {csvRowCounts[file.name] === 1 ? 'câu' : 'câu'}
-                            </p>
-                          )}
                         </div>
                       )}
                     </div>

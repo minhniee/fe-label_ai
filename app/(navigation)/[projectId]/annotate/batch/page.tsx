@@ -139,6 +139,9 @@ export default function ProjectBatchPage() {
         setTotalRows(total);
         console.log("Loaded CSV row counts from metadata:", rowCounts);
         console.log("Total rows from metadata:", total);
+      } else {
+        setCsvRowCounts({});
+        setTotalRows(0);
       }
 
       // Get file_ids from URL params (if coming from upload) or from batch metadata
@@ -179,10 +182,6 @@ export default function ProjectBatchPage() {
         console.log("Batch specific files:", batchSpecificFiles.length);
         setBatchFiles(batchSpecificFiles);
         
-        // Read CSV files to count rows (only if not already loaded from metadata)
-        if (!batch.batch_metadata?.csv_row_counts) {
-          await loadCsvRowCounts(batchSpecificFiles);
-        }
       } else {
         // No file IDs found - this shouldn't happen
         console.error("No file_ids found for batch!");
@@ -199,63 +198,6 @@ export default function ProjectBatchPage() {
   };
 
   // Function to read CSV file and count rows from URL
-  const readCsvRowCountFromUrl = async (fileUrl: string): Promise<number> => {
-    try {
-      const response = await fetch(fileUrl);
-      const text = await response.text();
-      
-      if (!text) return 0;
-      
-      // Split by newlines and filter out empty lines
-      const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
-      
-      if (lines.length === 0) return 0;
-      
-      // Check if first line looks like a header
-      const firstLine = lines[0].toLowerCase();
-      const headerKeywords = ['id', 'name', 'text', 'label', 'content', 'data', 'value', 'title', 'description'];
-      const hasHeader = headerKeywords.some(keyword => firstLine.includes(keyword));
-      
-      // Count data rows (exclude header if detected)
-      return hasHeader ? lines.length - 1 : lines.length;
-    } catch (error) {
-      console.error("Error reading CSV file from URL:", error);
-      return 0;
-    }
-  };
-
-  // Load CSV row counts for all CSV files in batch
-  const loadCsvRowCounts = async (files: any[]) => {
-    const DATA_EXTENSIONS = [".xlsx", ".json", ".csv"];
-    const newRowCounts: { [fileId: number]: number } = {};
-    let total = 0;
-    
-    for (const file of files) {
-      if (file.filename && DATA_EXTENSIONS.some(ext => file.filename.toLowerCase().endsWith(ext))) {
-        // For CSV files, try to read from file_path or download
-        if (file.filename.toLowerCase().endsWith('.csv')) {
-          try {
-            // Try to get file URL from API
-            // Note: This assumes there's a way to access the file
-            // If file_path is a full URL, use it; otherwise construct download URL
-            const fileUrl = file.file_path?.startsWith('http') 
-              ? file.file_path 
-              : `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/files/${file.file_id}/download`;
-            
-            const rowCount = await readCsvRowCountFromUrl(fileUrl);
-            newRowCounts[file.file_id] = rowCount;
-            total += rowCount;
-          } catch (error) {
-            console.error(`Failed to read CSV file ${file.filename}:`, error);
-          }
-        }
-      }
-    }
-    
-    setCsvRowCounts(newRowCounts);
-    setTotalRows(total);
-  };
-
   // Calculate rows per member
   const rowsPerMember = selectedMembers.length > 0 && totalRows > 0
     ? Math.ceil(totalRows / selectedMembers.length)
@@ -286,7 +228,18 @@ export default function ProjectBatchPage() {
       });
 
       if (selectedOption === "myself") {
-        toast.success("Batch started!");
+        if (!currentUser?.user_id) {
+          toast.error("Unable to identify current user");
+          return;
+        }
+
+        await assignBatchToUsers({
+          batch_id: parseInt(batchId),
+          user_ids: [currentUser.user_id],
+          notes: instructions || undefined,
+        });
+
+        toast.success("Batch assigned to you!");
         
         // Redirect to job page with file IDs
         const fileIdsParam = encodeURIComponent(JSON.stringify(batchFileIds));
@@ -320,37 +273,34 @@ export default function ProjectBatchPage() {
           f.filename && f.filename.toLowerCase().endsWith('.csv')
         );
 
-        if (csvFiles.length > 0 && totalRows > 0 && actualUserIds.length > 0) {
-          // Distribute CSV files to team members
-          // Each member will get a chunk of rows, creating separate jobs (batches)
-          // Example: 300 câu, 3 users -> 3 jobs, mỗi job 100 câu
-          // API distributeFileToUsers sẽ tự động tạo nhiều batches riêng biệt, mỗi batch cho 1 user
-          const chunkSize = Math.ceil(totalRows / actualUserIds.length);
-          
-          console.log(`Distributing ${totalRows} câu to ${actualUserIds.length} users, chunk_size: ${chunkSize} câu per user`);
-          
-          // Distribute each CSV file
+        if (csvFiles.length > 0 && actualUserIds.length > 0) {
           let totalJobsCreated = 0;
           for (const csvFile of csvFiles) {
+            const rowsForFile = csvRowCounts[csvFile.file_id] || 0;
+            if (rowsForFile === 0) {
+              console.warn(`No row count metadata for file ${csvFile.filename}`);
+              continue;
+            }
+
+            const chunkSize = Math.max(10, Math.ceil(rowsForFile / actualUserIds.length));
+            console.log(`Distributing ${rowsForFile} rows from ${csvFile.filename} to ${actualUserIds.length} users, chunk_size: ${chunkSize}`);
+
             try {
               const distributeResponse = await distributeFileToUsers({
                 project_id: parseInt(project!.id),
                 file_id: csvFile.file_id,
-                chunk_size: chunkSize, // Số câu mỗi chunk (mỗi user)
+                chunk_size: chunkSize,
                 user_ids: actualUserIds,
-                distribution_method: 'round_robin', // Round robin để chia đều
+                distribution_method: 'round_robin',
                 notes: instructions || undefined,
               });
-              
+
               console.log(`Distribution response for ${csvFile.filename}:`, distributeResponse);
-              console.log(`User distribution:`, distributeResponse.user_distribution);
               
-              // distributeResponse.batches_created sẽ là số batches (jobs) được tạo
-              // Mỗi batch sẽ được assign cho 1 user với số câu tương ứng
               totalJobsCreated += distributeResponse.batches_created || actualUserIds.length;
               
               toast.success(
-                `File ${csvFile.filename}: ${distributeResponse.batches_created || actualUserIds.length} job(s) created - ${chunkSize} câu per job`
+                `File ${csvFile.filename}: ${chunkSize} câu per member • ${distributeResponse.batches_created || actualUserIds.length} job(s)`
               );
             } catch (error: any) {
               console.error(`Failed to distribute CSV file ${csvFile.filename}:`, error);
@@ -358,7 +308,9 @@ export default function ProjectBatchPage() {
             }
           }
           
-          toast.success(`Total: ${totalJobsCreated} job(s) created for ${actualUserIds.length} team member(s)`);
+          if (totalJobsCreated > 0) {
+            toast.success(`Total: ${totalJobsCreated} job(s) created for ${actualUserIds.length} team member(s)`);
+          }
         } else {
           // For non-CSV files or if no CSV files, use regular batch assignment
           if (actualUserIds.length > 0) {
