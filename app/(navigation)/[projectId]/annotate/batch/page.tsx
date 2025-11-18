@@ -26,7 +26,7 @@ import {
 import { ArrowLeft, Upload, Edit, Plus, Users, FileText, X, Loader2 } from "lucide-react";
 import { useProjectFromSlug } from "@/hooks/use-project-from-slug";
 import { projectToSlug } from "@/types/project";
-import { getBatch, updateBatch, assignBatchToUsers, distributeFileToUsers } from "@/app/api/batch";
+import { getBatch, updateBatch, assignBatchToUsers, distributeFileToUsers, splitProjectFile } from "@/app/api/batch";
 import { getProjectFiles, uploadFilesToProject, createInvitation, listPendingInvitations, setLabelingType, getProjectCollaborators } from "@/app/api/project";
 import { getMe } from "@/app/api/auth";
 import { toast } from "sonner";
@@ -272,23 +272,73 @@ export default function ProjectBatchPage() {
           .map(inv => inv.email);
 
         // Check if batch has CSV files that need to be distributed
-        const csvFiles = batchFiles.filter(f => 
-          f.filename && f.filename.toLowerCase().endsWith('.csv')
-        );
+        const csvFiles = batchFiles.filter((f) => {
+          const rawName = f.filename || f.file_name || "";
+          const loweredName = typeof rawName === "string" ? rawName.toLowerCase() : "";
+          const loweredType =
+            f.file_type && typeof f.file_type === "string" ? f.file_type.toLowerCase() : "";
+          return (
+            (loweredName && loweredName.endsWith(".csv")) ||
+            (loweredType && loweredType.includes("csv"))
+          );
+        });
 
+        console.log("[Assign team] batchFiles:", batchFiles);
+        console.log("[Assign team] csvFiles:", csvFiles);
+        console.log("[Assign team] selectedMembers:", selectedMembers);
+        console.log("[Assign team] actualUserIds:", actualUserIds);
+
+        let totalJobsCreated = 0;
         if (csvFiles.length > 0 && actualUserIds.length > 0) {
-          let totalJobsCreated = 0;
+          const ensureRowCount = async (fileId: number, filename?: string) => {
+            if (!project) return 0;
+            try {
+              const splitResponse = await splitProjectFile({
+                project_id: parseInt(project.id),
+                file_id: fileId,
+                auto_create_batches: false,
+              });
+              const fetchedRows = splitResponse?.total_rows || 0;
+
+              if (fetchedRows > 0) {
+                setCsvRowCounts((prev) => {
+                  const updated = { ...prev, [fileId]: fetchedRows };
+                  const newTotal = Object.values(updated).reduce(
+                    (sum, count) => sum + (count || 0),
+                    0
+                  );
+                  setTotalRows(newTotal);
+                  return updated;
+                });
+              }
+
+              console.log(
+                `Fetched row count for ${filename || `file ${fileId}`}:`,
+                fetchedRows
+              );
+              return fetchedRows;
+            } catch (error: any) {
+              console.error(
+                `Failed to fetch row count for ${filename || `file ${fileId}`}:`,
+                error
+              );
+              toast.error(
+                `Failed to get row count for ${filename || "file"}. Using backend defaults.`
+              );
+              return 0;
+            }
+          };
+
           for (const csvFile of csvFiles) {
-            const rowsForFile = csvRowCounts[csvFile.file_id] || 0;
+            let rowsForFile = csvRowCounts[csvFile.file_id] || 0;
             if (rowsForFile === 0) {
-              console.warn(`No row count metadata for file ${csvFile.filename}`);
-              continue;
+              rowsForFile = await ensureRowCount(csvFile.file_id, csvFile.filename);
             }
 
             // Calculate chunk size so each user gets exactly 1 chunk (1 job per user)
             // We want: numChunks = numUsers, so chunkSize = rowsPerMember
             const numUsers = actualUserIds.length;
-            const rowsPerMember = Math.ceil(rowsForFile / numUsers);
+            const rowsPerMember = rowsForFile > 0 ? Math.ceil(rowsForFile / numUsers) : 0;
             
             // Calculate chunk size to ensure we get exactly numUsers chunks
             // chunkSize = rowsPerMember ensures: Math.ceil(rowsForFile / chunkSize) = numUsers
@@ -296,10 +346,19 @@ export default function ProjectBatchPage() {
             // Example: rowsForFile = 31, numUsers = 2 → rowsPerMember = 16 → chunkSize = 16 → 2 chunks (16+15) ✓
             // Example: rowsForFile = 10, numUsers = 2 → rowsPerMember = 5 → chunkSize = 5 → 2 chunks (5+5) ✓
             // Minimum chunk size is 1 (allow small chunks if file is small)
-            const finalChunkSize = Math.max(1, rowsPerMember);
-            const expectedChunks = Math.ceil(rowsForFile / finalChunkSize);
+            const finalChunkSize = rowsPerMember > 0 ? Math.max(1, rowsPerMember) : undefined;
+            const expectedChunks =
+              rowsForFile > 0 && finalChunkSize
+                ? Math.ceil(rowsForFile / finalChunkSize)
+                : "backend";
             
-            console.log(`Distributing ${rowsForFile} rows from ${csvFile.filename} to ${numUsers} users, chunk_size: ${finalChunkSize}, expected_chunks: ${expectedChunks} (should equal ${numUsers})`);
+            console.log(
+              `Distributing ${
+                rowsForFile || "unknown"
+              } rows from ${csvFile.filename} to ${numUsers} users, chunk_size: ${
+                finalChunkSize ?? "auto"
+              }, expected_chunks: ${expectedChunks} (target ${numUsers})`
+            );
 
             try {
               const distributeResponse = await distributeFileToUsers({
@@ -332,14 +391,19 @@ export default function ProjectBatchPage() {
           if (totalJobsCreated > 0) {
             toast.success(`Total: ${totalJobsCreated} job(s) created for ${actualUserIds.length} team member(s)`);
           }
-        } else {
-          // For non-CSV files or if no CSV files, use regular batch assignment
-          if (actualUserIds.length > 0) {
+        } else if (actualUserIds.length > 0) {
+          // No CSV files to split → simple batch assignment only
+          try {
             await assignBatchToUsers({
               batch_id: parseInt(batchId),
               user_ids: actualUserIds,
               notes: instructions || undefined,
             });
+            toast.success(`Batch assigned to ${actualUserIds.length} team member(s)`);
+          } catch (error: any) {
+            console.error("Failed to assign batch:", error);
+            toast.error(error.message || "Failed to assign batch");
+            return;
           }
         }
 
@@ -359,9 +423,9 @@ export default function ProjectBatchPage() {
         }
 
         const totalAssigned = actualUserIds.length + pendingEmails.length;
-        if (csvFiles.length > 0 && totalRows > 0) {
-          toast.success(`${totalAssigned} job(s) created - ${rowsPerMember} câu per member`);
-        } else {
+        if (csvFiles.length > 0 && totalJobsCreated > 0) {
+          toast.success(`${totalJobsCreated} job(s) created - ${rowsPerMember} câu per member`);
+        } else if (totalAssigned > 0) {
           toast.success(`Batch assigned to ${totalAssigned} team member(s)`);
         }
         

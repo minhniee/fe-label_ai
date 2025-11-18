@@ -614,7 +614,19 @@ export async function distributeFileToUsers(request: DistributeFileRequest) {
     )
     return response.data
   } catch (error: any) {
-    const errorMessage = error.response?.data?.detail || error.message || 'Failed to distribute file to users'
+    const rawDetail = error.response?.data?.detail
+    let errorMessage = error.message || 'Failed to distribute file to users'
+    if (rawDetail) {
+      if (typeof rawDetail === 'string') {
+        errorMessage = rawDetail
+      } else {
+        try {
+          errorMessage = JSON.stringify(rawDetail)
+        } catch {
+          errorMessage = 'Failed to distribute file to users (invalid request payload)'
+        }
+      }
+    }
     throw new Error(errorMessage)
   }
 }
