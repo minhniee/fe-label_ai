@@ -141,32 +141,53 @@ export function ColumnManager({
       return
     }
 
+    const trimmedNewName = editColumnName.trim()
+
+    // IMPORTANT: Update contextColumn or resultColumn BEFORE updating columns/data
+    // This ensures parent state is synced before re-render
+    if (contextColumn === editingColumn) {
+      if (!onContextColumnChange) {
+        toast({
+          title: "Error",
+          description: "Cannot rename Context column: handler not provided",
+          variant: "destructive",
+        })
+        return
+      }
+      onContextColumnChange(trimmedNewName)
+    }
+    if (resultColumn === editingColumn) {
+      if (!onResultColumnChange) {
+        toast({
+          title: "Error",
+          description: "Cannot rename Result column: handler not provided",
+          variant: "destructive",
+        })
+        return
+      }
+      onResultColumnChange(trimmedNewName)
+    }
+
     // Update column name in columns list
-    const updatedColumns = columns.map((col) => (col === editingColumn ? editColumnName.trim() : col))
-    onColumnsUpdateAction(updatedColumns)
+    const updatedColumns = columns.map((col) => (col === editingColumn ? trimmedNewName : col))
 
     // Update column name in all rows
     const updatedData = data.map((row) => {
       const newRow = { ...row }
       if (newRow[editingColumn] !== undefined) {
-        newRow[editColumnName.trim()] = newRow[editingColumn]
+        newRow[trimmedNewName] = newRow[editingColumn]
         delete newRow[editingColumn]
       }
       return newRow
     })
-    onDataUpdateAction(updatedData)
 
-    // Update contextColumn or resultColumn if they were renamed
-    if (contextColumn === editingColumn && onContextColumnChange) {
-      onContextColumnChange(editColumnName.trim())
-    }
-    if (resultColumn === editingColumn && onResultColumnChange) {
-      onResultColumnChange(editColumnName.trim())
-    }
+    // Batch updates to prevent race conditions
+    onColumnsUpdateAction(updatedColumns)
+    onDataUpdateAction(updatedData)
 
     toast({
       title: "Column renamed",
-      description: `Column "${editingColumn}" has been renamed to "${editColumnName.trim()}"`,
+      description: `Column "${editingColumn}" has been renamed to "${trimmedNewName}"`,
     })
 
     setEditingColumn(null)

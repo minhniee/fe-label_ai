@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Check, ChevronLeft, ChevronRight, Download, X, CheckCheck, Send, Trash2, Info, CheckCircle2, GitCompare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -87,16 +87,17 @@ export function DataGrid({
       sampleRows.forEach((row) => {
         exportColumns.forEach((col) => {
           const value = String(col === "_corrected_value" ? row._corrected_value || "" : row[col] || "")
-          // Handle tab character specially in regex
-          let pattern: RegExp
+
+          // Count occurrences using simple string search instead of regex to avoid security issues
+          let occurrences = 0
           if (candidate.char === "\t") {
-            pattern = /\t/g
-          } else if (candidate.char === "|") {
-            pattern = /\|/g
+            // Count tabs using split
+            occurrences = value.split("\t").length - 1
           } else {
-            pattern = new RegExp(`\\${candidate.char}`, "g")
+            // Count other delimiters using split
+            occurrences = value.split(candidate.char).length - 1
           }
-          const occurrences = (value.match(pattern) || []).length
+
           totalOccurrences += occurrences
           if (occurrences > 0) conflictCount++
         })
@@ -131,9 +132,12 @@ export function DataGrid({
     return `${baseTitle}_v${nextVersion}`
   }
 
-  if (allConfirmed && !versionName) {
-    setVersionName(generateVersionName())
-  }
+  // Use useEffect to set version name when allConfirmed changes
+  useEffect(() => {
+    if (allConfirmed && !versionName) {
+      setVersionName(generateVersionName())
+    }
+  }, [allConfirmed, versionName])
 
   const handleCellEdit = (rowId: string, field: string, value: string) => {
     // Update allData first (full dataset)
@@ -142,13 +146,9 @@ export function DataGrid({
         ? { ...row, [field]: value, _isModified: true }
         : row
     )
-    
-    // Then update current page data for display
-    const updatedData = updatedAllData.filter((row) => 
-      data.some((d) => d._id === row._id)
-    )
-    
+
     // Always pass full updatedAllData to parent to keep everything in sync
+    // No need to filter - parent handles pagination
     onDataUpdate(updatedAllData)
   }
 
@@ -170,28 +170,34 @@ export function DataGrid({
       return
     }
 
-    // Determine new values based on status
-    const applyRowUpdate = (r: any) => {
-      if (r._id !== rowId) return r
-      // When confirming, fill resultColumn with correct_answer (_corrected_value) or AI suggestion
-      const valueToFill = row._corrected_value || row._ai_suggestion || r[resultColumn] || ""
-      if (isIncorrect || isCorrect) {
-        return {
-          ...r,
-          [resultColumn]: valueToFill,
-          _confirmed: true,
-        }
-      }
-      return r
+    // Priority: Use _corrected_value if available, otherwise use _ai_suggestion
+    const valueToFill = row._corrected_value || row._ai_suggestion || ""
+
+    if (!valueToFill && !isCorrect) {
+      toast({
+        title: "Warning",
+        description: "No AI suggestion or corrected value found to apply.",
+        variant: "destructive",
+      })
+      return
     }
 
-    const updatedAllData = allData.map(applyRowUpdate)
-    const updatedData = data.map(applyRowUpdate)
+    // Update the row with the correct value
+    const updatedAllData = allData.map((r) => {
+      if (r._id !== rowId) return r
+
+      return {
+        ...r,
+        [resultColumn]: valueToFill,
+        _confirmed: true,
+      }
+    })
 
     onDataUpdate(updatedAllData)
+
     toast({
       title: "Confirmed",
-      description: `Applied AI correct_answer to ${resultColumn}`,
+      description: `Applied "${valueToFill}" to ${resultColumn}`,
     })
   }
 
@@ -247,38 +253,46 @@ export function DataGrid({
 
     let applied = 0
     let ambiguous = 0
+    let skipped = 0
 
     const updatedAllData = allData.map((row) => {
       const onPage = targets.find((r) => r._id === row._id)
       if (!onPage) return row
+
       const status = (row._validation_status || "").toString().toLowerCase()
       const isAmbiguous = status === "ambiguous"
-      const isIncorrect = status === "incorrect" || (row._ai_suggestion || "").toString().toLowerCase() === "false"
-      const isCorrect = status === "correct" || (row._ai_suggestion || "").toString().toLowerCase() === "true"
 
       if (isAmbiguous) {
         ambiguous += 1
         return row
       }
-      // When confirming, fill resultColumn with correct_answer (_corrected_value) or AI suggestion
-      const valueToFill = row._corrected_value || row._ai_suggestion || row[resultColumn] || ""
-      if (isIncorrect || isCorrect) {
-        applied += 1
-        return {
-          ...row,
-          [resultColumn]: valueToFill,
-          _confirmed: true,
-        }
+
+      // Priority: Use _corrected_value if available, otherwise use _ai_suggestion
+      const valueToFill = row._corrected_value || row._ai_suggestion || ""
+
+      if (!valueToFill) {
+        skipped += 1
+        return row
       }
-      return row
+
+      // Apply the value to resultColumn and mark as confirmed
+      applied += 1
+      return {
+        ...row,
+        [resultColumn]: valueToFill,
+        _confirmed: true,
+      }
     })
 
     onDataUpdate(updatedAllData)
+
     const parts = [] as string[]
-    if (applied) parts.push(`${applied} applied`)
+    if (applied) parts.push(`${applied} confirmed`)
     if (ambiguous) parts.push(`${ambiguous} ambiguous skipped`)
+    if (skipped) parts.push(`${skipped} no value skipped`)
+
     toast({
-      title: "Confirm all",
+      title: "Confirm All",
       description: parts.length ? parts.join(", ") : "No rows to confirm",
     })
   }
@@ -659,8 +673,37 @@ export function DataGrid({
                       </td>
                       {contextColumn && (
                         <td className="px-4 py-3 text-sm">
-                          <div className="max-w-md truncate" title={row[contextColumn]}>
-                            {row[contextColumn] || "-"}
+                          <div
+                            className={cn(
+                              "max-w-md rounded px-3 py-2 font-mono text-sm border transition-all",
+                              manualMode && "cursor-pointer hover:shadow-md hover:border-primary"
+                            )}
+                            onClick={() => {
+                              if (manualMode) {
+                                setEditingCell({ rowId: row._id, field: contextColumn })
+                              }
+                            }}
+                            title={row[contextColumn]}
+                          >
+                            {editingCell?.rowId === row._id && editingCell?.field === contextColumn ? (
+                              <Input
+                                autoFocus
+                                value={row[contextColumn] || ""}
+                                onChange={(e) => handleCellEdit(row._id, contextColumn, e.target.value)}
+                                onBlur={() => setEditingCell(null)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    setEditingCell(null)
+                                  }
+                                  if (e.key === "Escape") {
+                                    setEditingCell(null)
+                                  }
+                                }}
+                                className="h-6 font-mono text-sm p-1 w-full"
+                              />
+                            ) : (
+                              <span className="truncate block">{row[contextColumn] || "-"}</span>
+                            )}
                           </div>
                         </td>
                       )}
@@ -673,7 +716,9 @@ export function DataGrid({
                         >
                           <div
                             className={cn(
-                              "rounded px-3 py-2 font-mono text-sm border transition-all cursor-pointer hover:shadow-md",
+                              "rounded px-3 py-2 font-mono text-sm border transition-all",
+                              manualMode && "cursor-pointer hover:shadow-md hover:border-primary",
+                              !manualMode && "cursor-default",
                               getCellColor(row._validation_status),
                               getCellTextColor(row._validation_status),
                             )}
@@ -686,15 +731,18 @@ export function DataGrid({
                             {editingCell?.rowId === row._id && editingCell?.field === col ? (
                               <Input
                                 autoFocus
-                                value={row[col]}
+                                value={row[col] || ""}
                                 onChange={(e) => handleCellEdit(row._id, col, e.target.value)}
                                 onBlur={() => setEditingCell(null)}
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter") {
                                     setEditingCell(null)
                                   }
+                                  if (e.key === "Escape") {
+                                    setEditingCell(null)
+                                  }
                                 }}
-                                className="h-6 font-mono text-sm p-1"
+                                className="h-6 font-mono text-sm p-1 w-full"
                               />
                             ) : (
                               <span>{row[col] || "-"}</span>
@@ -758,7 +806,8 @@ export function DataGrid({
                             <div
                               className={cn(
                                 "flex-1 rounded px-3 py-2 font-mono text-sm border transition-all",
-                                manualMode && "cursor-pointer hover:shadow-md",
+                                manualMode && "cursor-pointer hover:shadow-md hover:border-primary",
+                                !manualMode && "cursor-default",
                                 getResultCellColor(row),
                               )}
                               onClick={() => {
@@ -777,8 +826,11 @@ export function DataGrid({
                                     if (e.key === "Enter") {
                                       setEditingCell(null)
                                     }
+                                    if (e.key === "Escape") {
+                                      setEditingCell(null)
+                                    }
                                   }}
-                                  className="h-6 font-mono text-sm p-1"
+                                  className="h-6 font-mono text-sm p-1 w-full"
                                 />
                               ) : (
                                 <span>{row[resultColumn] || "-"}</span>

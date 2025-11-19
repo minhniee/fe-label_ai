@@ -26,43 +26,57 @@ export function SemanticSearchFilter({
   const { toast } = useToast()
   const checkingRef = useRef(false) // Prevent concurrent checks
   const lastCheckedFileIdRef = useRef<number | null>(null) // Track last checked fileId
+  const abortControllerRef = useRef<AbortController | null>(null) // Cancel pending requests
 
-  // Memoize checkIndexStatus to prevent unnecessary re-renders and ensure stable reference
-  const checkIndexStatus = useCallback(async () => {
-    if (!fileId || checkingRef.current) return
-    
+  // Check index status when fileId changes
+  useEffect(() => {
+    if (!fileId) {
+      setIsIndexed(null)
+      lastCheckedFileIdRef.current = null
+      return
+    }
+
     // Skip if we already checked this fileId
     if (lastCheckedFileIdRef.current === fileId) {
       return
     }
-    
+
+    // Prevent concurrent checks
+    if (checkingRef.current) {
+      // Cancel previous request if still pending
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+    }
+
     checkingRef.current = true
     lastCheckedFileIdRef.current = fileId
-    
-    try {
-      const status = await getSemanticSearchIndexStatus(fileId)
-      setIsIndexed(status.is_indexed || false)
-    } catch (error) {
-      setIsIndexed(false)
-    } finally {
-      checkingRef.current = false
+    abortControllerRef.current = new AbortController()
+
+    const checkStatus = async () => {
+      try {
+        const status = await getSemanticSearchIndexStatus(fileId)
+        setIsIndexed(status.is_indexed || false)
+      } catch (error: any) {
+        // Don't update state if request was aborted
+        if (error.name !== 'AbortError') {
+          setIsIndexed(false)
+        }
+      } finally {
+        checkingRef.current = false
+        abortControllerRef.current = null
+      }
+    }
+
+    checkStatus()
+
+    // Cleanup on unmount or fileId change
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
     }
   }, [fileId])
-
-  // Check index status when fileId changes
-  useEffect(() => {
-    if (fileId) {
-      // Reset check status when fileId changes to a different value
-      if (lastCheckedFileIdRef.current !== fileId) {
-        lastCheckedFileIdRef.current = null
-        setIsIndexed(null)
-      }
-      checkIndexStatus()
-    } else {
-      setIsIndexed(null)
-      lastCheckedFileIdRef.current = null
-    }
-  }, [fileId, checkIndexStatus])
 
   const handleIndex = async () => {
     if (!fileId) {

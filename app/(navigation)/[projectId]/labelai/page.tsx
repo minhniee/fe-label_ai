@@ -30,6 +30,7 @@ import { getFilePreview } from "@/app/api/dataset"
 import { slugToProjectId } from "@/types/project"
 import axios from "axios"
 import { detectContextColumn, detectResultColumn, detectDelimiter } from "@/lib/label-ai-utils"
+import { ErrorBoundary } from "@/components/error-boundary"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
 
@@ -104,13 +105,25 @@ export default function Home() {
   const [newDatasetDescription, setNewDatasetDescription] = useState("")  // Dataset description
   const [isScrolled, setIsScrolled] = useState(false)  // Track scroll state for floating sidebar
 
-  // Track scroll to show/hide floating sidebar
+  // Track scroll to show/hide floating sidebar (with debouncing)
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout | null = null
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 200)
+      // Debounce scroll events to prevent UI jank
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
+      timeoutId = setTimeout(() => {
+        setIsScrolled(window.scrollY > 200)
+      }, 100) // 100ms debounce
     }
-    window.addEventListener("scroll", handleScroll)
-    return () => window.removeEventListener("scroll", handleScroll)
+    window.addEventListener("scroll", handleScroll, { passive: true })
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
+      window.removeEventListener("scroll", handleScroll)
+    }
   }, [])
 
   // Sync originalData when data length changes significantly (likely a reload)
@@ -118,12 +131,13 @@ export default function Home() {
     // Only update originalData if length changed significantly and we have new rows
     // This helps when data is reloaded from external sources
     if (data.length > 0 && originalData.length > 0 && data.length !== originalData.length) {
-      const hasNewRows = data.some(row => 
-        !originalData.some(orig => orig._id === row._id)
-      )
+      // Use Map for O(1) lookup instead of O(n²)
+      const originalIdMap = new Map(originalData.map(row => [row._id, true]))
+      const hasNewRows = data.some(row => !originalIdMap.has(row._id))
+
       // If we have completely new rows (not just modifications), update originalData
       // Only update if change is significant (>10% difference)
-      if (hasNewRows && originalData.length > 0 && 
+      if (hasNewRows && originalData.length > 0 &&
           Math.abs(data.length - originalData.length) > originalData.length * 0.1) {
         // This is likely a reload, update originalData but preserve modification flags
         setOriginalData(data.map(row => {
@@ -837,8 +851,9 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-          <h1 className="text-3xl font-bold text-foreground">Semi-AI Labeler</h1>
+    <ErrorBoundary>
+      <div className="min-h-screen bg-background">
+            <h1 className="text-3xl font-bold text-foreground">Semi-AI Labeler</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Select dataset, review AI suggestions, and export labeled data
           </p>
@@ -1405,5 +1420,6 @@ export default function Home() {
         </DialogContent>
       </Dialog>
     </div>
+    </ErrorBoundary>
   )
 }
