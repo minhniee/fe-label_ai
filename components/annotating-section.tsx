@@ -61,6 +61,7 @@ export default function AnnotatingSection() {
             return null;
           }
 
+          // Only show jobs that are actively being labeled
           const batchFiles = projectFiles.filter((f) => fileIds.includes(f.file_id));
           if (!batchFiles.length) {
             return null;
@@ -72,9 +73,13 @@ export default function AnnotatingSection() {
           const annotating = batchFiles.filter((f) => f.annotation_status === "annotating").length;
           const unannotated = batchFiles.filter((f) => f.annotation_status === "unannotated").length;
 
-          // Show ALL jobs in Annotating section (even if all files are annotated)
-          // Only filter out jobs that have no files
           const totalFiles = batchFiles.length;
+          const hasActiveWork = annotating > 0;
+
+          const status = typeof batch.status === "string" ? batch.status.toLowerCase() : batch.status;
+          if ((!status || status === "completed") || (status === "pending" && !hasActiveWork)) {
+            return null;
+          }
 
           return {
             batch_id: batch.batch_id,

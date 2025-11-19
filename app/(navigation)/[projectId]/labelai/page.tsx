@@ -26,6 +26,7 @@ import { ColumnManager } from "@/components/label-ai/column-manager"
 import { getDatasetVersionData } from "@/app/api/labelai"
 import { getVersionFiles, uploadFileToDataset } from "@/app/api/dataset"
 import { getProjectFiles, generateDatasetFromProject } from "@/app/api/project"
+import { completeBatch } from "@/app/api/batch"
 import { getFilePreview } from "@/app/api/dataset"
 import { slugToProjectId } from "@/types/project"
 import axios from "axios"
@@ -745,6 +746,32 @@ export default function Home() {
     }
   }
 
+  const handleMarkJobCompleted = async () => {
+    if (!batchId) {
+      toast({
+        title: "Job context missing",
+        description: "This action is only available when labeling an assigned job.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      await completeBatch(parseInt(batchId))
+      toast({
+        title: "Job marked as completed",
+        description: "This job has been moved to the Dataset column.",
+      })
+    } catch (error: any) {
+      console.error("Failed to complete batch:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to mark job as completed.",
+        variant: "destructive",
+      })
+    }
+  }
+
   // Handle complete project and create dataset
   const handleComplete = async () => {
     const trimmedName = newDatasetName.trim()
@@ -931,7 +958,7 @@ export default function Home() {
                     </div>
 
                     {/* Save File Button */}
-                    {currentFileId && batchId && (
+                    {currentFileId && (
                       <div className="space-y-2 pb-3 border-b">
                         <Label className="text-xs font-medium text-muted-foreground">File Actions</Label>
                         <Button
@@ -958,6 +985,28 @@ export default function Home() {
                             </>
                           )}
                         </Button>
+                        {batchId ? (
+                          <Button
+                            onClick={handleMarkJobCompleted}
+                            className="w-full gap-2"
+                            variant="default"
+                            size="sm"
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                            Mark Job Completed
+                          </Button>
+                        ) : (
+                          <Button
+                            onClick={() => setShowCompleteDialog(true)}
+                            disabled={completing}
+                            className="w-full gap-2"
+                            variant="default"
+                            size="sm"
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                            Complete
+                          </Button>
+                        )}
                       </div>
                     )}
 
@@ -1072,7 +1121,7 @@ export default function Home() {
                     Manual Labeling Mode
                   </Label>
                 </div>
-                {currentFileId && batchId && (
+                {currentFileId && (
                   <>
                     <Button
                       onClick={handleSaveFile}
@@ -1097,15 +1146,26 @@ export default function Home() {
                         </>
                       )}
                     </Button>
-                    <Button
-                      onClick={() => setShowCompleteDialog(true)}
-                      disabled={completing}
-                      className="gap-2"
-                      variant="default"
-                    >
-                      <CheckCircle2 className="h-4 w-4" />
-                      Complete
-                    </Button>
+                    {batchId ? (
+                      <Button
+                        onClick={handleMarkJobCompleted}
+                        className="gap-2"
+                        variant="default"
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                        Mark Job Completed
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={() => setShowCompleteDialog(true)}
+                        disabled={completing}
+                        className="gap-2"
+                        variant="default"
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                        Complete
+                      </Button>
+                    )}
                   </>
                 )}
               </div>

@@ -55,6 +55,11 @@ export default function DatasetSection() {
             return null;
           }
 
+          const status = typeof batch.status === "string" ? batch.status.toLowerCase() : batch.status;
+          if (status !== "completed") {
+            return null;
+          }
+
           const statuses = fileIds.map((fileId) => fileStatusMap.get(fileId));
           const totalFiles = statuses.filter(Boolean).length;
           if (totalFiles === 0) {

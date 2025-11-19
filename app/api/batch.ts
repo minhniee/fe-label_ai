@@ -572,6 +572,22 @@ export async function updateBatchProgress(batchId: number) {
   }
 }
 
+// POST /batches/{batch_id}/complete
+export async function completeBatch(batchId: number) {
+  try {
+    const response = await api.post<BatchResponse>(
+      `/batches/${batchId}/complete`,
+      {},
+      {
+      }
+    )
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to complete batch'
+    throw new Error(errorMessage)
+  }
+}
+
 // =============================================
 // PROJECT-BASED BATCH ENDPOINTS
 // =============================================
