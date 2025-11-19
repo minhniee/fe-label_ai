@@ -88,9 +88,8 @@ export default function ProjectSchemaPage() {
   // Statistics
   const [statistics, setStatistics] = useState<any>(null);
 
-  // Get dataset_id from project (assuming workspace dataset_id = 1 for now)
-  // In production, this should come from project metadata or API
-  const datasetId = 1; // TODO: Get from project workspace dataset
+  // Get dataset_id from project
+  const datasetId = project?.dataset_id || undefined;
 
   useEffect(() => {
     if (project) {
@@ -137,6 +136,11 @@ export default function ProjectSchemaPage() {
   };
 
   const handleCreateSchema = async () => {
+    if (!datasetId) {
+      toast.error("Dataset ID is required. Please ensure the project has a valid dataset.");
+      return;
+    }
+
     try {
       let definition = schemaDefinition;
       if (ontologyJson.trim()) {
@@ -651,7 +655,7 @@ export default function ProjectSchemaPage() {
             <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCreateSchema} disabled={!schemaName || !ontologyJson.trim() || !canCreate}>
+            <Button onClick={handleCreateSchema} disabled={!schemaName || !ontologyJson.trim() || !datasetId || !canCreate}>
               Create Schema
             </Button>
           </DialogFooter>

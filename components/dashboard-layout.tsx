@@ -37,6 +37,14 @@ const ROUTE_TITLES: Record<string, string> = {
   admin: "Admin",
 }
 
+// Helper function to capitalize first letter of each word
+const capitalizeWords = (str: string): string => {
+  return str
+    .split(" ")
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ")
+}
+
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname()
   const { logout } = useAuth()
@@ -64,7 +72,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         isProject = true
       } else {
         // Regular segment
-        label = ROUTE_TITLES[segment] ?? segment.replace(/[-_]/g, " ")
+        const segmentWithSpaces = segment.replace(/[-_]/g, " ")
+        label = ROUTE_TITLES[segment] ?? capitalizeWords(segmentWithSpaces)
         href = `/${segments.slice(0, index + 1).join("/")}`
       }
       

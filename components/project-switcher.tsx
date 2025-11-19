@@ -32,6 +32,17 @@ export function ProjectSwitcher({
 }) {
   const { isMobile } = useSidebar();
 
+  // Helper function to format status
+  const formatStatus = (status: string): string => {
+    const statusMap: Record<string, string> = {
+      draft: "Draft",
+      ready_to_label: "Ready To Label",
+      labeling: "Labeling",
+      completed: "Completed",
+    };
+    return statusMap[status] || status;
+  };
+
   if (!activeProject) {
     return null;
   }
@@ -50,11 +61,18 @@ export function ProjectSwitcher({
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">{activeProject.name}</span>
-                <span className="truncate text-xs">
-                  <Badge variant="outline" className="text-xs px-1 py-0 h-4">
-                    {activeProject.status}
+                {/* <span className="truncate text-xs">
+                  <Badge 
+                    variant={
+                      activeProject.status === 'labeling' ? 'default' : 
+                      activeProject.status === 'ready_to_label' ? 'secondary' : 
+                      'outline'
+                    }
+                    className="text-xs px-1 py-0 h-4"
+                  >
+                    {formatStatus(activeProject.status)}
                   </Badge>
-                </span>
+                </span> */}
               </div>
               <ChevronsUpDown className="ml-auto" />
             </SidebarMenuButton>

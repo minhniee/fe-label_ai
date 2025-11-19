@@ -50,6 +50,8 @@ export default function DashboardPage() {
     latestVersion: projects.length > 0 ? `v${projects.length}` : "v1.0",
     completedBatches: batchStats?.completed_batches || batchDashboard?.stats?.completed_batches || 0,
     pendingBatches: batchStats?.pending_batches || batchDashboard?.stats?.pending_batches || 0,
+    inProgressBatches: batchStats?.in_progress_batches || batchDashboard?.stats?.in_progress_batches || 0,
+    totalBatches: batchStats?.total_batches || batchDashboard?.stats?.total_batches || 0,
     totalQuestions: batchStats?.total_files || batchDashboard?.stats?.total_files || 0,
     labeledQuestions: batchStats?.completed_files || batchDashboard?.stats?.completed_files || 0,
   }
@@ -82,48 +84,48 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card className="">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tổng bộ dữ liệu</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Datasets</CardTitle>
             <Database className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-primary">{stats.totalDatasets}</div>
-            <p className="text-xs text-muted-foreground">Phiên bản mới nhất: {stats.latestVersion}</p>
+            <p className="text-xs text-muted-foreground">Latest version: {stats.latestVersion}</p>
           </CardContent>
         </Card>
 
         <Card className="">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tiến độ gán nhãn</CardTitle>
+            <CardTitle className="text-sm font-medium">Labeling Progress</CardTitle>
             <Tag className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-primary">{stats.labelingProgress}%</div>
             <Progress value={stats.labelingProgress} className="mt-2" />
             <p className="text-xs text-muted-foreground mt-2">
-              {stats.labeledQuestions}/{stats.totalQuestions} câu hỏi
+              {stats.labeledQuestions}/{stats.totalQuestions} files
             </p>
           </CardContent>
         </Card>
 
         <Card className="">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Người gán nhãn</CardTitle>
+            <CardTitle className="text-sm font-medium">Active Labelers</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-primary">{stats.activeLabelers}</div>
-            <p className="text-xs text-muted-foreground">Đang hoạt động</p>
+            <p className="text-xs text-muted-foreground">Currently active</p>
           </CardContent>
         </Card>
 
         <Card className="">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Batch hoàn thành</CardTitle>
+            <CardTitle className="text-sm font-medium">Completed Batches</CardTitle>
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-primary">{stats.completedBatches}</div>
-            <p className="text-xs text-muted-foreground">{stats.pendingBatches} đang chờ xử lý</p>
+            <p className="text-xs text-muted-foreground">{stats.pendingBatches} pending</p>
           </CardContent>
         </Card>
       </div>
@@ -135,9 +137,9 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5" />
-              Hoạt động gần đây
+              Recent Activity
             </CardTitle>
-            <CardDescription>Các hoạt động mới nhất trong hệ thống</CardDescription>
+            <CardDescription>Latest activities in the system</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {recentBatches.length === 0 && overdueBatches.length === 0 ? (
@@ -175,8 +177,8 @@ export default function DashboardPage() {
                         'outline'
                       }
                     >
-                      {batch.status === 'completed' ? 'Hoàn thành' : 
-                       batch.status === 'in_progress' ? 'Đang xử lý' : 
+                      {batch.status === 'completed' ? 'Completed' : 
+                       batch.status === 'in_progress' ? 'In Progress' : 
                        batch.status}
                     </Badge>
                   </div>
@@ -196,7 +198,7 @@ export default function DashboardPage() {
                         </p>
                       </div>
                     </div>
-                    <Badge variant="destructive">Cần xử lý</Badge>
+                    <Badge variant="destructive">Needs Attention</Badge>
                   </div>
                 ))}
               </>
@@ -209,14 +211,14 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5" />
-              Tổng quan tiến độ
+              Progress Overview
             </CardTitle>
-            <CardDescription>Thống kê chi tiết về quá trình gán nhãn</CardDescription>
+            <CardDescription>Detailed statistics on the labeling process</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div>
               <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium">Dữ liệu đã gán nhãn</span>
+                <span className="text-sm font-medium">Labeled Data</span>
                 <span className="text-sm text-muted-foreground">{stats.labelingProgress}%</span>
               </div>
               <Progress value={stats.labelingProgress} className="h-2" />
@@ -224,16 +226,16 @@ export default function DashboardPage() {
 
             <div>
               <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium">Batch đã hoàn thành</span>
+                <span className="text-sm font-medium">Completed Batches</span>
                 <span className="text-sm text-muted-foreground">
-                  {stats.completedBatches + stats.pendingBatches > 0 
-                    ? Math.round((stats.completedBatches / (stats.completedBatches + stats.pendingBatches)) * 100)
+                  {stats.totalBatches > 0 
+                    ? Math.round((stats.completedBatches / stats.totalBatches) * 100)
                     : 0}%
                 </span>
               </div>
               <Progress
-                value={stats.completedBatches + stats.pendingBatches > 0
-                  ? (stats.completedBatches / (stats.completedBatches + stats.pendingBatches)) * 100
+                value={stats.totalBatches > 0
+                  ? (stats.completedBatches / stats.totalBatches) * 100
                   : 0}
                 className="h-2"
               />
@@ -242,13 +244,13 @@ export default function DashboardPage() {
             <div className="grid grid-cols-2 gap-4 pt-4">
               <div className="text-center">
                 <div className="text-2xl font-bold text-primary">{stats.completedBatches}</div>
-                <div className="text-xs text-muted-foreground">Hoàn thành</div>
+                <div className="text-xs text-muted-foreground">Completed</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-primary">
-                  {batchStats?.in_progress_batches || batchDashboard?.stats?.in_progress_batches || stats.pendingBatches}
+                  {stats.inProgressBatches}
                 </div>
-                <div className="text-xs text-muted-foreground">Đang xử lý</div>
+                <div className="text-xs text-muted-foreground">In Progress</div>
               </div>
             </div>
 
@@ -256,15 +258,15 @@ export default function DashboardPage() {
             <div className="grid grid-cols-2 gap-4 pt-4 border-t">
               <div className="text-center">
                 <div className="text-2xl font-bold text-primary">
-                  {batchStats?.total_batches || batchDashboard?.stats?.total_batches || 0}
+                  {stats.totalBatches}
                 </div>
-                <div className="text-xs text-muted-foreground">Tổng batch</div>
+                <div className="text-xs text-muted-foreground">Total Batches</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-primary">
-                  {batchStats?.pending_batches || batchDashboard?.stats?.pending_batches || 0}
+                  {stats.pendingBatches}
                 </div>
-                <div className="text-xs text-muted-foreground">Chờ xử lý</div>
+                <div className="text-xs text-muted-foreground">Pending</div>
               </div>
             </div>
           </CardContent>

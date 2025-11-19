@@ -411,10 +411,18 @@ export async function deleteBatchAssignment(assignmentId: number) {
 }
 
 // GET /batches/stats/
-export async function getBatchStats(datasetId?: number) {
+export async function getBatchStats(filters?: {
+  dataset_id?: number
+  start_date?: string
+  end_date?: string
+  time_period?: '7d' | '30d' | '3m'
+}) {
   try {
     const params = new URLSearchParams()
-    if (datasetId) params.append('dataset_id', datasetId.toString())
+    if (filters?.dataset_id) params.append('dataset_id', filters.dataset_id.toString())
+    if (filters?.start_date) params.append('start_date', filters.start_date)
+    if (filters?.end_date) params.append('end_date', filters.end_date)
+    if (filters?.time_period) params.append('time_period', filters.time_period)
     
     const url = params.toString() 
       ? `/batches/stats/?${params.toString()}`
@@ -430,9 +438,22 @@ export async function getBatchStats(datasetId?: number) {
 }
 
 // GET /batches/dashboard/
-export async function getBatchDashboard() {
+export async function getBatchDashboard(filters?: {
+  start_date?: string
+  end_date?: string
+  time_period?: '7d' | '30d' | '3m'
+}) {
   try {
-    const response = await api.get<BatchDashboardResponse>(`/batches/dashboard/`, {
+    const params = new URLSearchParams()
+    if (filters?.start_date) params.append('start_date', filters.start_date)
+    if (filters?.end_date) params.append('end_date', filters.end_date)
+    if (filters?.time_period) params.append('time_period', filters.time_period)
+    
+    const url = params.toString() 
+      ? `/batches/dashboard/?${params.toString()}`
+      : `/batches/dashboard/`
+      
+    const response = await api.get<BatchDashboardResponse>(url, {
     })
     return response.data
   } catch (error: any) {
@@ -632,11 +653,22 @@ export async function distributeFileToUsers(request: DistributeFileRequest) {
 }
 
 // GET /batches/projects/{project_id}/stats
-export async function getProjectBatchStats(projectId: number) {
+export async function getProjectBatchStats(projectId: number, filters?: {
+  start_date?: string
+  end_date?: string
+  time_period?: '7d' | '30d' | '3m'
+}) {
   try {
-    const response = await api.get<ProjectBatchStatsResponse>(
-      `/batches/projects/${projectId}/stats`,
-      {
+    const params = new URLSearchParams()
+    if (filters?.start_date) params.append('start_date', filters.start_date)
+    if (filters?.end_date) params.append('end_date', filters.end_date)
+    if (filters?.time_period) params.append('time_period', filters.time_period)
+    
+    const url = params.toString() 
+      ? `/batches/projects/${projectId}/stats?${params.toString()}`
+      : `/batches/projects/${projectId}/stats`
+      
+    const response = await api.get<ProjectBatchStatsResponse>(url, {
       }
     )
     return response.data

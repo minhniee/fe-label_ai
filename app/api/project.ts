@@ -18,6 +18,7 @@ export interface ProjectResponse {
   created_by: number;
   created_at: string;
   updated_at: string;
+  dataset_id?: number; // Dataset ID associated with the project workspace
 }
 
 export interface ProjectWithRoleResponse extends ProjectResponse {

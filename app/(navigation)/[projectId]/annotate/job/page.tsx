@@ -486,8 +486,24 @@ export default function ProjectJobPage() {
         <div className="p-6 border-b">
           <h3 className="font-semibold mb-4">Progress</h3>
           <div className="space-y-4">
-            {assignedUser && userProgress && (
-              <div className="space-y-2 pt-2 ">
+            {/* Overall Progress */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Overall Progress</span>
+                <span className="text-muted-foreground font-medium">
+                  {Math.round(progress)}%
+                </span>
+              </div>
+              <Progress value={progress} className="h-2" />
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>{annotatedFiles.length} / {totalFiles} Files</span>
+                <span>{annotatedFiles.length} Annotated • {unannotatedFiles.length} Unannotated</span>
+              </div>
+            </div>
+
+            {/* User-specific Progress */}
+            {/* {assignedUser && userProgress && (
+              <div className="space-y-2 pt-2 border-t">
                 <div className="text-xs text-muted-foreground">
                   {assignedUser.username || assignedUser.email}'s Progress
                 </div>
@@ -501,11 +517,7 @@ export default function ProjectJobPage() {
                 </div>
                 <Progress value={userProgressPercentage} className="h-2" />
               </div>
-            )}
-            <div className="space-y-1 text-sm">
-              <p className="text-muted-foreground">{annotatedFiles.length} Annotated</p>
-              <p className="text-muted-foreground">{unannotatedFiles.length} Unannotated</p>
-            </div>
+            )} */}
           </div>
         </div>
 

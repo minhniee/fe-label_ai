@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Search, SlidersHorizontal, FolderPlus, Plus, MoreVertical } from "lucide-react";
+import { Search, SlidersHorizontal, FolderPlus, Plus, MoreVertical, FileText } from "lucide-react";
 import { setSelectedProject, projectToSlug, type Project } from "@/types/project";
-import { createProject, viewAllProjects, type ProjectCreateRequest } from "@/app/api/project";
+import { createProject, viewAllProjects, getProjectFiles, type ProjectCreateRequest } from "@/app/api/project";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,6 +46,7 @@ import { toast } from "sonner";
 export default function ProjectsPage() {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
+  const [projectFileCounts, setProjectFileCounts] = useState<Record<string, number>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("date-edited");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -70,8 +71,24 @@ export default function ProjectsPage() {
         created_by: p.created_by,
         created_at: p.created_at,
         updated_at: p.updated_at,
+        dataset_id: p.dataset_id,
       }));
       setProjects(convertedProjects);
+
+      // Load file counts for each project
+      const fileCounts: Record<string, number> = {};
+      await Promise.all(
+        convertedProjects.map(async (project) => {
+          try {
+            const files = await getProjectFiles(parseInt(project.id));
+            fileCounts[project.id] = files.length;
+          } catch (error) {
+            console.error(`Failed to load files for project ${project.id}:`, error);
+            fileCounts[project.id] = 0;
+          }
+        })
+      );
+      setProjectFileCounts(fileCounts);
     } catch (error) {
       console.error("Failed to load projects:", error);
       toast.error("Failed to load projects");
@@ -87,6 +104,33 @@ export default function ProjectsPage() {
     setSelectedProject(project);
     const slug = projectToSlug(project);
     router.push(`/${slug}/upload-file`);
+  };
+
+  // Helper function to format status
+  const formatStatus = (status: string): string => {
+    const statusMap: Record<string, string> = {
+      draft: "Draft",
+      ready_to_label: "Ready To Label",
+      labeling: "Labeling",
+      completed: "Completed",
+    };
+    return statusMap[status] || status;
+  };
+
+  // Helper function to get days ago
+  const getDaysAgo = (date: string): string => {
+    const now = new Date();
+    const updatedDate = new Date(date);
+    const diffTime = Math.abs(now.getTime() - updatedDate.getTime());
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) {
+      return "today";
+    } else if (diffDays === 1) {
+      return "1 day ago";
+    } else {
+      return `${diffDays} days ago`;
+    }
   };
 
   const handleCreateProject = async () => {
@@ -240,54 +284,72 @@ export default function ProjectsPage() {
             {filteredProjects.map((project) => (
               <Card
                 key={project.id}
-                className="group cursor-pointer overflow-hidden hover:shadow-lg transition-shadow"
+                className="group cursor-pointer overflow-hidden hover:shadow-lg transition-shadow relative"
                 onClick={() => handleProjectClick(project)}
               >
-                {/* Project Thumbnail */}
-                <div className="bg-muted overflow-hidden relative">
-                  <div className="absolute top-2 right-2">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8 bg-background"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem>Edit Project</DropdownMenuItem>
-                        <DropdownMenuItem>Duplicate</DropdownMenuItem>
-                        <DropdownMenuItem>Export</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                  <div className="absolute top-2 left-2">
-                    <Badge variant={project.status === 'completed' ? 'default' : 'secondary'}>
-                      {project.status}
-                    </Badge>
-                  </div>
+                {/* Dropdown Menu */}
+                <div className="absolute top-3 right-3 z-10">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem>Edit Project</DropdownMenuItem>
+                      <DropdownMenuItem>Duplicate</DropdownMenuItem>
+                      <DropdownMenuItem>Export</DropdownMenuItem>
+                      <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
 
                 {/* Project Info */}
-                <div className="p-4 space-y-2">
-                  <div className="flex items-start justify-between gap-2">
+                <div className="p-5 space-y-3">
+                  {/* Title and Status */}
+                  <div className="flex items-start justify-between gap-2 pr-8">
                     <div className="min-w-0 flex-1">
-                      <h3 className="font-semibold text-lg truncate">{project.name}</h3>
-                      {project.description && (
-                        <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-                          {project.description}
-                        </p>
-                      )}
+                      <h3 className="font-semibold text-xl truncate">{project.name}</h3>
                     </div>
+                    <Badge 
+                      variant={
+                        project.status === 'completed' ? 'default' : 
+                        project.status === 'labeling' ? 'default' : 
+                        project.status === 'ready_to_label' ? 'secondary' : 
+                        'outline'
+                      }
+                      className={`flex-shrink-0 ${
+                        project.status === 'completed' 
+                          ? 'bg-green-500 hover:bg-green-600 text-white' 
+                          : ''
+                      }`}
+                    >
+                      {formatStatus(project.status)}
+                    </Badge>
+                  </div>
+
+                  {/* Description */}
+                  {project.description && (
+                    <p className="text-sm text-muted-foreground line-clamp-2">
+                      {project.description}
+                    </p>
+                  )}
+
+                  {/* Files count */}
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <FileText className="h-3 w-3" />
+                    <span>{projectFileCounts[project.id] ?? 0} file{projectFileCounts[project.id] !== 1 ? 's' : ''}</span>
                   </div>
                   
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  {/* Created and Updated dates */}
+                  <div className="flex flex-col gap-1 text-xs text-muted-foreground pt-2 border-t">
                     <span>Created {new Date(project.created_at).toLocaleDateString()}</span>
-                    <span>Updated {new Date(project.updated_at).toLocaleDateString()}</span>
+                    <span>Edited {getDaysAgo(project.updated_at)}</span>
                   </div>
                 </div>
               </Card>

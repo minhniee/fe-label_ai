@@ -9,6 +9,7 @@ export interface Project {
   created_by: number;
   created_at: string;
   updated_at: string;
+  dataset_id?: number; // Dataset ID associated with the project workspace
 }
 
 // Helper function to convert project name to URL-friendly slug

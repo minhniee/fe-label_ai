@@ -5,6 +5,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -19,9 +20,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
 } from "@/components/ui/chart";
 import {
   AreaChart,
@@ -36,7 +40,6 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  ResponsiveContainer,
 } from "recharts";
 import {
   TrendingUp,
@@ -90,13 +93,14 @@ export default function StatisticPage() {
     if (selectedProjectId) {
       loadProjectBatchStats(selectedProjectId);
     }
-  }, [selectedProjectId]);
+  }, [selectedProjectId, timePeriod]);
 
   // Reload dashboard data when time period changes
   useEffect(() => {
-    if (batchDashboard) {
-      // Data is already loaded, just re-filter on client side
-      // The filterByDate function will handle the filtering
+    // Reload data with new time period filter
+    if (batchDashboard !== null) {
+      // Only reload if we have initial data loaded
+      loadAllStatistics();
     }
   }, [timePeriod]);
 
@@ -124,7 +128,9 @@ export default function StatisticPage() {
 
   const loadBatchStats = async () => {
     try {
-      const stats = await getBatchStats();
+      const stats = await getBatchStats({
+        time_period: timePeriod,
+      });
       setBatchStats(stats);
     } catch (error: any) {
       console.error("Failed to load batch stats:", error);
@@ -133,7 +139,9 @@ export default function StatisticPage() {
 
   const loadBatchDashboard = async () => {
     try {
-      const dashboard = await getBatchDashboard();
+      const dashboard = await getBatchDashboard({
+        time_period: timePeriod,
+      });
       setBatchDashboard(dashboard);
     } catch (error: any) {
       console.error("Failed to load batch dashboard:", error);
@@ -142,32 +150,21 @@ export default function StatisticPage() {
 
   const loadLabelStats = async () => {
     try {
-      // Load label stats for all datasets (you may need to adjust this)
-      // For now, we'll get stats from the first project's dataset
-      if (projects.length > 0 && projects[0].dataset_id) {
-        const stats = await getLabelStatistics(projects[0].dataset_id);
-        setLabelStats(stats);
-      }
+      // Note: getLabelStatistics requires a dataset_id
+      // Since projects don't have dataset_id, we'll skip label stats for now
+      // or you can implement a way to get dataset_id from projects if needed
+      // For now, we'll leave it empty
+      setLabelStats([]);
     } catch (error: any) {
       console.error("Failed to load label stats:", error);
+      setLabelStats([]);
     }
   };
 
   const loadSchemaStats = async () => {
     try {
-      // Try to get schema stats without dataset_id first
-      // If that fails, try with a dataset_id from projects if available
-      let stats;
-      try {
-        stats = await getSchemaStatistics();
-      } catch (error: any) {
-        // If fails without dataset_id, try with first project's dataset_id if available
-        if (projects.length > 0 && projects[0].dataset_id) {
-          stats = await getSchemaStatistics(projects[0].dataset_id);
-        } else {
-          throw error;
-        }
-      }
+      // Try to get schema stats without dataset_id (optional parameter)
+      const stats = await getSchemaStatistics();
       setSchemaStats(stats);
     } catch (error: any) {
       console.error("Failed to load schema stats:", error);
@@ -186,91 +183,56 @@ export default function StatisticPage() {
       }
     } catch (error: any) {
       console.error("Failed to load projects:", error);
+      setProjects([]);
     }
   };
 
   const loadProjectBatchStats = async (projectId: number) => {
     try {
-      const stats = await getProjectBatchStats(projectId);
+      const stats = await getProjectBatchStats(projectId, {
+        time_period: timePeriod,
+      });
       setProjectBatchStats(stats);
     } catch (error: any) {
       console.error("Failed to load project batch stats:", error);
     }
   };
 
-  // Calculate date filter based on time period
-  const getDateFilter = (period: TimePeriod): Date => {
-    const now = new Date();
-    switch (period) {
-      case "7d":
-        return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      case "30d":
-        return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      case "3m":
-        return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-      default:
-        return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    }
-  };
-
-  // Filter data by date
-  const filterByDate = <T extends { created_at?: string; updated_at?: string; assigned_at?: string }>(
-    data: T[],
-    dateField: "created_at" | "updated_at" | "assigned_at" = "created_at"
-  ): T[] => {
-    const filterDate = getDateFilter(timePeriod);
-    return data.filter((item) => {
-      const itemDate = item[dateField];
-      if (!itemDate) return false;
-      return new Date(itemDate) >= filterDate;
-    });
-  };
+  // Note: Date filtering is now handled by the API via time_period parameter
 
   // Prepare data for charts
   const batchStatusData = batchStats
     ? [
-        { name: "Pending", value: batchStats.pending_batches, color: "hsl(var(--muted))" },
-        { name: "In Progress", value: batchStats.in_progress_batches, color: "hsl(var(--primary))" },
-        { name: "Completed", value: batchStats.completed_batches, color: "hsl(var(--chart-1))" },
-        { name: "Blocked", value: batchStats.blocked_batches, color: "hsl(var(--destructive))" },
+        { status: "pending", batches: batchStats.pending_batches, fill: "var(--color-pending)" },
+        { status: "in_progress", batches: batchStats.in_progress_batches, fill: "var(--color-in_progress)" },
+        { status: "completed", batches: batchStats.completed_batches, fill: "var(--color-completed)" },
+        { status: "blocked", batches: batchStats.blocked_batches, fill: "var(--color-blocked)" },
       ]
     : [];
 
   const labelUsageData = labelStats.map((stat, index) => {
-    const colors = [
-      "hsl(var(--primary))",
-      "hsl(var(--chart-1))",
-      "hsl(var(--chart-2))",
-      "hsl(var(--chart-3))",
-      "hsl(var(--chart-4))",
-    ];
+    const labelKey = `label_${index}`;
     return {
-      name: stat.label_name || `Label ${stat.label_id}`,
-      value: stat.total_annotations || 0,
-      color: colors[index % colors.length],
+      label: stat.label_name || `Label ${stat.label_id}`,
+      usage: stat.total_annotations || 0,
+      fill: `var(--color-${labelKey})`,
     };
   });
 
-  // Transform recent_batches to batch progress data (filtered by date)
-  const filteredRecentBatches = filterByDate(
-    batchDashboard?.recent_batches || [],
-    "created_at"
-  );
-
-  const batchProgressData = filteredRecentBatches.map((batch) => ({
+  // Transform recent_batches to batch progress data (already filtered by API)
+  const batchProgressData = (batchDashboard?.recent_batches || []).map((batch) => ({
     batch_name: batch.batch_name || `Batch ${batch.batch_id}`,
+    date: batch.created_at || new Date().toISOString(),
+    dateFormatted: batch.created_at 
+      ? new Date(batch.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      : new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
     progress_percentage: batch.progress_percentage || 0,
     completed_files: batch.completed_files || 0,
     total_files: batch.total_files || 0,
   }));
 
-  // Transform user_assignments to top labelers data (filtered by date)
-  const filteredUserAssignments = filterByDate(
-    batchDashboard?.user_assignments || [],
-    "assigned_at"
-  );
-
-  const topLabelersData = filteredUserAssignments.map((assignment) => ({
+  // Transform user_assignments to top labelers data (already filtered by API)
+  const topLabelersData = (batchDashboard?.user_assignments || []).map((assignment) => ({
     username: assignment.user_username || `User ${assignment.user_id}`,
     user_id: assignment.user_id,
     completed: 0, // Will need to calculate from batch progress
@@ -278,8 +240,8 @@ export default function StatisticPage() {
     status: "active",
   }));
 
-  // Create daily progress from filtered recent batches (group by date)
-  const dailyProgressData = filteredRecentBatches.reduce((acc: any[], batch) => {
+  // Create daily progress from recent batches (already filtered by API, group by date)
+  const dailyProgressData = (batchDashboard?.recent_batches || []).reduce((acc: any[], batch) => {
     const date = new Date(batch.created_at).toISOString().split('T')[0];
     const existing = acc.find((item) => item.date === date);
     if (existing) {
@@ -300,21 +262,40 @@ export default function StatisticPage() {
     },
     pending: {
       label: "Pending",
-      color: "hsl(var(--muted))",
+      color: "var(--chart-5)",
     },
     in_progress: {
       label: "In Progress",
-      color: "hsl(var(--primary))",
+      color: "var(--chart-1)",
     },
     completed: {
       label: "Completed",
-      color: "hsl(var(--chart-1))",
+      color: "var(--chart-2)",
     },
     blocked: {
       label: "Blocked",
-      color: "hsl(var(--destructive))",
+      color: "var(--destructive)",
     },
-  };
+    completed_files: {
+      label: "Completed Files",
+      color: "var(--chart-1)",
+    },
+    progress_percentage: {
+      label: "Progress",
+      color: "var(--chart-1)",
+    },
+    usage: {
+      label: "Usage",
+      color: "var(--chart-1)",
+    },
+    ...labelUsageData.slice(0, 10).reduce((acc, item, index) => {
+      acc[`label_${index}`] = {
+        label: item.label,
+        color: `var(--chart-${(index % 5) + 1})`,
+      };
+      return acc;
+    }, {} as Record<string, { label: string; color: string }>),
+  } satisfies ChartConfig;
 
   if (isLoading) {
     return (
@@ -456,20 +437,27 @@ export default function StatisticPage() {
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Batch Status Pie Chart */}
-        <Card>
-          <CardHeader>
+        <Card className="flex flex-col">
+          <CardHeader className="items-center pb-0">
             <CardTitle>Batch Status Distribution</CardTitle>
             <CardDescription>Distribution of batches by status</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex-1 pb-0">
             {batchStatusData.length > 0 ? (
-              <ChartContainer config={chartConfig} className="h-[300px]">
+              <ChartContainer
+                id="batch-status"
+                config={chartConfig}
+                className="mx-auto aspect-square max-h-[300px]"
+              >
                 <PieChart>
-                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <ChartTooltip
+                    cursor={false}
+                    content={<ChartTooltipContent hideLabel />}
+                  />
                   <Pie
                     data={batchStatusData}
-                    dataKey="value"
-                    nameKey="name"
+                    dataKey="batches"
+                    nameKey="status"
                     cx="50%"
                     cy="50%"
                     innerRadius={60}
@@ -477,7 +465,7 @@ export default function StatisticPage() {
                     paddingAngle={5}
                   >
                     {batchStatusData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
                     ))}
                   </Pie>
                 </PieChart>
@@ -487,43 +475,62 @@ export default function StatisticPage() {
                 No data available
               </div>
             )}
-            <div className="grid grid-cols-2 gap-2 mt-4">
-              {batchStatusData.map((item, index) => (
-                <div key={index} className="flex items-center gap-2">
+          </CardContent>
+          <CardFooter className="flex-col gap-2 text-sm">
+            <div className="grid grid-cols-2 gap-2 w-full">
+              {batchStatusData.map((item) => (
+                <div key={item.status} className="flex items-center gap-2">
                   <div
                     className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: item.color }}
+                    style={{ backgroundColor: item.fill }}
                   />
-                  <span className="text-sm">{item.name}</span>
+                  <span className="text-sm">{(chartConfig as any)[item.status]?.label || item.status}</span>
                   <span className="text-sm text-muted-foreground">
-                    ({item.value})
+                    ({item.batches})
                   </span>
                 </div>
               ))}
             </div>
-          </CardContent>
+          </CardFooter>
         </Card>
 
         {/* Label Usage Bar Chart */}
-        <Card>
-          <CardHeader>
+        <Card className="flex flex-col">
+          <CardHeader className="items-center pb-0">
             <CardTitle>Label Usage Statistics</CardTitle>
             <CardDescription>Most used labels across datasets</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex-1 pb-0">
             {labelUsageData.length > 0 ? (
-              <ChartContainer config={chartConfig} className="h-[300px]">
-                <BarChart data={labelUsageData.slice(0, 10)}>
-                  <CartesianGrid strokeDasharray="3 3" />
+              <ChartContainer id="label-usage" config={chartConfig} className="aspect-auto h-[300px] w-full">
+                <BarChart
+                  accessibilityLayer
+                  data={labelUsageData.slice(0, 10)}
+                  margin={{
+                    left: 12,
+                    right: 12,
+                  }}
+                >
+                  <CartesianGrid vertical={false} />
                   <XAxis
-                    dataKey="name"
+                    dataKey="label"
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                    minTickGap={32}
                     angle={-45}
                     textAnchor="end"
                     height={80}
                   />
                   <YAxis />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar dataKey="value" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                  <ChartTooltip
+                    content={
+                      <ChartTooltipContent
+                        nameKey="usage"
+                      />
+                    }
+                  />
+                  <Bar dataKey="usage" fill="var(--color-usage)" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ChartContainer>
             ) : (
@@ -535,34 +542,68 @@ export default function StatisticPage() {
         </Card>
 
         {/* Daily Progress Area Chart */}
-        <Card>
-          <CardHeader>
+        <Card className="flex flex-col">
+          <CardHeader className="items-center pb-0">
             <CardTitle>Daily Progress</CardTitle>
             <CardDescription>Files completed per day</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex-1 pb-0">
             {dailyProgressData.length > 0 ? (
-              <ChartContainer config={chartConfig} className="h-[300px]">
-                <AreaChart data={dailyProgressData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="dateFormatted" 
-                    tick={{ fontSize: 12 }}
+              <ChartContainer id="daily-progress" config={chartConfig} className="aspect-auto h-[300px] w-full">
+                <AreaChart
+                  data={dailyProgressData}
+                  margin={{
+                    left: 12,
+                    right: 12,
+                  }}
+                >
+                  <defs>
+                    <linearGradient id="fillCompleted" x1="0" y1="0" x2="0" y2="1">
+                      <stop
+                        offset="5%"
+                        stopColor="var(--color-completed_files)"
+                        stopOpacity={0.8}
+                      />
+                      <stop
+                        offset="95%"
+                        stopColor="var(--color-completed_files)"
+                        stopOpacity={0.1}
+                      />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid vertical={false} />
+                  <XAxis
+                    dataKey="dateFormatted"
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                    minTickGap={32}
                   />
                   <YAxis />
-                  <ChartTooltip 
-                    content={<ChartTooltipContent />}
-                    labelFormatter={(label, payload) => {
-                      const item = payload?.[0]?.payload;
-                      return item?.date ? new Date(item.date).toLocaleDateString() : label;
-                    }}
+                  <ChartTooltip
+                    cursor={false}
+                    content={
+                      <ChartTooltipContent
+                        labelFormatter={(value, payload) => {
+                          const item = payload?.[0]?.payload;
+                          if (item?.date) {
+                            return new Date(item.date).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            });
+                          }
+                          return value;
+                        }}
+                        indicator="dot"
+                      />
+                    }
                   />
                   <Area
-                    type="monotone"
+                    type="natural"
                     dataKey="completed"
-                    stroke="hsl(var(--primary))"
-                    fill="hsl(var(--primary))"
-                    fillOpacity={0.2}
+                    fill="url(#fillCompleted)"
+                    stroke="var(--color-completed_files)"
                   />
                 </AreaChart>
               </ChartContainer>
@@ -575,29 +616,64 @@ export default function StatisticPage() {
         </Card>
 
         {/* Batch Progress Line Chart */}
-        <Card>
-          <CardHeader>
+        <Card className="flex flex-col py-4 sm:py-0">
+          <CardHeader className="items-center pb-0">
             <CardTitle>Batch Progress Over Time</CardTitle>
             <CardDescription>Progress percentage by batch</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex-1 pb-0 px-2 sm:p-6">
             {batchProgressData.length > 0 ? (
-              <ChartContainer config={chartConfig} className="h-[300px]">
-                <LineChart data={batchProgressData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="batch_name" angle={-45} textAnchor="end" height={80} />
+              <ChartContainer id="batch-progress" config={chartConfig} className="aspect-auto h-[250px] w-full">
+                <LineChart
+                  accessibilityLayer
+                  data={batchProgressData}
+                  margin={{
+                    left: 12,
+                    right: 12,
+                  }}
+                >
+                  <CartesianGrid vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                    minTickGap={32}
+                    tickFormatter={(value) => {
+                      const date = new Date(value);
+                      return date.toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                      });
+                    }}
+                  />
                   <YAxis />
-                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <ChartTooltip
+                    content={
+                      <ChartTooltipContent
+                        className="w-[150px]"
+                        nameKey="progress_percentage"
+                        labelFormatter={(value) => {
+                          return new Date(value).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          });
+                        }}
+                      />
+                    }
+                  />
                   <Line
-                    type="monotone"
                     dataKey="progress_percentage"
-                    stroke="hsl(var(--primary))"
+                    type="monotone"
+                    stroke="var(--color-progress_percentage)"
                     strokeWidth={2}
+                    dot={false}
                   />
                 </LineChart>
               </ChartContainer>
             ) : (
-              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+              <div className="h-[250px] flex items-center justify-center text-muted-foreground">
                 No batch progress data available
               </div>
             )}
