@@ -2,7 +2,7 @@
 
 import { useRouter, useParams } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Eye, MoreVertical, CircleHelp } from "lucide-react";
+import { MoreVertical, CircleHelp } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { getProjectBatches } from "@/app/api/batch";
 import { getProjectFiles } from "@/app/api/project";
@@ -137,14 +137,26 @@ export default function DatasetSection() {
           jobs.map((job) => (
             <div
               key={job.batch_id}
-              className="border border-input rounded-md p-4 bg-background hover:bg-accent/50 transition-colors"
+              className="border border-input rounded-md p-4 bg-background hover:bg-accent/50 transition-colors cursor-pointer"
+              onClick={() => handleViewJob(job)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  handleViewJob(job);
+                }
+              }}
             >
               <div className="flex items-start justify-between mb-2">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground truncate">{job.name}</p>
                   <p className="text-xs text-muted-foreground mt-1">Labeler: {job.labeler}</p>
                 </div>
-                <button className="text-muted-foreground hover:text-foreground flex-shrink-0">
+                <button 
+                  className="text-muted-foreground hover:text-foreground flex-shrink-0"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <MoreVertical className="w-4 h-4" />
                 </button>
               </div>
@@ -152,12 +164,6 @@ export default function DatasetSection() {
                 <span className="text-xs text-muted-foreground">
                   {job.annotatedCount} Annotated Files
                 </span>
-                <button
-                  onClick={() => handleViewJob(job)}
-                  className="text-primary hover:text-primary/80 p-1"
-                >
-                  <Eye className="w-4 h-4" />
-                </button>
               </div>
             </div>
           ))

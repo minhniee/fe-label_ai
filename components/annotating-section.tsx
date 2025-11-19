@@ -13,6 +13,7 @@ import { getProjectBatches } from "@/app/api/batch";
 import { getProjectFiles } from "@/app/api/project";
 import { useProjectFromSlug } from "@/hooks/use-project-from-slug";
 import { toast } from "sonner";
+import { Progress } from "@/components/ui/progress";
 
 interface AnnotatingJob {
   batch_id: number;
@@ -71,10 +72,9 @@ export default function AnnotatingSection() {
           const annotating = batchFiles.filter((f) => f.annotation_status === "annotating").length;
           const unannotated = batchFiles.filter((f) => f.annotation_status === "unannotated").length;
 
-          // Only show jobs that currently have files in annotating state
-          if (annotating === 0) {
-            return null;
-          }
+          // Show ALL jobs in Annotating section (even if all files are annotated)
+          // Only filter out jobs that have no files
+          const totalFiles = batchFiles.length;
 
           return {
             batch_id: batch.batch_id,
@@ -83,7 +83,8 @@ export default function AnnotatingSection() {
             labeler: batch.creator_username || "Unknown",
             total_files: batchFiles.length,
             annotatedCount: annotated,
-            unannotatedCount: unannotated,
+            // Unannotated = unannotated + annotating (files that are not yet completed)
+            unannotatedCount: unannotated + annotating,
             annotatingCount: annotating,
             file_ids: fileIds,
           };
@@ -173,14 +174,31 @@ export default function AnnotatingSection() {
               </button>
             </div>
 
-              <div className="my-3 flex flex-col gap-1 text-xs text-muted-foreground">
+            {/* Progress Bar */}
+            <div className="my-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-muted-foreground">Progress</span>
+                <span className="text-xs text-muted-foreground">
+                  {job.total_files > 0 
+                    ? Math.round((job.annotatedCount / job.total_files) * 100) 
+                    : 0}%
+                </span>
+              </div>
+              <Progress 
+                value={job.total_files > 0 ? (job.annotatedCount / job.total_files) * 100 : 0} 
+                className="h-2" 
+              />
+            </div>
+
+            {/* Files info and Start button - side by side */}
+            <div className="flex items-center justify-between mt-3">
+              <div className="flex flex-col gap-1 text-xs text-muted-foreground">
                 <span className="font-medium text-foreground">
                   {job.total_files} Files
                 </span>
                 <span>Annotated: {job.annotatedCount}</span>
-                <span>Annotating: {job.annotatingCount}</span>
                 <span>Unannotated: {job.unannotatedCount}</span>
-            </div>
+              </div>
 
               <button
                 type="button"
@@ -188,11 +206,12 @@ export default function AnnotatingSection() {
                   e.stopPropagation();
                   handleJobSelect(job);
                 }}
-                className="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors text-sm font-medium"
+                className="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors text-sm font-medium flex-shrink-0"
               >
-              <span>Start Annotating</span>
-              <ArrowRight className="w-3 h-3" />
-            </button>
+                <span>Start Annotating</span>
+                <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
           </div>
           ))
         )}
