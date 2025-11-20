@@ -2,6 +2,106 @@
  * Utility functions for LabelAI components
  */
 
+import Papa from "papaparse"
+
+/**
+ * Parse CSV from File object
+ * Returns a promise that resolves with parsed data and columns
+ */
+export async function parseCSVFromFile(
+  file: File
+): Promise<{ data: any[]; columns: string[]; delimiter: string }> {
+  return new Promise((resolve, reject) => {
+    detectDelimiterFromFile(file)
+      .then((detectedDelimiter) => {
+        Papa.parse(file, {
+          header: true,
+          skipEmptyLines: true,
+          // Normalize headers: trim and strip BOM to prevent merged/misaligned columns
+          transformHeader: (h) => (h || "").replace(/^\uFEFF/, "").trim(),
+          delimiter: detectedDelimiter,
+          complete: (results) => {
+            try {
+              if (results.errors.length > 0) {
+                throw new Error(results.errors[0].message)
+              }
+
+              const data = results.data as any[]
+              const columns = (results.meta.fields || [])
+                .map((c) => (c || "").replace(/^\uFEFF/, "").trim())
+                .filter((c) => c)
+
+              if (data.length === 0) {
+                throw new Error("CSV file is empty")
+              }
+
+              if (columns.length === 0) {
+                throw new Error("No columns found in CSV file")
+              }
+
+              resolve({
+                data,
+                columns,
+                delimiter: detectedDelimiter || ",",
+              })
+            } catch (error) {
+              reject(error)
+            }
+          },
+          error: (error) => {
+            reject(new Error(error.message || "Failed to read CSV file"))
+          },
+        })
+      })
+      .catch((error) => {
+        reject(error)
+      })
+  })
+}
+
+/**
+ * Parse CSV from text string
+ * Returns parsed data and columns
+ */
+export function parseCSVFromText(
+  text: string,
+  delimiter?: string
+): { data: any[]; columns: string[]; delimiter: string } {
+  // Detect delimiter if not provided
+  const detectedDelimiter = delimiter || detectDelimiter(text.split(/\r?\n/)[0] || "")
+
+  const result = Papa.parse(text, {
+    header: true,
+    skipEmptyLines: true,
+    // Normalize headers: trim and strip BOM to prevent merged/misaligned columns
+    transformHeader: (h) => (h || "").replace(/^\uFEFF/, "").trim(),
+    delimiter: detectedDelimiter,
+  })
+
+  if (result.errors.length > 0) {
+    throw new Error(result.errors[0].message || "Failed to parse CSV")
+  }
+
+  const data = result.data as any[]
+  const columns = (result.meta.fields || [])
+    .map((c) => (c || "").replace(/^\uFEFF/, "").trim())
+    .filter((c) => c)
+
+  if (data.length === 0) {
+    throw new Error("CSV text is empty")
+  }
+
+  if (columns.length === 0) {
+    throw new Error("No columns found in CSV text")
+  }
+
+  return {
+    data,
+    columns,
+    delimiter: detectedDelimiter,
+  }
+}
+
 /**
  * Detect CSV delimiter from a string (first line or content)
  */
