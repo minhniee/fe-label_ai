@@ -68,7 +68,9 @@ export function parseCSVFromText(
   delimiter?: string
 ): { data: any[]; columns: string[]; delimiter: string } {
   // Detect delimiter if not provided
-  const detectedDelimiter = delimiter || detectDelimiter(text.split(/\r?\n/)[0] || "")
+  const firstNonEmptyLine =
+    (text || "").split(/\r?\n/).find((line) => line.trim().length > 0) || ""
+  const detectedDelimiter = delimiter || detectDelimiter(firstNonEmptyLine)
 
   const result = Papa.parse(text, {
     header: true,

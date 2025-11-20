@@ -295,6 +295,7 @@ export async function generateData(data: {
       columns: data.columns.join(", "),
       instructions: data.instructions || "",
       reference_context: data.referenceContext || "",
+      api_key: data.apiKey || "",
     },{
     })
 
