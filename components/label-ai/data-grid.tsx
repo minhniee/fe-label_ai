@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Check, ChevronLeft, ChevronRight, Download, X, CheckCheck, Send, Trash2, Info, CheckCircle2, GitCompare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -29,6 +29,7 @@ interface DataGridProps {
   datasetName: string
   manualMode?: boolean
   projectId?: number
+  originalData?: RowData[] // Add originalData for comparison
 }
 
 export function DataGrid({
@@ -45,11 +46,13 @@ export function DataGrid({
   datasetName,
   manualMode = false,
   projectId,
+  originalData = [],
 }: DataGridProps) {
   const [editingCell, setEditingCell] = useState<{
     rowId: string
     field: string
   } | null>(null)
+  const [editingValue, setEditingValue] = useState<string>("") // Local state for editing value
   const [versionName, setVersionName] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [hoveredCell, setHoveredCell] = useState<{ rowId: string; field: string } | null>(null)
@@ -87,6 +90,7 @@ export function DataGrid({
       sampleRows.forEach((row) => {
         exportColumns.forEach((col) => {
           const value = String(col === "_corrected_value" ? row._corrected_value || "" : row[col] || "")
+          // Fix: Escape special regex characters properly to prevent ReDoS
           // Handle tab character specially in regex
           let pattern: RegExp
           if (candidate.char === "\t") {
@@ -94,7 +98,9 @@ export function DataGrid({
           } else if (candidate.char === "|") {
             pattern = /\|/g
           } else {
-            pattern = new RegExp(`\\${candidate.char}`, "g")
+            // Escape special regex characters: [\^$.*+?(){}[]|
+            const escapedChar = candidate.char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+            pattern = new RegExp(escapedChar, "g")
           }
           const occurrences = (value.match(pattern) || []).length
           totalOccurrences += occurrences
@@ -131,25 +137,46 @@ export function DataGrid({
     return `${baseTitle}_v${nextVersion}`
   }
 
-  if (allConfirmed && !versionName) {
-    setVersionName(generateVersionName())
+  // Fix: Move setState out of render - use useEffect instead
+  useEffect(() => {
+    if (allConfirmed && !versionName) {
+      setVersionName(generateVersionName())
+    }
+  }, [allConfirmed, versionName, datasetName])
+
+  // Handle cell edit start - initialize local editing value
+  const handleCellEditStart = (rowId: string, field: string) => {
+    const row = allData.find((r) => r._id === rowId) || data.find((r) => r._id === rowId)
+    if (row) {
+      setEditingValue(String(row[field] || ""))
+      setEditingCell({ rowId, field })
+    }
   }
 
-  const handleCellEdit = (rowId: string, field: string, value: string) => {
-    // Update allData first (full dataset)
+  // Handle cell edit change - only update local state (no parent update)
+  const handleCellEditChange = (value: string) => {
+    setEditingValue(value)
+  }
+
+  // Handle cell edit end - update parent with final value
+  const handleCellEditEnd = (rowId: string, field: string) => {
+    // Compare with originalData to correctly set _isModified flag
+    const originalRow = originalData.find(r => r._id === rowId)
+    const isActuallyModified = originalRow?.[field] !== editingValue
+    
+    // Update allData with final value
     const updatedAllData = allData.map((row) =>
       row._id === rowId
-        ? { ...row, [field]: value, _isModified: true }
+        ? { ...row, [field]: editingValue, _isModified: isActuallyModified }
         : row
     )
     
-    // Then update current page data for display
-    const updatedData = updatedAllData.filter((row) => 
-      data.some((d) => d._id === row._id)
-    )
-    
-    // Always pass full updatedAllData to parent to keep everything in sync
+    // Update parent only once when editing is complete
     onDataUpdate(updatedAllData)
+    
+    // Clear editing state
+    setEditingCell(null)
+    setEditingValue("")
   }
 
   const handleConfirm = (rowId: string) => {
@@ -425,7 +452,11 @@ export function DataGrid({
     (col) => !internalColumns.includes(col) && !col.startsWith("_validation_status") && !col.startsWith("_corrected_value") && !col.startsWith("__corrected_value") && col !== contextColumn && col !== resultColumn
   )
 
-  const getCellColor = (status: string) => {
+  const getCellColor = (status: string | undefined, hasAISuggestion: boolean) => {
+    // Fix: Only show highlight if there's actual AI validation status AND AI suggestion exists
+    if (!hasAISuggestion || !status) {
+      return "bg-background border-l-4 border-l-transparent"
+    }
     switch (status) {
       case "correct":
         return "bg-green-50 dark:bg-green-950/30 border-l-4 border-l-green-500"
@@ -438,7 +469,11 @@ export function DataGrid({
     }
   }
 
-  const getCellTextColor = (status: string) => {
+  const getCellTextColor = (status: string | undefined, hasAISuggestion: boolean) => {
+    // Fix: Only show text color if there's actual AI validation status AND AI suggestion exists
+    if (!hasAISuggestion || !status) {
+      return ""
+    }
     switch (status) {
       case "correct":
         return "text-green-900 dark:text-green-100"
@@ -477,9 +512,17 @@ export function DataGrid({
   }
 
   const getResultCellColor = (row: RowData) => {
+    // Fix: Only show highlight if confirmed OR if there's AI suggestion/validation
     if (row._confirmed) {
       return "bg-green-50 dark:bg-green-950/30 border-green-500"
     }
+    
+    // Only show validation colors if there's actual AI suggestion
+    const hasAISuggestion = !!(row._ai_suggestion || row._ai_reasoning)
+    if (!hasAISuggestion) {
+      return ""
+    }
+    
     const validation = String(row._validation_status || "").toLowerCase()
     const ai = String(row._ai_suggestion || "").toLowerCase()
     const status =
@@ -673,25 +716,29 @@ export function DataGrid({
                         >
                           <div
                             className={cn(
-                              "rounded px-3 py-2 font-mono text-sm border transition-all cursor-pointer hover:shadow-md",
-                              getCellColor(row._validation_status),
-                              getCellTextColor(row._validation_status),
+                              "rounded px-3 py-2 font-mono text-sm border transition-all",
+                              manualMode && "cursor-pointer hover:shadow-md",
+                              getCellColor(row._validation_status, !!(row._ai_suggestion || row._ai_reasoning)),
+                              getCellTextColor(row._validation_status, !!(row._ai_suggestion || row._ai_reasoning)),
                             )}
                             onClick={() => {
                               if (manualMode) {
-                                setEditingCell({ rowId: row._id, field: col })
+                                handleCellEditStart(row._id, col)
                               }
                             }}
                           >
                             {editingCell?.rowId === row._id && editingCell?.field === col ? (
                               <Input
                                 autoFocus
-                                value={row[col]}
-                                onChange={(e) => handleCellEdit(row._id, col, e.target.value)}
-                                onBlur={() => setEditingCell(null)}
+                                value={editingValue}
+                                onChange={(e) => handleCellEditChange(e.target.value)}
+                                onBlur={() => handleCellEditEnd(row._id, col)}
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter") {
+                                    handleCellEditEnd(row._id, col)
+                                  } else if (e.key === "Escape") {
                                     setEditingCell(null)
+                                    setEditingValue("")
                                   }
                                 }}
                                 className="h-6 font-mono text-sm p-1"
@@ -763,19 +810,22 @@ export function DataGrid({
                               )}
                               onClick={() => {
                                 if (manualMode) {
-                                  setEditingCell({ rowId: row._id, field: resultColumn })
+                                  handleCellEditStart(row._id, resultColumn)
                                 }
                               }}
                             >
                               {editingCell?.rowId === row._id && editingCell?.field === resultColumn ? (
                                 <Input
                                   autoFocus
-                                  value={row[resultColumn] || ""}
-                                  onChange={(e) => handleCellEdit(row._id, resultColumn, e.target.value)}
-                                  onBlur={() => setEditingCell(null)}
+                                  value={editingValue}
+                                  onChange={(e) => handleCellEditChange(e.target.value)}
+                                  onBlur={() => handleCellEditEnd(row._id, resultColumn)}
                                   onKeyDown={(e) => {
                                     if (e.key === "Enter") {
+                                      handleCellEditEnd(row._id, resultColumn)
+                                    } else if (e.key === "Escape") {
                                       setEditingCell(null)
+                                      setEditingValue("")
                                     }
                                   }}
                                   className="h-6 font-mono text-sm p-1"

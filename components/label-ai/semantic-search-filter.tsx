@@ -28,6 +28,7 @@ export function SemanticSearchFilter({
   const lastCheckedFileIdRef = useRef<number | null>(null) // Track last checked fileId
 
   // Memoize checkIndexStatus to prevent unnecessary re-renders and ensure stable reference
+  // Fix: Improve race condition handling to prevent duplicate API calls
   const checkIndexStatus = useCallback(async () => {
     if (!fileId || checkingRef.current) return
     
@@ -37,15 +38,25 @@ export function SemanticSearchFilter({
     }
     
     checkingRef.current = true
-    lastCheckedFileIdRef.current = fileId
+    const currentFileId = fileId // Capture fileId to check against later
+    lastCheckedFileIdRef.current = currentFileId
     
     try {
-      const status = await getSemanticSearchIndexStatus(fileId)
-      setIsIndexed(status.is_indexed || false)
+      const status = await getSemanticSearchIndexStatus(currentFileId)
+      // Fix: Only update state if fileId hasn't changed during the async call
+      if (lastCheckedFileIdRef.current === currentFileId) {
+        setIsIndexed(status.is_indexed || false)
+      }
     } catch (error) {
-      setIsIndexed(false)
+      // Fix: Only update state if fileId hasn't changed during the async call
+      if (lastCheckedFileIdRef.current === currentFileId) {
+        setIsIndexed(false)
+      }
     } finally {
-      checkingRef.current = false
+      // Only clear checking flag if this is still the current request
+      if (lastCheckedFileIdRef.current === currentFileId) {
+        checkingRef.current = false
+      }
     }
   }, [fileId])
 

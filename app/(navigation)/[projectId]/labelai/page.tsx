@@ -23,6 +23,7 @@ import { SemanticSearchFilter } from "@/components/label-ai/semantic-search-filt
 import { ColumnVisibility } from "@/components/label-ai/column-visibility"
 import { DataManager } from "@/components/label-ai/data-manager"
 import { ColumnManager } from "@/components/label-ai/column-manager"
+import { ErrorBoundary } from "@/components/error-boundary"
 import { getDatasetVersionData } from "@/app/api/labelai"
 import { getVersionFiles, uploadFileToDataset } from "@/app/api/dataset"
 import { getProjectFiles, generateDatasetFromProject } from "@/app/api/project"
@@ -30,7 +31,7 @@ import { completeBatch } from "@/app/api/batch"
 import { getFilePreview } from "@/app/api/dataset"
 import { slugToProjectId } from "@/types/project"
 import axios from "axios"
-import { detectContextColumn, detectResultColumn, detectDelimiter } from "@/lib/label-ai-utils"
+import { detectContextColumn, detectResultColumn, parseCSVFromText } from "@/lib/label-ai-utils"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
 
@@ -82,7 +83,17 @@ export default function Home() {
   const [view, setView] = useState<"select" | "generate">("select")
   const [manualMode, setManualMode] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("")
   const [visibleColumns, setVisibleColumns] = useState<string[]>([])
+  
+  // Fix: Add debouncing for search query to prevent UI jank
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery)
+    }, 300) // 300ms debounce for search
+    
+    return () => clearTimeout(timeoutId)
+  }, [searchQuery])
   const [semanticSearchResults, setSemanticSearchResults] = useState<any[]>([])
   const [currentFileId, setCurrentFileId] = useState<number | null>(null)
   const [batchFiles, setBatchFiles] = useState<any[]>([])
@@ -106,12 +117,26 @@ export default function Home() {
   const [isScrolled, setIsScrolled] = useState(false)  // Track scroll state for floating sidebar
 
   // Track scroll to show/hide floating sidebar
+  // Fix: Add debouncing to prevent UI jank from excessive scroll events
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 200)
+      // Clear previous timeout
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
+      // Debounce scroll handler to reduce re-renders
+      timeoutId = setTimeout(() => {
+        setIsScrolled(window.scrollY > 200)
+      }, 100) // 100ms debounce
     }
-    window.addEventListener("scroll", handleScroll)
-    return () => window.removeEventListener("scroll", handleScroll)
+    window.addEventListener("scroll", handleScroll, { passive: true })
+    return () => {
+      window.removeEventListener("scroll", handleScroll)
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
+    }
   }, [])
 
   // Sync originalData when data length changes significantly (likely a reload)
@@ -119,9 +144,10 @@ export default function Home() {
     // Only update originalData if length changed significantly and we have new rows
     // This helps when data is reloaded from external sources
     if (data.length > 0 && originalData.length > 0 && data.length !== originalData.length) {
-      const hasNewRows = data.some(row => 
-        !originalData.some(orig => orig._id === row._id)
-      )
+      // Fix: Use Set for O(1) lookup instead of O(n²) nested some() calls
+      const originalIds = new Set(originalData.map(orig => orig._id))
+      const hasNewRows = data.some(row => !originalIds.has(row._id))
+      
       // If we have completely new rows (not just modifications), update originalData
       // Only update if change is significant (>10% difference)
       if (hasNewRows && originalData.length > 0 && 
@@ -204,22 +230,23 @@ export default function Home() {
           
           // Parse annotation API response
           if (annotationContent.content) {
-            // If content is a string, parse it
+            // If content is a string, parse it using centralized function
             const contentStr = typeof annotationContent.content === 'string' 
               ? annotationContent.content 
               : JSON.stringify(annotationContent.content)
             
-            const lines = contentStr.split('\n').filter((line: string) => line.trim())
-            if (lines.length > 0) {
-              // Detect delimiter from first line
-              const firstLine = lines[0]
-              const delimiter = detectDelimiter(firstLine)
-              setFileDelimiter(delimiter)  // Save delimiter for later use
+            try {
+              const parsed = parseCSVFromText(contentStr)
+              setFileDelimiter(parsed.delimiter)  // Save delimiter for later use
               
-              headers = firstLine.split(delimiter).map((h: string) => h.trim())
-              rows = lines.slice(1).map((line: string) => {
-                return line.split(delimiter).map((v: string) => v.trim())
+              // Convert parsed data to headers and rows format
+              headers = parsed.columns
+              rows = parsed.data.map((row: any) => {
+                return headers.map((header: string) => String(row[header] || ""))
               })
+            } catch (parseError) {
+              console.error("Failed to parse CSV content:", parseError)
+              throw parseError
             }
           } else if (annotationContent.headers && annotationContent.rows) {
             headers = annotationContent.headers
@@ -310,74 +337,16 @@ export default function Home() {
         return rowObj
       })
       
-      // Try to restore from cache first
-      const cacheKey = `labelai_cache_${file.file_id}`
-      try {
-        const cachedData = localStorage.getItem(cacheKey)
-        if (cachedData) {
-          const parsedCache = JSON.parse(cachedData)
-          
-          // Check cache version/compatibility: fileId and row count must match
-          if (parsedCache.fileId === file.file_id && 
-              parsedCache.rows && 
-              parsedCache.rows.length === transformedData.length) {
-            
-            // Create a map for faster lookup
-            const cacheMap = new Map(parsedCache.rows.map((r: RowData) => [r._id, r]))
-            
-            // Merge cached meta fields with loaded data, preserving original data columns
-            const mergedData = transformedData.map((row) => {
-              const cachedRow = cacheMap.get(row._id)
-              if (cachedRow) {
-                // Only merge meta fields (starting with _), preserve original data columns
-                const { _id, _ai_suggestion, _ai_reasoning, _confirmed, _isModified, ...userData } = cachedRow
-                return {
-                  ...row, // Start with fresh loaded data
-                  _ai_suggestion: cachedRow._ai_suggestion,
-                  _ai_reasoning: cachedRow._ai_reasoning,
-                  _confirmed: cachedRow._confirmed,
-                  _isModified: true
-                }
-              }
-              return row
-            })
-            
-            setData(mergedData)
-            setOriginalData(transformedData)  // Keep original for comparison
-            toast({
-              title: "File loaded with cache",
-              description: `Restored ${parsedCache.rows.filter((r: RowData) => r._isModified).length} modified rows from cache`,
-            })
-          } else {
-            // Cache incompatible, clear it
-            localStorage.removeItem(cacheKey)
-            setData(transformedData)
-            setOriginalData(transformedData)
-          }
-        } else {
-          setData(transformedData)
-          setOriginalData(transformedData)
-        }
-      } catch (error) {
-        console.error("Failed to restore from cache:", error)
-        // Clear invalid cache
-        try {
-          localStorage.removeItem(cacheKey)
-        } catch (e) {
-          // Ignore
-        }
-        setData(transformedData)
-        setOriginalData(transformedData)
-      }
+      // Set data directly (cache functionality removed)
+      setData(transformedData)
+      setOriginalData(transformedData)
       
       setCurrentPage(0)
       
-      if (!localStorage.getItem(cacheKey)) {
-        toast({
-          title: "File loaded",
-          description: `Loaded ${file.filename} with ${transformedData.length} rows`,
-        })
-      }
+      toast({
+        title: "File loaded",
+        description: `Loaded ${file.filename} with ${transformedData.length} rows`,
+      })
     } catch (error) {
       console.error("Failed to load file:", error)
       toast({
@@ -540,9 +509,9 @@ export default function Home() {
       if (!isInSemanticResults) return false
     }
     
-    // Then apply text search filter
-    if (!searchQuery.trim()) return true
-    const query = searchQuery.toLowerCase()
+    // Then apply text search filter (using debounced query)
+    if (!debouncedSearchQuery.trim()) return true
+    const query = debouncedSearchQuery.toLowerCase()
     return Object.values(row).some((value) => String(value).toLowerCase().includes(query))
   })
 
@@ -577,28 +546,6 @@ export default function Home() {
   }
 
   // Save to cache when data changes
-  const saveToCache = (dataToCache: RowData[]) => {
-    if (!currentFileId) return
-    
-    try {
-      const cacheKey = `labelai_cache_${currentFileId}`
-      const modifiedRows = dataToCache.filter(row => row._isModified)
-      
-      if (modifiedRows.length > 0) {
-        localStorage.setItem(cacheKey, JSON.stringify({
-          fileId: currentFileId,
-          timestamp: new Date().toISOString(),
-          rows: modifiedRows
-        }))
-      } else {
-        // Remove cache if no modifications
-        localStorage.removeItem(cacheKey)
-      }
-    } catch (error) {
-      console.error("Failed to save to cache:", error)
-    }
-  }
-
   // Helper to compare rows (excluding _isModified flag)
   const isRowModified = (original: RowData | undefined, current: RowData): boolean => {
     if (!original) return true
@@ -613,6 +560,7 @@ export default function Home() {
   }
 
   // Convert data to CSV format (only modified rows merged with original)
+  // Fix: Use Map for O(1) lookup instead of O(n²) find() in map()
   const convertDataToCSV = (dataRows: RowData[], columnsList: string[], delimiter: string = ","): string => {
     // Filter out internal columns (starting with _)
     const exportColumns = columnsList.filter(col => !col.startsWith("_"))
@@ -620,15 +568,17 @@ export default function Home() {
     // Build CSV header
     const header = exportColumns.join(delimiter)
     
+    // Create Map for O(1) lookup of original data
+    const originalDataMap = new Map(originalData.map(r => [r._id, r]))
+    
     // Merge modified rows with original data
     const finalData = dataRows.map((row) => {
       if (row._isModified) {
         // Use modified row
         return row
       } else {
-        // Use original row
-        const originalRow = originalData.find(r => r._id === row._id)
-        return originalRow || row
+        // Use original row from Map (O(1) lookup)
+        return originalDataMap.get(row._id) || row
       }
     })
     
@@ -655,7 +605,18 @@ export default function Home() {
   }
 
   // Save file content to backend
+  // Fix: Add guard to prevent race condition (concurrent saves)
   const handleSaveFile = async () => {
+    // Prevent concurrent save operations
+    if (saving) {
+      toast({
+        title: "Saving in progress",
+        description: "Please wait for the current save operation to complete.",
+        variant: "destructive",
+      })
+      return
+    }
+
     if (!currentFileId) {
       toast({
         title: "Error",
@@ -722,10 +683,6 @@ export default function Home() {
         })
         setData(savedData)
         setOriginalData(savedData)
-        
-        // Clear cache after successful save
-        const cacheKey = `labelai_cache_${currentFileId}`
-        localStorage.removeItem(cacheKey)
         
         toast({
           title: "Success",
@@ -864,7 +821,8 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <ErrorBoundary>
+      <div className="min-h-screen bg-background">
           <h1 className="text-3xl font-bold text-foreground">Semi-AI Labeler</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Select dataset, review AI suggestions, and export labeled data
@@ -1269,7 +1227,6 @@ export default function Home() {
                     }
                   })
                   setData(newData)
-                  saveToCache(newData)
                   }}
                 />
               </>
@@ -1303,6 +1260,7 @@ export default function Home() {
               contextColumn={contextColumn}
               resultColumn={resultColumn}
               projectId={parseInt(projectId)}
+              originalData={originalData}
               onDataUpdate={(updatedRows) => {
                 // If updatedRows length matches allData length, replace entire dataset
                 if (updatedRows.length === data.length && updatedRows.length > 0) {
@@ -1338,7 +1296,6 @@ export default function Home() {
                     }
                   })
                   setData(merged)
-                  saveToCache(merged)
                 } else {
                   // Update specific rows by matching IDs
                   const newData = data.map((row) => {
@@ -1374,7 +1331,6 @@ export default function Home() {
                     }
                   })
                   setData(newData)
-                  saveToCache(newData)
                 }
               }}
               currentPage={currentPage}
@@ -1464,6 +1420,7 @@ export default function Home() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </ErrorBoundary>
   )
 }

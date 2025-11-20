@@ -8,11 +8,10 @@ import { Button } from "@/components/ui/button"
 import { Database, Calendar, Columns, Loader2, Sparkles, FileText, ArrowLeft, ChevronRight, Upload, Key, CheckCircle2, XCircle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import * as dataset from "@/app/api/dataset"
-import Papa from "papaparse"
 import { getDatasets, getDatasetVersions, testApiKey } from "@/app/api/labelai"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { detectDelimiterFromFile, getApiKeyFromStorage, saveApiKeyToStorage } from "@/lib/label-ai-utils"
+import { parseCSVFromFile, getApiKeyFromStorage, saveApiKeyToStorage } from "@/lib/label-ai-utils"
 
 interface Dataset {
   id: string
@@ -242,63 +241,30 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
 
     setIsUploading(true)
 
-    const detectedDelimiter = await detectDelimiterFromFile(file)
+    try {
+      const { data, columns } = await parseCSVFromFile(file)
 
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      // Normalize headers: trim and strip BOM to prevent merged/misaligned columns
-      transformHeader: (h) => (h || "").replace(/^\uFEFF/, "").trim(),
-      delimiter: detectedDelimiter,
-      complete: (results) => {
-        try {
-          if (results.errors.length > 0) {
-            throw new Error(results.errors[0].message)
-          }
+      onFileUpload?.(data, columns, file.name)
 
-          const data = results.data as any[]
-          const columns = (results.meta.fields || []).map((c) => (c || "").replace(/^\uFEFF/, "").trim()).filter((c) => c)
+      toast({
+        title: "File uploaded successfully",
+        description: `Loaded ${data.length} rows with ${columns.length} columns`,
+      })
 
-          if (data.length === 0) {
-            throw new Error("CSV file is empty")
-          }
-
-          if (columns.length === 0) {
-            throw new Error("No columns found in CSV file")
-          }
-
-          onFileUpload?.(data, columns, file.name)
-
-          toast({
-            title: "File uploaded successfully",
-            description: `Loaded ${data.length} rows with ${columns.length} columns`,
-          })
-
-          // Reset file input
-          if (fileInputRef.current) {
-            fileInputRef.current.value = ""
-          }
-        } catch (error) {
-          console.error("Error parsing CSV:", error)
-          toast({
-            title: "Upload failed",
-            description: error instanceof Error ? error.message : "Failed to parse CSV file",
-            variant: "destructive",
-          })
-        } finally {
-          setIsUploading(false)
-        }
-      },
-      error: (error) => {
-        console.error("Error reading file:", error)
-        toast({
-          title: "Upload failed",
-          description: error.message || "Failed to read CSV file",
-          variant: "destructive",
-        })
-        setIsUploading(false)
-      },
-    })
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""
+      }
+    } catch (error) {
+      console.error("Error parsing CSV:", error)
+      toast({
+        title: "Upload failed",
+        description: error instanceof Error ? error.message : "Failed to parse CSV file",
+        variant: "destructive",
+      })
+    } finally {
+      setIsUploading(false)
+    }
   }
 
   if (loading) {

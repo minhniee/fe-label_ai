@@ -10,7 +10,7 @@ import { Sparkles, Loader2 } from "lucide-react"
 import { ReferenceUploader } from "@/components/label-ai/reference-uploader"
 import { useToast } from "@/hooks/use-toast"
 import { generateData } from "@/app/api/labelai"
-import { detectDelimiter } from "@/lib/label-ai-utils"
+import { parseCSVFromText } from "@/lib/label-ai-utils"
 
 interface DataGeneratorProps {
   onDataGenerated: (data: any[], columns: string[], datasetName: string) => void
@@ -61,25 +61,14 @@ export function DataGenerator({ onDataGenerated }: DataGeneratorProps) {
       })
 
       if (result.success) {
-        // Parse the CSV data with auto-detected delimiter
-        const lines = result.csv.trim().split("\n")
-        const firstLine = lines[0] || ""
-        const delimiter = detectDelimiter(firstLine)
-        const headers = firstLine.split(delimiter).map((h: string) => h.trim())
-        const rows = lines.slice(1).map((line: string) => {
-          const values = line.split(delimiter).map((v: string) => v.trim())
-          const row: any = {}
-          headers.forEach((header: string, index: number) => {
-            row[header] = values[index] || ""
-          })
-          return row
-        })
+        // Parse the CSV data using centralized function
+        const { data, columns } = parseCSVFromText(result.csv)
 
-        onDataGenerated(rows, headers, `Generated: ${topic.substring(0, 30)}`)
+        onDataGenerated(data, columns, `Generated: ${topic.substring(0, 30)}`)
 
         toast({
           title: "Data generated",
-          description: `Successfully generated ${rows.length} rows`,
+          description: `Successfully generated ${data.length} rows`,
         })
       } else {
         toast({
