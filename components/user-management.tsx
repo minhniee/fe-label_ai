@@ -611,9 +611,9 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
                 type="email"
                 placeholder="user@example.com"
                 value={editForm.email}
-                onChange={(e) =>
-                  setEditForm({ ...editForm, email: e.target.value })
-                }
+                disabled
+                readOnly
+                className="bg-muted cursor-not-allowed"
               />
             </div>
             <div className="space-y-2">
@@ -628,10 +628,12 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="1">SuperAdmin</SelectItem>
-                  <SelectItem value="2">Admin</SelectItem>
-                  <SelectItem value="3">Manager</SelectItem>
-                  <SelectItem value="4">Labeler</SelectItem>
+                  <SelectItem value="1">Admin</SelectItem>
+                  <SelectItem value="2">User</SelectItem>
+                  <SelectItem value="3">Owner</SelectItem>
+                  <SelectItem value="4">Co-Owner</SelectItem>
+                  <SelectItem value="5">Labeler</SelectItem>
+                  <SelectItem value="6">Viewer</SelectItem>
                 </SelectContent>
               </Select>
               {currentUserId &&

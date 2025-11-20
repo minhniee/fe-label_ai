@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import {
   Dialog,
@@ -23,10 +24,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Upload, Edit, Plus, Users, FileText, X, Loader2 } from "lucide-react";
+import { ArrowLeft, Upload, Edit, Plus, Users, FileText, X, Loader2, Zap, Database, Sparkles, User, UserPlus, ChevronRight, Send } from "lucide-react";
 import { useProjectFromSlug } from "@/hooks/use-project-from-slug";
 import { projectToSlug } from "@/types/project";
-import { getBatch, updateBatch, assignBatchToUsers, distributeFileToUsers, splitProjectFile } from "@/app/api/batch";
+import { getBatch, updateBatch, assignBatchToUsers, distributeFileToUsers, splitProjectFile, deleteBatch } from "@/app/api/batch";
 import { getProjectFiles, uploadFilesToProject, createInvitation, listPendingInvitations, setLabelingType, getProjectCollaborators } from "@/app/api/project";
 import { getMe } from "@/app/api/auth";
 import { toast } from "sonner";
@@ -59,7 +60,7 @@ export default function ProjectBatchPage() {
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
-  
+
   // Team members state
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
@@ -69,6 +70,7 @@ export default function ProjectBatchPage() {
   const [isSendingInvite, setIsSendingInvite] = useState(false);
   const [csvRowCounts, setCsvRowCounts] = useState<{ [fileId: number]: number }>({});
   const [totalRows, setTotalRows] = useState<number>(0);
+  const [isRenaming, setIsRenaming] = useState(false);
 
   // Load current user
   useEffect(() => {
@@ -102,15 +104,15 @@ export default function ProjectBatchPage() {
   const loadTeamData = async () => {
     try {
       setIsLoadingTeam(true);
-      
+
       // Load invitations
       const pendingInvites = await listPendingInvitations(parseInt(project!.id));
       setInvitations(pendingInvites);
-      
+
       // Load collaborators (users who have accepted invitations)
       const collabs = await getProjectCollaborators(parseInt(project!.id));
       setCollaborators(collabs);
-      
+
     } catch (error: any) {
       console.error("Failed to load team data:", error);
       toast.error("Failed to load team members");
@@ -122,7 +124,7 @@ export default function ProjectBatchPage() {
   const loadBatchData = async () => {
     try {
       setIsLoading(true);
-      
+
       // Fetch batch details
       const batch = await getBatch(parseInt(batchId!));
       setBatchData(batch);
@@ -130,7 +132,7 @@ export default function ProjectBatchPage() {
 
       console.log("Batch data:", batch);
       console.log("Batch metadata:", batch.batch_metadata);
-      
+
       // Load CSV row counts from batch metadata (if available)
       if (batch.batch_metadata?.csv_row_counts) {
         const rowCounts = batch.batch_metadata.csv_row_counts;
@@ -147,7 +149,7 @@ export default function ProjectBatchPage() {
       // Get file_ids from URL params (if coming from upload) or from batch metadata
       const fileIdsParam = searchParams.get("fileIds");
       let targetFileIds: number[] = [];
-      
+
       // Priority: batch metadata > URL params > state
       if (batch.batch_metadata?.file_ids) {
         // File IDs stored in batch metadata (most reliable source)
@@ -176,19 +178,19 @@ export default function ProjectBatchPage() {
       if (targetFileIds.length > 0) {
         const files = await getProjectFiles(parseInt(project!.id));
         console.log("All project files:", files.length);
-        const batchSpecificFiles = files.filter(f => 
+        const batchSpecificFiles = files.filter(f =>
           targetFileIds.includes(f.file_id)
         );
         console.log("Batch specific files:", batchSpecificFiles.length);
         setBatchFiles(batchSpecificFiles);
-        
+
       } else {
         // No file IDs found - this shouldn't happen
         console.error("No file_ids found for batch!");
         toast.error("No files found for this batch");
         setBatchFiles([]);
       }
-      
+
     } catch (error: any) {
       console.error("Failed to load batch:", error);
       toast.error("Failed to load batch data");
@@ -202,9 +204,9 @@ export default function ProjectBatchPage() {
   const rowsPerMember = selectedMembers.length > 0 && totalRows > 0
     ? Math.ceil(totalRows / selectedMembers.length)
     : 0;
-  
-  const filesPerMember = selectedMembers.length > 0 
-    ? Math.ceil(batchFiles.length / selectedMembers.length) 
+
+  const filesPerMember = selectedMembers.length > 0
+    ? Math.ceil(batchFiles.length / selectedMembers.length)
     : 0;
 
   // Helper function to get role name from role_id
@@ -243,7 +245,7 @@ export default function ProjectBatchPage() {
         });
 
         toast.success("Batch assigned to you!");
-        
+
         // Redirect to job page with file IDs
         const fileIdsParam = encodeURIComponent(JSON.stringify(batchFileIds));
         router.push(`/${projectSlug}/annotate/job?jobId=${batchId}&fileIds=${fileIdsParam}`);
@@ -257,7 +259,7 @@ export default function ProjectBatchPage() {
         // Separate actual user IDs from pending invitation IDs
         const actualUserIds: number[] = [];
         const pendingInviteIds: string[] = [];
-        
+
         selectedMembers.forEach(id => {
           if (id.startsWith('pending_')) {
             pendingInviteIds.push(id.replace('pending_', ''));
@@ -289,7 +291,10 @@ export default function ProjectBatchPage() {
         console.log("[Assign team] actualUserIds:", actualUserIds);
 
         let totalJobsCreated = 0;
+        let hasDistributedFiles = false;
+        
         if (csvFiles.length > 0 && actualUserIds.length > 0) {
+          hasDistributedFiles = true;
           const ensureRowCount = async (fileId: number, filename?: string) => {
             if (!project) return 0;
             try {
@@ -339,7 +344,7 @@ export default function ProjectBatchPage() {
             // We want: numChunks = numUsers, so chunkSize = rowsPerMember
             const numUsers = actualUserIds.length;
             const rowsPerMember = rowsForFile > 0 ? Math.ceil(rowsForFile / numUsers) : 0;
-            
+
             // Calculate chunk size to ensure we get exactly numUsers chunks
             // chunkSize = rowsPerMember ensures: Math.ceil(rowsForFile / chunkSize) = numUsers
             // Example: rowsForFile = 30, numUsers = 2 → rowsPerMember = 15 → chunkSize = 15 → 2 chunks ✓
@@ -351,12 +356,10 @@ export default function ProjectBatchPage() {
               rowsForFile > 0 && finalChunkSize
                 ? Math.ceil(rowsForFile / finalChunkSize)
                 : "backend";
-            
+
             console.log(
-              `Distributing ${
-                rowsForFile || "unknown"
-              } rows from ${csvFile.filename} to ${numUsers} users, chunk_size: ${
-                finalChunkSize ?? "auto"
+              `Distributing ${rowsForFile || "unknown"
+              } rows from ${csvFile.filename} to ${numUsers} users, chunk_size: ${finalChunkSize ?? "auto"
               }, expected_chunks: ${expectedChunks} (target ${numUsers})`
             );
 
@@ -373,11 +376,11 @@ export default function ProjectBatchPage() {
               });
 
               console.log(`Distribution response for ${csvFile.filename}:`, distributeResponse);
-              
+
               // Each user should get 1 batch (1 job), so total jobs = number of users
               const jobsCreated = distributeResponse.batches_created || actualUserIds.length;
               totalJobsCreated += jobsCreated;
-              
+
               const actualRowsPerMember = Math.ceil(rowsForFile / numUsers);
               toast.success(
                 `File ${csvFile.filename}: ${actualRowsPerMember} rows per member • ${jobsCreated} job(s) created (1 job per member)`
@@ -387,11 +390,25 @@ export default function ProjectBatchPage() {
               toast.error(`Failed to distribute ${csvFile.filename}: ${error.message}`);
             }
           }
-          
+
           if (totalJobsCreated > 0) {
             toast.success(`Total: ${totalJobsCreated} job(s) created for ${actualUserIds.length} team member(s)`);
+            
+            // Delete the original batch after distributing files successfully
+            // This prevents creating an extra job for the original file
+            try {
+              await deleteBatch(parseInt(batchId));
+              console.log(`Original batch ${batchId} deleted after distributing files`);
+            } catch (error: any) {
+              console.error(`Failed to delete original batch ${batchId}:`, error);
+              // Don't show error to user as distribution was successful
+            }
           }
-        } else if (actualUserIds.length > 0) {
+        }
+        
+        // Only assign original batch if we didn't distribute any CSV files
+        // This prevents creating an extra job for the original file
+        if (!hasDistributedFiles && actualUserIds.length > 0) {
           // No CSV files to split → simple batch assignment only
           try {
             await assignBatchToUsers({
@@ -413,7 +430,7 @@ export default function ProjectBatchPage() {
           const currentMetadata = batch.batch_metadata || {};
           const existingPendingEmails = currentMetadata.assigned_pending_emails || [];
           const updatedPendingEmails = [...new Set([...existingPendingEmails, ...pendingEmails])];
-          
+
           await updateBatch(parseInt(batchId), {
             batch_metadata: {
               ...currentMetadata,
@@ -428,7 +445,7 @@ export default function ProjectBatchPage() {
         } else if (totalAssigned > 0) {
           toast.success(`Batch assigned to ${totalAssigned} team member(s)`);
         }
-        
+
         // Redirect to annotate page to see all jobs
         router.push(`/${projectSlug}/annotate`);
       }
@@ -474,14 +491,14 @@ export default function ProjectBatchPage() {
       });
 
       toast.success(`Invitation sent to ${inviteEmail}`);
-      
+
       // Reload team data
       await loadTeamData();
-      
+
       // Clear form
       setInviteEmail("");
       setInviteRole("Labeler");
-      
+
     } catch (error: any) {
       console.error("Failed to send invitation:", error);
       toast.error(error.message || "Failed to send invitation");
@@ -496,7 +513,7 @@ export default function ProjectBatchPage() {
       // Add new files to existing ones (avoid duplicates)
       setUploadFiles(prev => {
         const newFiles = filesArray.filter(
-          newFile => !prev.some(existingFile => 
+          newFile => !prev.some(existingFile =>
             existingFile.name === newFile.name && existingFile.size === newFile.size
           )
         );
@@ -538,34 +555,34 @@ export default function ProjectBatchPage() {
     try {
       // Step 1: Upload files to project
       const uploadResponse = await uploadFilesToProject(parseInt(project.id), uploadFiles);
-      
+
       toast.success("Files uploaded successfully!", { id: loadingToast });
 
       // Step 2: Extract file_ids from the files array
       const fileIds = uploadResponse?.files?.map(file => file.file_id) || [];
-      
+
       // Step 3: Get the newly uploaded files info
       if (uploadResponse?.success && fileIds.length > 0) {
         const projectFiles = await getProjectFiles(parseInt(project.id));
-        
+
         // Filter to get only the newly uploaded files
-        const newFiles = projectFiles.filter(file => 
+        const newFiles = projectFiles.filter(file =>
           fileIds.includes(file.file_id)
         );
 
         // Step 4: Add new files to current batch files (local state)
         setBatchFiles(prev => [...prev, ...newFiles]);
-        
+
         // Step 5: Update batchFileIds to include new file IDs
         setBatchFileIds(prev => [...prev, ...fileIds]);
-        
+
         toast.success(`${newFiles.length} files added to batch!`);
       }
-      
+
       // Step 5: Reset and close dialog
       setUploadFiles([]);
       setIsUploadOpen(false);
-      
+
     } catch (error: any) {
       console.error("Upload error:", error);
       toast.error(error.message || "Failed to upload files", { id: loadingToast });
@@ -583,97 +600,143 @@ export default function ProjectBatchPage() {
     );
   }
 
+  // Format date for display
+  const formatUploadDate = (dateString?: string) => {
+    if (!dateString) return "";
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6 p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => router.push(`/${projectSlug}/annotate`)}
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">{batchName}</h1>
-            <p className="text-muted-foreground">
-              {totalRows > 0 ? (
-                <>{totalRows} câu • {batchFiles.length} file(s) • Project: {project?.name || "Loading..."}</>
-              ) : (
-                <>{batchFiles.length} files • Project: {project?.name || "Loading..."}</>
-              )}
-            </p>
-            {batchData && (
-              <Badge variant="secondary" className="mt-2">
-                {batchData.status}
-              </Badge>
-            )}
-          </div>
-        </div>
+      {/* Header with Actions */}
+      <div className="flex items-center justify-end">
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setIsRenameOpen(true)}>
-            <Edit className="mr-2 h-4 w-4" />
-            Rename Batch
-          </Button>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={() => setIsUploadOpen(true)}
           >
             <Upload className="mr-2 h-4 w-4" />
             Upload More
           </Button>
+          <Button variant="outline" onClick={() => setIsRenameOpen(true)}>
+            <Edit className="mr-2 h-4 w-4" />
+            Rename
+          </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
-        {/* Left: Files */}
-        <Card className="p-6">
-          <h3 className="font-semibold mb-4">Files ({batchFiles.length})</h3>
+      <div className="grid grid-cols-[2fr_1fr] gap-6">
+        {/* Left: Batch Details */}
+        <div className="space-y-4">
+          {/* Batch Title and Info */}
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight mb-2">{batchName}</h1>
+            {batchData?.created_at && (
+              <Badge variant="secondary" className="text-xs">
+                Uploaded {formatUploadDate(batchData.created_at)}
+              </Badge>
+            )}
+          </div>
+
+          {/* Files Grid */}
           {batchFiles.length > 0 ? (
-            <div className="grid grid-cols-2 gap-4 max-h-[600px] overflow-y-auto">
-              {batchFiles.map((file) => (
-                <div key={file.file_id} className="relative group space-y-2">
-                  <div className="aspect-square rounded-lg border bg-muted flex items-center justify-center relative overflow-hidden">
-                    <FileText className="h-8 w-8 text-muted-foreground" />
-                    <button
-                      onClick={() => handleRemoveBatchFile(file.file_id)}
-                      className="absolute top-1 right-1 z-10 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
+            <div className="grid grid-cols-3 gap-4">
+              {batchFiles.map((file) => {
+                const isImage = file.file_type?.startsWith('image/') ||
+                  file.filename?.match(/\.(jpg|jpeg|png|gif|webp|bmp|avif)$/i);
+                const imageUrl = file.file_path
+                  ? (file.file_path.startsWith('http') ? file.file_path : `/api/files/${file.file_id}`)
+                  : null;
+
+                return (
+                  <div key={file.file_id} className="relative group space-y-2">
+                    <div className="aspect-square rounded-lg border bg-muted flex items-center justify-center relative overflow-hidden">
+                      {isImage && imageUrl ? (
+                        <>
+                          <img
+                            src={imageUrl}
+                            alt={file.filename}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              target.style.display = 'none';
+                              const fallback = target.nextElementSibling as HTMLElement;
+                              if (fallback) fallback.classList.remove('hidden');
+                            }}
+                          />
+                          <div className="hidden w-full h-full items-center justify-center">
+                            <FileText className="h-8 w-8 text-muted-foreground" />
+                          </div>
+                        </>
+                      ) : (
+                        <FileText className="h-8 w-8 text-muted-foreground" />
+                      )}
+                      <button
+                        onClick={() => handleRemoveBatchFile(file.file_id)}
+                        className="absolute top-1 right-1 z-10 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <p className="text-xs truncate" title={file.filename}>
+                      {file.filename || `File ${file.file_id}`}
+                    </p>
                   </div>
-                  <p className="text-xs truncate">{file.filename}</p>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Badge variant="outline" className="text-xs">
-                      {file.annotation_status}
-                    </Badge>
-                    {file.filename && file.filename.toLowerCase().endsWith('.csv') && csvRowCounts[file.file_id] && (
-                      <Badge variant="secondary" className="text-xs">
-                        {csvRowCounts[file.file_id]} câu
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">No files in this batch</p>
+            <div className="border-2 border-dashed rounded-lg p-12 text-center">
+              <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-sm text-muted-foreground">No files in this batch</p>
+            </div>
           )}
-        </Card>
+        </div>
 
-        {/* Right: Options */}
-        <Card className="p-6">
-          <h3 className="font-semibold mb-4">Labeling Options</h3>
-          
+        {/* Right: Labeling Options Sidebar */}
+        <Card className="p-6 flex flex-col h-full">
+          {!selectedOption && (
+            <>
+              <h3 className="font-semibold mb-6">How do you want to label your files?</h3>
+            </>
+          )}
+
+          {selectedOption === "team" && (
+            <>
+              <h3 className="font-semibold mb-4">Assign Files to Team Members</h3>
+              {totalRows > 0 && (
+                <div className="mb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="text-sm font-medium">Total rows to Assign</Label>
+                    <span className="text-sm text-muted-foreground">
+                      {totalRows} / {totalRows}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
           {!selectedOption && (
             <div className="space-y-3">
-              <Button
-                variant="outline"
-                className="w-full justify-start h-auto py-4"
+
+
+              {/* Label Myself Option */}
+              <Card
+                className="p-4 border hover:border-primary/40 transition-colors cursor-pointer"
                 onClick={async () => {
                   setSelectedOption("myself");
-                  // Set labeling type to "myself"
                   if (project) {
                     try {
                       await setLabelingType(parseInt(project.id), { labeling_type: "myself" });
@@ -685,19 +748,22 @@ export default function ProjectBatchPage() {
                   }
                 }}
               >
-                <div className="text-left">
-                  <div className="font-semibold">Label Myself</div>
-                  <div className="text-sm text-muted-foreground">
-                    Start labeling this batch on your own
+                <div className="flex items-start gap-3">
+                  <User className="h-5 w-5 text-muted-foreground" />
+                  <div className="flex-1">
+                    <div className="font-semibold mb-1">Label Myself</div>
+                    <div className="text-sm text-muted-foreground">
+                      Label images with our AI labeling tools.
+                    </div>
                   </div>
                 </div>
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full justify-start h-auto py-4"
+              </Card>
+
+              {/* Label With My Team Option */}
+              <Card
+                className="p-4 border hover:border-primary/40 transition-colors cursor-pointer"
                 onClick={async () => {
                   setSelectedOption("team");
-                  // Set labeling type to "team"
                   if (project) {
                     try {
                       await setLabelingType(parseInt(project.id), { labeling_type: "team" });
@@ -709,13 +775,57 @@ export default function ProjectBatchPage() {
                   }
                 }}
               >
-                <div className="text-left">
-                  <div className="font-semibold">Label with my team</div>
-                  <div className="text-sm text-muted-foreground">
-                    Assign files to team members
+                <div className="flex items-start gap-3">
+                  <Users className="h-5 w-5 text-muted-foreground" />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <div className="font-semibold mb-1">Label With My Team</div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Split up the labeling work across your team.
+                    </div>
                   </div>
                 </div>
-              </Button>
+              </Card>
+
+              {/* Auto-Label Option */}
+              {/* <Card className="p-4 border-2 border-primary/20 bg-primary/5 hover:border-primary/40 transition-colors cursor-pointer">
+                <div className="flex items-start gap-3">
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-5 w-5 text-primary" />
+                    <Database className="h-4 w-4 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-semibold mb-1">Auto-Label Entire Batch</div>
+                    <div className="text-sm text-muted-foreground mb-3">
+                      Use your own custom model or a zero-shot model to automatically label your entire batch.
+                    </div>
+                    <Button size="sm" variant="outline" className="w-full">
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Try with SAM3
+                    </Button>
+                  </div>
+                </div>
+              </Card> */}
+
+              {/* Hire Outsourced Labelers Option */}
+              {/* <Card className="p-4 border hover:border-primary/40 transition-colors cursor-pointer opacity-60">
+                <div className="flex items-start gap-3">
+                  <UserPlus className="h-5 w-5 text-muted-foreground" />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <div className="font-semibold mb-1">Hire Outsourced Labelers</div>
+                      <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800">
+                        Upgrade
+                      </Badge>
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Work with a professional labeling team vetted by our team.
+                    </div>
+                  </div>
+                </div>
+              </Card> */}
             </div>
           )}
 
@@ -723,7 +833,7 @@ export default function ProjectBatchPage() {
             <div className="space-y-4">
               {totalRows > 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  You will label all <span className="font-semibold">{totalRows} câu</span> in this batch.
+                  You will label all <span className="font-semibold">{totalRows} rows</span> in this batch.
                 </p>
               ) : (
                 <p className="text-sm text-muted-foreground">
@@ -731,6 +841,9 @@ export default function ProjectBatchPage() {
                 </p>
               )}
               <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setSelectedOption(null)} disabled={isAssigning}>
+                  Back
+                </Button>
                 <Button onClick={handleStartLabeling} disabled={isAssigning}>
                   {isAssigning ? (
                     <>
@@ -741,27 +854,12 @@ export default function ProjectBatchPage() {
                     "Start Labeling"
                   )}
                 </Button>
-                <Button variant="outline" onClick={() => setSelectedOption(null)} disabled={isAssigning}>
-                  Back
-                </Button>
               </div>
             </div>
           )}
 
           {selectedOption === "team" && (
-            <div className="space-y-4">
-              {totalRows > 0 && (
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-sm font-medium text-blue-900">
-                  Total rows to label: <span className="font-bold">{totalRows} rows</span>
-                  </p>
-                  {selectedMembers.length > 0 && (
-                    <p className="text-xs text-blue-700 mt-1">
-                      Each member will be assigned: <span className="font-semibold">{rowsPerMember} rows</span>
-                    </p>
-                  )}
-                </div>
-              )}
+            <div className="space-y-4 flex-1 flex flex-col min-h-0">
               <div className="flex gap-2">
                 <Button
                   variant={showInstructions ? "default" : "outline"}
@@ -799,58 +897,84 @@ export default function ProjectBatchPage() {
               )}
 
               {showTeamMembers && (
-                <div className="space-y-4">
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Email address"
-                      value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
-                      disabled={isSendingInvite}
-                    />
-                    <Select 
-                      value={inviteRole} 
-                      onValueChange={(v: any) => setInviteRole(v)}
-                      disabled={isSendingInvite}
-                    >
-                      <SelectTrigger className="w-32">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Co-Owner">Co-Owner</SelectItem>
-                        <SelectItem value="Labeler">Labeler</SelectItem>
-                        <SelectItem value="Viewer">Viewer</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button 
+                <Card className="p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <UserPlus className="h-5 w-5 text-muted-foreground" />
+                      <h4 className="font-semibold">Invite Team Members</h4>
+                    </div>
+                    <Button
+                      variant="ghost"
                       size="icon"
+                      className="h-8 w-8"
+                      onClick={() => setShowTeamMembers(false)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="invite-email">Email Address</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="invite-email"
+                          placeholder="Email address"
+                          value={inviteEmail}
+                          onChange={(e) => setInviteEmail(e.target.value)}
+                          disabled={isSendingInvite}
+                          className="flex-1"
+                        />
+                        <Select
+                          value={inviteRole}
+                          onValueChange={(v: any) => setInviteRole(v)}
+                          disabled={isSendingInvite}
+                        >
+                          <SelectTrigger className="w-32">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Co-Owner">Co-Owner</SelectItem>
+                            <SelectItem value="Labeler">Labeler</SelectItem>
+                            <SelectItem value="Viewer">Viewer</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <Button
                       onClick={handleSendInvitation}
                       disabled={isSendingInvite || !inviteEmail.trim()}
+                      className="w-full"
                     >
                       {isSendingInvite ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Sending...
+                        </>
                       ) : (
-                        <Plus className="h-4 w-4" />
+                        <>
+                          <Send className="mr-2 h-4 w-4" />
+                          Send Invite
+                        </>
                       )}
                     </Button>
                   </div>
-                </div>
+                </Card>
               )}
 
               {!showInstructions && !showTeamMembers && (
-                <div className="space-y-3">
+                <div className="space-y-3 flex-1 overflow-y-auto">
                   <p className="text-sm font-medium">
                     Selected Team Members
                   </p>
-                  
+
                   {/* Collaborators (Accepted Members) */}
                   {collaborators.map((collab) => (
-                    <div 
-                      key={collab.user_id} 
-                      className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${
-                        selectedMembers.includes(collab.user_id.toString()) 
-                          ? 'ring-2 ring-primary' 
-                          : 'hover:bg-muted/50'
-                      }`}
+                    <div
+                      key={collab.user_id}
+                      className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${selectedMembers.includes(collab.user_id.toString())
+                        ? 'ring-2 ring-primary'
+                        : 'hover:bg-muted/50'
+                        }`}
                       onClick={() => handleMemberToggle(collab.user_id.toString())}
                     >
                       <div className="flex items-center gap-3">
@@ -871,13 +995,12 @@ export default function ProjectBatchPage() {
 
                   {/* Pending Members - Can be selected */}
                   {invitations.filter(inv => inv.status === 'pending').map((invite) => (
-                    <div 
-                      key={invite.invitation_id} 
-                      className={`flex items-center justify-between p-3 border rounded-lg border-orange-200 bg-orange-50 cursor-pointer transition-colors ${
-                        selectedMembers.includes(`pending_${invite.invitation_id}`) 
-                          ? 'ring-2 ring-primary' 
-                          : 'hover:bg-orange-100'
-                      }`}
+                    <div
+                      key={invite.invitation_id}
+                      className={`flex items-center justify-between p-3 border rounded-lg border-orange-200 bg-orange-50 cursor-pointer transition-colors ${selectedMembers.includes(`pending_${invite.invitation_id}`)
+                        ? 'ring-2 ring-primary'
+                        : 'hover:bg-orange-100'
+                        }`}
                       onClick={() => handleMemberToggle(`pending_${invite.invitation_id}`)}
                     >
                       <div className="flex items-center gap-3">
@@ -901,8 +1024,11 @@ export default function ProjectBatchPage() {
                 </div>
               )}
 
-              <div className="flex gap-2 pt-4 border-t">
-                <Button 
+              <div className="flex gap-2 pt-4 border-t mt-auto justify-end flex-shrink-0">
+                <Button variant="outline" onClick={() => setSelectedOption(null)} disabled={isAssigning}>
+                  Back
+                </Button>
+                <Button
                   onClick={handleStartLabeling}
                   disabled={selectedMembers.length === 0 || isAssigning}
                   className={selectedMembers.length === 0 ? "opacity-50 cursor-not-allowed" : ""}
@@ -915,9 +1041,6 @@ export default function ProjectBatchPage() {
                   ) : (
                     "Start Labeling"
                   )}
-                </Button>
-                <Button variant="outline" onClick={() => setSelectedOption(null)} disabled={isAssigning}>
-                  Back
                 </Button>
               </div>
             </div>
@@ -932,12 +1055,54 @@ export default function ProjectBatchPage() {
             <DialogTitle>Rename Batch</DialogTitle>
             <DialogDescription>Enter a new name for this batch</DialogDescription>
           </DialogHeader>
-          <Input value={batchName} onChange={(e) => setBatchName(e.target.value)} />
+          <Input
+            value={batchName}
+            onChange={(e) => setBatchName(e.target.value)}
+            disabled={isRenaming}
+            placeholder="Enter batch name"
+          />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsRenameOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setIsRenameOpen(false)}
+              disabled={isRenaming}
+            >
               Cancel
             </Button>
-            <Button onClick={() => setIsRenameOpen(false)}>Save</Button>
+            <Button
+              onClick={async () => {
+                if (!batchId || !batchName.trim()) {
+                  toast.error("Please enter a valid batch name");
+                  return;
+                }
+
+                setIsRenaming(true);
+                try {
+                  await updateBatch(parseInt(batchId), {
+                    name: batchName.trim()
+                  });
+                  toast.success("Batch renamed successfully!");
+                  setIsRenameOpen(false);
+                  // Reload batch data to get updated name
+                  await loadBatchData();
+                } catch (error: any) {
+                  console.error("Failed to rename batch:", error);
+                  toast.error(error.message || "Failed to rename batch");
+                } finally {
+                  setIsRenaming(false);
+                }
+              }}
+              disabled={isRenaming || !batchName.trim()}
+            >
+              {isRenaming ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save"
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -949,9 +1114,9 @@ export default function ProjectBatchPage() {
             <DialogTitle>Upload More Files</DialogTitle>
             <DialogDescription>Add more files to this batch</DialogDescription>
           </DialogHeader>
-          
+
           {uploadFiles.length === 0 ? (
-            <div 
+            <div
               className="border-2 border-dashed rounded-lg p-12 text-center cursor-pointer hover:border-primary transition-colors"
               onClick={() => fileInputRef.current?.click()}
             >
@@ -967,8 +1132,8 @@ export default function ProjectBatchPage() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-medium">{uploadFiles.length} file(s) selected</p>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="sm"
                   onClick={() => fileInputRef.current?.click()}
                 >
@@ -976,11 +1141,11 @@ export default function ProjectBatchPage() {
                   Add More
                 </Button>
               </div>
-              
+
               <div className="border rounded-lg max-h-[400px] overflow-y-auto">
                 {uploadFiles.map((file, idx) => (
-                  <div 
-                    key={idx} 
+                  <div
+                    key={idx}
                     className="flex items-center justify-between p-3 hover:bg-muted/50 border-b last:border-b-0"
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -1016,8 +1181,8 @@ export default function ProjectBatchPage() {
           />
 
           <DialogFooter>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => {
                 setIsUploadOpen(false);
                 setUploadFiles([]);
@@ -1026,7 +1191,7 @@ export default function ProjectBatchPage() {
             >
               Cancel
             </Button>
-            <Button 
+            <Button
               onClick={handleUploadMore}
               disabled={isUploading || uploadFiles.length === 0}
             >

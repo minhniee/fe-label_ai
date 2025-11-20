@@ -33,7 +33,6 @@ export default function RootLayout({
     <html lang="en" >
       <body
         className={`bg-background text-foreground antialiased ${geistSans.variable} ${geistMono.variable} antialiased`}>
-      
           <QueryProvider>
             <Suspense fallback={null}>{children}</Suspense>
             <Analytics />
