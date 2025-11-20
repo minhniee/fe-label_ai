@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { useParams, useSearchParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -11,6 +11,7 @@ import { ReferenceUploader } from "@/components/label-ai/reference-uploader"
 import { DocumentRAGManager } from "@/components/label-ai/document-rag-manager"
 import { Loader2, ArrowLeft, Save, CheckCircle2, Settings2, Search, X } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { useDebounce } from "@/hooks/use-debounce"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { SearchFilter } from "@/components/label-ai/search-filter"
@@ -77,17 +78,11 @@ export default function JobLabelAIPage() {
   const [loading, setLoading] = useState(false)
   const [manualMode, setManualMode] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("")
   const [visibleColumns, setVisibleColumns] = useState<string[]>([])
   
-  // Fix: Add debouncing for search query to prevent UI jank
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      setDebouncedSearchQuery(searchQuery)
-    }, 300) // 300ms debounce for search
-    
-    return () => clearTimeout(timeoutId)
-  }, [searchQuery])
+  // Use custom debounce hook for better performance
+  const debouncedSearchQuery = useDebounce(searchQuery, 300)
+  
   const [semanticSearchResults, setSemanticSearchResults] = useState<any[]>([])
   const [currentFileId, setCurrentFileId] = useState<number | null>(null)
   const [batchFiles, setBatchFiles] = useState<any[]>([])
@@ -106,51 +101,57 @@ export default function JobLabelAIPage() {
   const [originalData, setOriginalData] = useState<RowData[]>([])  // Store original data for comparison
   const [isScrolled, setIsScrolled] = useState(false)  // Track scroll state for floating sidebar
 
-  // Track scroll to show/hide floating sidebar
-  // Fix: Add debouncing to prevent UI jank from excessive scroll events
+  // Track scroll to show/hide floating sidebar with proper cleanup
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout
+    let timeoutId: NodeJS.Timeout | null = null
+    
     const handleScroll = () => {
-      // Clear previous timeout
-      if (timeoutId) {
+      // Clear previous timeout to debounce
+      if (timeoutId !== null) {
         clearTimeout(timeoutId)
       }
+      
       // Debounce scroll handler to reduce re-renders
       timeoutId = setTimeout(() => {
         setIsScrolled(window.scrollY > 200)
-      }, 100) // 100ms debounce
+        timeoutId = null
+      }, 100)
     }
+    
     window.addEventListener("scroll", handleScroll, { passive: true })
+    
     return () => {
       window.removeEventListener("scroll", handleScroll)
-      if (timeoutId) {
+      // Ensure timeout is cleared on unmount
+      if (timeoutId !== null) {
         clearTimeout(timeoutId)
       }
     }
   }, [])
 
-  // Sync originalData when data length changes significantly (likely a reload)
+  // Optimized: Sync originalData when data changes significantly
+  // Using useMemo to reduce computation on every render
   useEffect(() => {
-    // Only update originalData if length changed significantly and we have new rows
-    // This helps when data is reloaded from external sources
-    if (data.length > 0 && originalData.length > 0 && data.length !== originalData.length) {
-      // Fix: Use Set for O(1) lookup instead of O(n²) nested some() calls
-      const originalIds = new Set(originalData.map(orig => orig._id))
-      const hasNewRows = data.some(row => !originalIds.has(row._id))
-      
-      // If we have completely new rows (not just modifications), update originalData
-      // Only update if change is significant (>10% difference)
-      if (hasNewRows && originalData.length > 0 && 
-          Math.abs(data.length - originalData.length) > originalData.length * 0.1) {
-        // This is likely a reload, update originalData but preserve modification flags
-        setOriginalData(data.map(row => {
-          const { _isModified, ...rest } = row
-          return rest
-        }))
-      }
+    // Only update when we have both datasets and length changed significantly
+    if (data.length === 0 || originalData.length === 0 || data.length === originalData.length) {
+      return
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.length]) // Only watch length to avoid infinite loops
+    
+    // Quick check: if length difference is less than 10%, skip
+    const lengthDiff = Math.abs(data.length - originalData.length)
+    if (lengthDiff <= originalData.length * 0.1) {
+      return
+    }
+    
+    // Use Set for O(1) lookup instead of O(n²)
+    const originalIds = new Set(originalData.map(orig => orig._id))
+    const hasNewRows = data.some(row => !originalIds.has(row._id))
+    
+    if (hasNewRows) {
+      // Data reload detected, update original data snapshot
+      setOriginalData(data.map(({ _isModified, ...rest }) => rest))
+    }
+  }, [data.length, originalData.length]) // Only watch lengths
 
   const loadBatchFiles = useCallback(async () => {
     try {
@@ -361,23 +362,31 @@ export default function JobLabelAIPage() {
     }
   }
 
-  const filteredData = data.filter((row) => {
-    // First apply semantic search filter if there are results
-    if (semanticSearchResults.length > 0) {
-      const rowIndex = parseInt(row._id.replace("row-", ""))
-      const isInSemanticResults = semanticSearchResults.some(
-        (result) => result.row_index === rowIndex
-      )
-      if (!isInSemanticResults) return false
-    }
-    
-    // Then apply text search filter (using debounced query)
-    if (!debouncedSearchQuery.trim()) return true
-    const query = debouncedSearchQuery.toLowerCase()
-    return Object.values(row).some((value) => String(value).toLowerCase().includes(query))
-  })
+  // Memoize filtered data to prevent recalculation on every render
+  const filteredData = useMemo(() => {
+    return data.filter((row) => {
+      // First apply semantic search filter if there are results
+      if (semanticSearchResults.length > 0) {
+        const rowIndex = parseInt(row._id.replace("row-", ""))
+        const isInSemanticResults = semanticSearchResults.some(
+          (result) => result.row_index === rowIndex
+        )
+        if (!isInSemanticResults) return false
+      }
+      
+      // Then apply text search filter (using debounced query)
+      if (!debouncedSearchQuery.trim()) return true
+      const query = debouncedSearchQuery.toLowerCase()
+      return Object.values(row).some((value) => String(value).toLowerCase().includes(query))
+    })
+  }, [data, semanticSearchResults, debouncedSearchQuery])
 
-  const paginatedData = filteredData.slice(currentPage * rowsPerPage, (currentPage + 1) * rowsPerPage)
+  // Memoize pagination calculations
+  const paginatedData = useMemo(
+    () => filteredData.slice(currentPage * rowsPerPage, (currentPage + 1) * rowsPerPage),
+    [filteredData, currentPage, rowsPerPage]
+  )
+  
   const totalPages = Math.ceil(filteredData.length / rowsPerPage)
 
   const handleAddRow = (row: RowData) => {
