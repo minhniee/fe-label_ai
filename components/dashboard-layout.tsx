@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { usePathname } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 import { useAuth } from "@/components/auth-guard"
 import { AppSidebar } from "@/components/app-sidebar"
 import {
@@ -47,49 +47,85 @@ const capitalizeWords = (str: string): string => {
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const { logout } = useAuth()
   const [notifications, setNotifications] = React.useState<any[]>([])
 
   // Generate breadcrumb items from pathname
   const generateBreadcrumbs = () => {
     const segments = pathname.split("/").filter(Boolean)
-    
-    return segments.map((segment, index) => {
+    const breadcrumbItems: Array<{
+      label: string
+      href: string
+      isLast: boolean
+    }> = []
+
+    for (let index = 0; index < segments.length; index++) {
+      const segment = segments[index]
+
+      // Combine /job/{jobId} into single breadcrumb (e.g., "Job 99")
+      if (
+        segment === "job" &&
+        index + 1 < segments.length &&
+        /^\d+$/.test(segments[index + 1])
+      ) {
+        const jobIdSegment = segments[index + 1]
+        const isLast = index + 1 === segments.length - 1
+
+        const jobQuery = new URLSearchParams()
+        jobQuery.set("jobId", jobIdSegment)
+
+        const fileIdsParam = searchParams?.get("fileIds")
+        const jobNameParam = searchParams?.get("jobName")
+        if (fileIdsParam) {
+          jobQuery.set("fileIds", fileIdsParam)
+        }
+        if (jobNameParam) {
+          jobQuery.set("jobName", jobNameParam)
+        }
+
+        const jobHrefBase = segments.slice(0, index + 1).join("/")
+
+        breadcrumbItems.push({
+          label: `Job ${jobIdSegment}`,
+          href: `/${jobHrefBase}?${jobQuery.toString()}`,
+          isLast,
+        })
+
+        index++ // Skip the jobId segment since it's combined
+        continue
+      }
+
       const isLast = index === segments.length - 1
-      
-      // Check if segment is in format "ID-Name" (project segment)
-      // Pattern: starts with digits, followed by hyphen, then name
       const projectMatch = segment.match(/^(\d+)-(.+)$/)
       let label: string
       let href: string
-      let isProject = false
-      
+
       if (projectMatch) {
-        // This is a project segment (format: "123-Label")
-        const [, projectId, projectName] = projectMatch
-        label = projectName // Only show the name in breadcrumb
-        href = "/projects" // Redirect to /projects when clicked
-        isProject = true
+        const [, , projectName] = projectMatch
+        label = projectName
+        href = "/projects"
       } else {
-        // Regular segment
         const segmentWithSpaces = segment.replace(/[-_]/g, " ")
         label = ROUTE_TITLES[segment] ?? capitalizeWords(segmentWithSpaces)
         href = `/${segments.slice(0, index + 1).join("/")}`
       }
-      
-      return (
-        <React.Fragment key={index}>
-          <BreadcrumbItem>
-            {isLast ? (
-              <BreadcrumbPage>{label}</BreadcrumbPage>
-            ) : (
-              <BreadcrumbLink href={href}>{label}</BreadcrumbLink>
-            )}
-          </BreadcrumbItem>
-          {!isLast && <BreadcrumbSeparator />}
-        </React.Fragment>
-      )
-    })
+
+      breadcrumbItems.push({ label, href, isLast })
+    }
+    
+    return breadcrumbItems.map((item, idx) => (
+      <React.Fragment key={idx}>
+        <BreadcrumbItem>
+          {item.isLast ? (
+            <BreadcrumbPage>{item.label}</BreadcrumbPage>
+          ) : (
+            <BreadcrumbLink href={item.href}>{item.label}</BreadcrumbLink>
+          )}
+        </BreadcrumbItem>
+        {!item.isLast && <BreadcrumbSeparator />}
+      </React.Fragment>
+    ))
   }
 
   return (

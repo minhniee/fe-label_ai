@@ -293,7 +293,9 @@ export default function ProjectBatchPage() {
         let totalJobsCreated = 0;
         let hasDistributedFiles = false;
         
-        if (csvFiles.length > 0 && actualUserIds.length > 0) {
+        // Only run CSV distribution when more than one actual collaborator is selected.
+        // For a single assignee we keep the original batch so the file stays attached.
+        if (csvFiles.length > 0 && actualUserIds.length > 1) {
           hasDistributedFiles = true;
           const ensureRowCount = async (fileId: number, filename?: string) => {
             if (!project) return 0;

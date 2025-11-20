@@ -36,7 +36,7 @@ interface DatasetVersion {
 
 interface DatasetSelectorProps {
   onVersionSelect: (datasetId: string, versionId: string) => void
-  onGenerateClick: () => void
+  onGenerateClick?: () => void
   onFileUpload?: (data: any[], columns: string[], fileName: string) => void
 }
 
@@ -302,10 +302,12 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
                 </>
               )}
             </Button>
-            <Button onClick={onGenerateClick} variant="outline">
-              <Sparkles className="h-4 w-4 mr-2" />
-              Generate New Data
-            </Button>
+            {onGenerateClick && (
+              <Button onClick={onGenerateClick} variant="outline">
+                <Sparkles className="h-4 w-4 mr-2" />
+                Generate New Data
+              </Button>
+            )}
           </div>
         </div>
 
@@ -428,10 +430,12 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
               </>
             )}
           </Button>
-          <Button onClick={onGenerateClick} variant="outline">
-            <Sparkles className="h-4 w-4 mr-2" />
-            Generate New Data
-          </Button>
+          {onGenerateClick && (
+            <Button onClick={onGenerateClick} variant="outline">
+              <Sparkles className="h-4 w-4 mr-2" />
+              Generate New Data
+            </Button>
+          )}
         </div>
       </div>
 

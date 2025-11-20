@@ -462,17 +462,16 @@ export default function ProjectJobPage() {
             </div>
           </div>
           <div className="flex items-center justify-between gap-2 mt-4">
-            <Button 
+              <Button 
               className="flex-1" 
               onClick={() => {
-                // Pass batch ID and file IDs to labelai page
+                // Navigate to labelai page with jobId in path
                 const fileIds = unannotatedFiles.map(f => f.file_id);
                 const params = new URLSearchParams({
-                  batchId: batchId!,
                   fileIds: JSON.stringify(fileIds),
                   jobName: batchName
                 });
-                router.push(`/${projectSlug}/labelai?${params.toString()}`);
+                  router.push(`/${projectSlug}/annotate/job/${batchId}/annotating?${params.toString()}`);
               }}
               disabled={unannotatedFiles.length === 0}
             >

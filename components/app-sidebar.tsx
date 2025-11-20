@@ -250,11 +250,11 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
         requiresProject: true,
       },
       {
-        title: "Labeling with AI",
-        url: `${projectPrefix}/labelai`,
-        icon: Tag,
-        isActive: pathname === `${projectPrefix}/labelai`,
-        requiresProject: true,
+        title: "Generate Data",
+        url: `/generate`,
+        icon: Sparkles,
+        isActive: pathname === `/generate`,
+        requiresProject: false,
       },
       {
         title: "Dataset",

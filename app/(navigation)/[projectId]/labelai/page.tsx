@@ -10,7 +10,6 @@ import { ColumnSelector } from "@/components/label-ai/column-selector"
 import { ReferenceUploader } from "@/components/label-ai/reference-uploader"
 import { DatasetSelector } from "@/components/label-ai/dataset-selector"
 import { DocumentRAGManager } from "@/components/label-ai/document-rag-manager"
-import { DataGenerator } from "@/components/label-ai/data-generator"
 import { Loader2, ArrowLeft, Save, CheckCircle2, Settings2, Search, X } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Switch } from "@/components/ui/switch"
@@ -68,7 +67,9 @@ export default function Home() {
   const projectId = slugToProjectId(projectSlug)
   
   // Get batch information from URL params
-  const batchId = searchParams.get("batchId")
+  // Support both old format (searchParams) and new format (params.jobId)
+  const jobId = params.jobId as string | undefined
+  const batchId = jobId || searchParams.get("batchId")
   const fileIdsParam = searchParams.get("fileIds")
   const jobName = searchParams.get("jobName")
   
@@ -80,7 +81,6 @@ export default function Home() {
   const [resultColumn, setResultColumn] = useState<string>("")
   const [referenceContext, setReferenceContext] = useState<string>("")
   const [loading, setLoading] = useState(false)
-  const [view, setView] = useState<"select" | "generate">("select")
   const [manualMode, setManualMode] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("")
@@ -439,30 +439,6 @@ export default function Home() {
     }
   }
 
-  const handleDataGenerated = (generatedData: any[], generatedColumns: string[], name: string) => {
-    setColumns(generatedColumns)
-
-    const detectedContextCol = detectContextColumn(generatedColumns)
-    const detectedResultCol = detectResultColumn(generatedColumns)
-
-    setContextColumn(detectedContextCol)
-    setResultColumn(detectedResultCol)
-    setVisibleColumns([detectedContextCol, detectedResultCol])
-
-    const transformedData: RowData[] = generatedData.map((row: any, index: number) => ({
-      _id: `row-${index}`,
-      _ai_suggestion: "",
-      _ai_reasoning: "",
-      _confirmed: false,
-      ...row,
-    }))
-
-    setData(transformedData)
-    setDatasetName(name)
-    setCurrentPage(0)
-    setView("select")
-  }
-
   const handleReset = () => {
     setData([])
     setColumns([])
@@ -470,7 +446,6 @@ export default function Home() {
     setCurrentPage(0)
     setContextColumn("")
     setResultColumn("")
-    setView("select")
     setCurrentFileId(null)
     setSemanticSearchResults([])
     setSearchQuery("")
@@ -837,23 +812,12 @@ export default function Home() {
             </div>
           </Card>
         ) : data.length === 0 && !batchId ? (
-          view === "select" ? (
-            <div className="space-y-6">
-              <DatasetSelector
-                onVersionSelect={handleVersionSelect}
-                onGenerateClick={() => setView("generate")}
-                onFileUpload={handleFileUpload}
-              />
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <Button variant="ghost" size="sm" onClick={() => setView("select")}>
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Dataset Selection
-              </Button>
-              <DataGenerator onDataGenerated={handleDataGenerated} />
-            </div>
-          )
+          <div className="space-y-6">
+            <DatasetSelector
+              onVersionSelect={handleVersionSelect}
+              onFileUpload={handleFileUpload}
+            />
+          </div>
         ) : (
           <div className="space-y-6 relative">
             {/* Floating Sidebar for Column Management - appears when scrolled */}
