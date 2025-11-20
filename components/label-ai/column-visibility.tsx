@@ -17,7 +17,15 @@ interface ColumnVisibilityProps {
 }
 
 export function ColumnVisibility({ columns, visibleColumns, onVisibilityChange }: ColumnVisibilityProps) {
-  const hiddenCount = columns.length - visibleColumns.length
+  // Filter out internal columns that should never be shown
+  const internalColumns = ["_id", "_ai_suggestion", "_ai_reasoning", "_confirmed", "_validation_status", "_corrected_value", "__corrected_value", "_is_new"]
+  const displayableColumns = columns.filter(
+    (col) => !internalColumns.includes(col) && !col.startsWith("_validation_status") && !col.startsWith("_corrected_value") && !col.startsWith("__corrected_value")
+  )
+  const visibleDisplayableColumns = visibleColumns.filter(
+    (col) => !internalColumns.includes(col) && !col.startsWith("_validation_status") && !col.startsWith("_corrected_value") && !col.startsWith("__corrected_value")
+  )
+  const hiddenCount = displayableColumns.length - visibleDisplayableColumns.length
 
   const handleToggleColumn = (column: string) => {
     if (visibleColumns.includes(column)) {
@@ -28,7 +36,7 @@ export function ColumnVisibility({ columns, visibleColumns, onVisibilityChange }
   }
 
   const handleShowAll = () => {
-    onVisibilityChange(columns)
+    onVisibilityChange(displayableColumns)
   }
 
   const handleHideAll = () => {
@@ -50,7 +58,7 @@ export function ColumnVisibility({ columns, visibleColumns, onVisibilityChange }
         </div>
         <DropdownMenuSeparator />
         <div className="max-h-64 overflow-y-auto px-2 py-1">
-          {columns.map((column) => (
+          {displayableColumns.map((column) => (
             <div
               key={column}
               className="flex items-center gap-2 py-1.5 cursor-pointer hover:bg-secondary/50 px-2 rounded"

@@ -1,16 +1,19 @@
 "use client"
 
-import { useState } from "react"
-import { Check, ChevronLeft, ChevronRight, Download, X, CheckCheck, Send, Trash2, Info, CheckCircle2 } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Check, ChevronLeft, ChevronRight, Download, X, CheckCheck, Send, Trash2, Info, CheckCircle2, GitCompare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
-import type { RowData } from "@/app/(navigation)/labelai/page"
+import type { RowData } from "@/app/(navigation)/[projectId]/labelai/page"
 import { useToast } from "@/hooks/use-toast"
 import { submitDataset } from "@/app/api/labelai"
+import { generateDatasetFromProject } from "@/app/api/project"
 
 interface DataGridProps {
   data: RowData[]
@@ -25,6 +28,8 @@ interface DataGridProps {
   allData: RowData[]
   datasetName: string
   manualMode?: boolean
+  projectId?: number
+  originalData?: RowData[] // Add originalData for comparison
 }
 
 export function DataGrid({
@@ -40,14 +45,20 @@ export function DataGrid({
   allData,
   datasetName,
   manualMode = false,
+  projectId,
+  originalData = [],
 }: DataGridProps) {
   const [editingCell, setEditingCell] = useState<{
     rowId: string
     field: string
   } | null>(null)
+  const [editingValue, setEditingValue] = useState<string>("") // Local state for editing value
   const [versionName, setVersionName] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [hoveredCell, setHoveredCell] = useState<{ rowId: string; field: string } | null>(null)
+  const [compareRow, setCompareRow] = useState<RowData | null>(null)
+  const [showExportDialog, setShowExportDialog] = useState(false)
+  const [exportDelimiter, setExportDelimiter] = useState<string>(",")
   const { toast } = useToast()
 
   const confirmedCount = manualMode
@@ -56,6 +67,69 @@ export function DataGrid({
   const pendingOnPage = data.filter((row) => row._ai_suggestion && !row._confirmed).length
   const allConfirmed = confirmedCount === allData.length && allData.length > 0
 
+  // Detect best delimiter based on data content
+  const detectBestDelimiter = (): string => {
+    if (allData.length === 0) return ","
+    
+    const candidates = [
+      { char: ",", name: "Comma (,)" },
+      { char: ";", name: "Semicolon (;)" },
+      { char: "|", name: "Pipe (|)" },
+      { char: "\t", name: "Tab" },
+    ]
+    
+    // Sample first few rows to check for delimiter conflicts
+    const sampleRows = allData.slice(0, Math.min(10, allData.length))
+    const exportColumns = [...columns, "_validation_status", "_corrected_value"]
+    
+    // Count occurrences of each delimiter in data
+    const delimiterScores = candidates.map((candidate) => {
+      let conflictCount = 0
+      let totalOccurrences = 0
+      
+      sampleRows.forEach((row) => {
+        exportColumns.forEach((col) => {
+          const value = String(col === "_corrected_value" ? row._corrected_value || "" : row[col] || "")
+          // Fix: Escape special regex characters properly to prevent ReDoS
+          // Handle tab character specially in regex
+          let pattern: RegExp
+          if (candidate.char === "\t") {
+            pattern = /\t/g
+          } else if (candidate.char === "|") {
+            pattern = /\|/g
+          } else {
+            // Escape special regex characters: [\^$.*+?(){}[]|
+            const escapedChar = candidate.char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+            pattern = new RegExp(escapedChar, "g")
+          }
+          const occurrences = (value.match(pattern) || []).length
+          totalOccurrences += occurrences
+          if (occurrences > 0) conflictCount++
+        })
+      })
+      
+      return {
+        char: candidate.char,
+        name: candidate.name,
+        conflicts: conflictCount,
+        occurrences: totalOccurrences,
+        score: conflictCount * 1000 + totalOccurrences, // Lower is better
+      }
+    })
+    
+    // Find delimiter with least conflicts
+    const best = delimiterScores.reduce((prev, curr) => 
+      curr.score < prev.score ? curr : prev
+    )
+    
+    // If comma has no or minimal conflicts, use it (most common)
+    const commaScore = delimiterScores.find((d) => d.char === ",")
+    if (commaScore && commaScore.conflicts === 0) return ","
+    
+    // Otherwise use the best delimiter
+    return best.char
+  }
+
   const generateVersionName = () => {
     const baseTitle = datasetName.split(" - v")[0] || datasetName
     const currentVersion = datasetName.match(/_v(\d+)$/)
@@ -63,60 +137,88 @@ export function DataGrid({
     return `${baseTitle}_v${nextVersion}`
   }
 
-  if (allConfirmed && !versionName) {
-    setVersionName(generateVersionName())
+  // Fix: Move setState out of render - use useEffect instead
+  useEffect(() => {
+    if (allConfirmed && !versionName) {
+      setVersionName(generateVersionName())
+    }
+  }, [allConfirmed, versionName, datasetName])
+
+  // Handle cell edit start - initialize local editing value
+  const handleCellEditStart = (rowId: string, field: string) => {
+    const row = allData.find((r) => r._id === rowId) || data.find((r) => r._id === rowId)
+    if (row) {
+      setEditingValue(String(row[field] || ""))
+      setEditingCell({ rowId, field })
+    }
   }
 
-  const handleCellEdit = (rowId: string, field: string, value: string) => {
-    const updatedData = data.map((row) => 
-      row._id === rowId 
-        ? { ...row, [field]: value }
-        : row
-    )
-    // Update allData as well to keep it in sync
+  // Handle cell edit change - only update local state (no parent update)
+  const handleCellEditChange = (value: string) => {
+    setEditingValue(value)
+  }
+
+  // Handle cell edit end - update parent with final value
+  const handleCellEditEnd = (rowId: string, field: string) => {
+    // Compare with originalData to correctly set _isModified flag
+    const originalRow = originalData.find(r => r._id === rowId)
+    const isActuallyModified = originalRow?.[field] !== editingValue
+    
+    // Update allData with final value
     const updatedAllData = allData.map((row) =>
       row._id === rowId
-        ? { ...row, [field]: value }
+        ? { ...row, [field]: editingValue, _isModified: isActuallyModified }
         : row
     )
-    onDataUpdate(updatedData)
-    // Also update parent's allData through onDataUpdate with all rows
-    if (updatedAllData.length > 0) {
-      onDataUpdate(updatedAllData.filter((row) => data.some((d) => d._id === row._id)))
-    }
+    
+    // Update parent only once when editing is complete
+    onDataUpdate(updatedAllData)
+    
+    // Clear editing state
+    setEditingCell(null)
+    setEditingValue("")
   }
 
   const handleConfirm = (rowId: string) => {
     const row = allData.find((r) => r._id === rowId) || data.find((r) => r._id === rowId)
     if (!row) return
-    
-    // Update allData to keep consistency across all pages
-    const updatedAllData = allData.map((r) =>
-      r._id === rowId
-        ? {
-            ...r,
-            [resultColumn]: row._corrected_value || r[resultColumn] || "",
-            _confirmed: true,
-          }
-        : r,
-    )
-    
-    // Update current page data
-    const updatedData = data.map((r) =>
-      r._id === rowId
-        ? {
-            ...r,
-            [resultColumn]: row._corrected_value || r[resultColumn] || "",
-            _confirmed: true,
-          }
-        : r,
-    )
-    
-    // Notify parent with all updated rows
+
+    const status = (row._validation_status || "").toString().toLowerCase()
+    const isAmbiguous = status === "ambiguous"
+    const isIncorrect = status === "incorrect" || (row._ai_suggestion || "").toString().toLowerCase() === "false"
+    const isCorrect = status === "correct" || (row._ai_suggestion || "").toString().toLowerCase() === "true"
+
+    if (isAmbiguous) {
+      toast({
+        title: "Ambiguous result",
+        description: "AI marked this row as ambiguous. Please review manually.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Determine new values based on status
+    const applyRowUpdate = (r: any) => {
+      if (r._id !== rowId) return r
+      // When confirming, fill resultColumn with correct_answer (_corrected_value) or AI suggestion
+      const valueToFill = row._corrected_value || row._ai_suggestion || r[resultColumn] || ""
+      if (isIncorrect || isCorrect) {
+        return {
+          ...r,
+          [resultColumn]: valueToFill,
+          _confirmed: true,
+        }
+      }
+      return r
+    }
+
+    const updatedAllData = allData.map(applyRowUpdate)
+    const updatedData = data.map(applyRowUpdate)
+
     onDataUpdate(updatedAllData)
     toast({
       title: "Confirmed",
-      description: `Applied correct answer to result column`,
+      description: `Applied AI correct_answer to ${resultColumn}`,
     })
   }
 
@@ -168,26 +270,43 @@ export function DataGrid({
   }
 
   const handleConfirmAll = () => {
-    // Get all row IDs on current page that need confirmation
-    const rowIdsToConfirm = data
-      .filter((row) => row._ai_suggestion && !row._confirmed)
-      .map((row) => row._id)
-    
-    // Update allData for all rows
-    const updatedAllData = allData.map((row) =>
-      rowIdsToConfirm.includes(row._id)
-        ? {
-            ...row,
-            [resultColumn]: row._corrected_value || row[resultColumn] || "",
-            _confirmed: true,
-          }
-        : row,
-    )
-    
+    const targets = data.filter((row) => row._ai_suggestion && !row._confirmed)
+
+    let applied = 0
+    let ambiguous = 0
+
+    const updatedAllData = allData.map((row) => {
+      const onPage = targets.find((r) => r._id === row._id)
+      if (!onPage) return row
+      const status = (row._validation_status || "").toString().toLowerCase()
+      const isAmbiguous = status === "ambiguous"
+      const isIncorrect = status === "incorrect" || (row._ai_suggestion || "").toString().toLowerCase() === "false"
+      const isCorrect = status === "correct" || (row._ai_suggestion || "").toString().toLowerCase() === "true"
+
+      if (isAmbiguous) {
+        ambiguous += 1
+        return row
+      }
+      // When confirming, fill resultColumn with correct_answer (_corrected_value) or AI suggestion
+      const valueToFill = row._corrected_value || row._ai_suggestion || row[resultColumn] || ""
+      if (isIncorrect || isCorrect) {
+        applied += 1
+        return {
+          ...row,
+          [resultColumn]: valueToFill,
+          _confirmed: true,
+        }
+      }
+      return row
+    })
+
     onDataUpdate(updatedAllData)
+    const parts = [] as string[]
+    if (applied) parts.push(`${applied} applied`)
+    if (ambiguous) parts.push(`${ambiguous} ambiguous skipped`)
     toast({
-      title: "Confirmed all suggestions",
-      description: `Confirmed ${rowIdsToConfirm.length} AI suggestions on this page.`,
+      title: "Confirm all",
+      description: parts.length ? parts.join(", ") : "No rows to confirm",
     })
   }
 
@@ -226,47 +345,37 @@ export function DataGrid({
       return
     }
 
+    // Check if projectId is available
+    if (!projectId) {
+      toast({
+        title: "Error",
+        description: "Project ID is required to generate dataset",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
       setIsSubmitting(true)
 
-      const submissionData = allData.map((row) => {
-        const cleanRow: any = {}
-        columns.forEach((col) => {
-          cleanRow[col] = row[col]
-        })
-        return cleanRow
+      // Call generateDatasetFromProject API
+      const result = await generateDatasetFromProject(projectId, {
+        dataset_name: versionName.trim(),
+        dataset_description: `Dataset generated from labeled data. Total rows: ${allData.length}, Confirmed rows: ${confirmedCount}`,
+        export_type: 'full', // Export all labeled data
+        copy_permissions: true, // Copy project permissions
       })
 
-      const result = await submitDataset({
-        versionName: versionName.trim(),
-        data: submissionData,
-        columns,
-        metadata: {
-          totalRows: allData.length,
-          confirmedRows: confirmedCount,
-          contextColumn,
-          resultColumn,
-        },
+      toast({
+        title: "Success",
+        description: `Successfully generated dataset: ${result.dataset_id}. ${result.files_exported} files exported.`,
       })
-
-      if (result.success) {
-        toast({
-          title: "Success",
-          description: `Successfully saved version: ${versionName}`,
-        })
-        setVersionName("")
-      } else {
-        toast({
-          title: "Error",
-          description: result.error || "Failed to submit data",
-          variant: "destructive",
-        })
-      }
-    } catch (error) {
-      console.error("Error submitting data:", error)
+      setVersionName("")
+    } catch (error: any) {
+      console.error("Error generating dataset:", error)
       toast({
         title: "Error",
-        description: "Failed to submit data",
+        description: error.message || "Failed to generate dataset",
         variant: "destructive",
       })
     } finally {
@@ -274,41 +383,80 @@ export function DataGrid({
     }
   }
 
-  const handleExport = () => {
+  const handleExportClick = () => {
+    // Auto-detect best delimiter and set it as default
+    const detectedDelimiter = detectBestDelimiter()
+    setExportDelimiter(detectedDelimiter)
+    setShowExportDialog(true)
+  }
+
+  const handleExport = (delimiter?: string) => {
+    const selectedDelimiter = delimiter || exportDelimiter
     const exportColumns = [...columns, "_validation_status", "_corrected_value"]
     const csv = [
-      exportColumns.join(","),
+      exportColumns.join(selectedDelimiter),
       ...allData.map((row) =>
         exportColumns
           .map((col) => {
             const value = col === "_corrected_value" ? row._corrected_value || "" : row[col] || ""
-            return `"${String(value).replace(/"/g, '""')}"`
+            // Escape quotes and wrap in quotes if value contains delimiter, newline, or quote
+            const stringValue = String(value)
+            const needsQuotes = stringValue.includes(selectedDelimiter) || 
+                               stringValue.includes("\n") || 
+                               stringValue.includes("\r") || 
+                               stringValue.includes('"')
+            if (needsQuotes) {
+              return `"${stringValue.replace(/"/g, '""')}"`
+            }
+            return stringValue
           })
-          .join(","),
+          .join(selectedDelimiter),
       ),
     ].join("\n")
 
-    const blob = new Blob([csv], { type: "text/csv" })
+    const fileExtension = selectedDelimiter === "\t" ? "tsv" : "csv"
+    const blob = new Blob([csv], { type: selectedDelimiter === "\t" ? "text/tab-separated-values" : "text/csv" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = "validated-data.csv"
+    a.download = `validated-data.${fileExtension}`
     a.click()
     URL.revokeObjectURL(url)
 
     toast({
       title: "Export successful",
-      description: `Exported ${allData.length} rows to validated-data.csv`,
+      description: `Exported ${allData.length} rows to validated-data.${fileExtension}`,
     })
+    
+    setShowExportDialog(false)
   }
 
-  // Show all columns except internal metadata columns, but include contextColumn and resultColumn
-  const internalColumns = ["_id", "_ai_suggestion", "_ai_reasoning", "_confirmed", "_validation_status", "_corrected_value", "_is_new"]
+  const getDelimiterName = (delimiter: string): string => {
+    switch (delimiter) {
+      case ",":
+        return "Comma (,)"
+      case ";":
+        return "Semicolon (;)"
+      case "|":
+        return "Pipe (|)"
+      case "\t":
+        return "Tab"
+      default:
+        return `Custom (${delimiter})`
+    }
+  }
+
+  // Show only context and result by default: exclude internal/meta and also remove context/result from generic list
+  const internalColumns = ["_id", "_ai_suggestion", "_ai_reasoning", "_confirmed", "_validation_status", "_corrected_value", "__corrected_value", "_is_new"]
   const displayColumns = (visibleColumns.length > 0 ? visibleColumns : columns).filter(
-    (col) => !internalColumns.includes(col)
+    (col) => !internalColumns.includes(col) && !col.startsWith("_validation_status") && !col.startsWith("_corrected_value") && !col.startsWith("__corrected_value") && col !== contextColumn && col !== resultColumn
   )
 
-  const getCellColor = (status: string) => {
+  const getCellColor = (status: string | undefined, hasAISuggestion: boolean) => {
+    // Fix: Only show highlight if there's actual AI validation status AND AI suggestion exists
+    if (!hasAISuggestion || !status) {
+      return "bg-background border-l-4 border-l-transparent"
+    }
     switch (status) {
       case "correct":
         return "bg-green-50 dark:bg-green-950/30 border-l-4 border-l-green-500"
@@ -321,7 +469,11 @@ export function DataGrid({
     }
   }
 
-  const getCellTextColor = (status: string) => {
+  const getCellTextColor = (status: string | undefined, hasAISuggestion: boolean) => {
+    // Fix: Only show text color if there's actual AI validation status AND AI suggestion exists
+    if (!hasAISuggestion || !status) {
+      return ""
+    }
     switch (status) {
       case "correct":
         return "text-green-900 dark:text-green-100"
@@ -356,6 +508,40 @@ export function DataGrid({
         )
       default:
         return null
+    }
+  }
+
+  const getResultCellColor = (row: RowData) => {
+    // Fix: Only show highlight if confirmed OR if there's AI suggestion/validation
+    if (row._confirmed) {
+      return "bg-green-50 dark:bg-green-950/30 border-green-500"
+    }
+    
+    // Only show validation colors if there's actual AI suggestion
+    const hasAISuggestion = !!(row._ai_suggestion || row._ai_reasoning)
+    if (!hasAISuggestion) {
+      return ""
+    }
+    
+    const validation = String(row._validation_status || "").toLowerCase()
+    const ai = String(row._ai_suggestion || "").toLowerCase()
+    const status =
+      validation === "correct" || ai === "true"
+        ? "correct"
+        : validation === "incorrect" || ai === "false"
+        ? "incorrect"
+        : validation === "ambiguous"
+        ? "ambiguous"
+        : ""
+    switch (status) {
+      case "correct":
+        return "bg-green-50 dark:bg-green-950/30 border-green-500"
+      case "incorrect":
+        return "bg-red-50 dark:bg-red-950/30 border-red-500"
+      case "ambiguous":
+        return "bg-yellow-50 dark:bg-yellow-950/30 border-yellow-500"
+      default:
+        return ""
     }
   }
 
@@ -461,7 +647,7 @@ export function DataGrid({
                 </Button>
               </>
             )}
-            <Button onClick={handleExport} className="gap-2">
+            <Button onClick={handleExportClick} className="gap-2">
               <Download className="h-4 w-4" />
               Export CSV
             </Button>
@@ -491,7 +677,7 @@ export function DataGrid({
                   ))}
                   {resultColumn && (
                     <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider min-w-[200px]">
-                      AI Suggest
+                      {resultColumn}
                     </th>
                   )}
                   <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-24">
@@ -530,25 +716,29 @@ export function DataGrid({
                         >
                           <div
                             className={cn(
-                              "rounded px-3 py-2 font-mono text-sm border transition-all cursor-pointer hover:shadow-md",
-                              getCellColor(row._validation_status),
-                              getCellTextColor(row._validation_status),
+                              "rounded px-3 py-2 font-mono text-sm border transition-all",
+                              manualMode && "cursor-pointer hover:shadow-md",
+                              getCellColor(row._validation_status, !!(row._ai_suggestion || row._ai_reasoning)),
+                              getCellTextColor(row._validation_status, !!(row._ai_suggestion || row._ai_reasoning)),
                             )}
                             onClick={() => {
                               if (manualMode) {
-                                setEditingCell({ rowId: row._id, field: col })
+                                handleCellEditStart(row._id, col)
                               }
                             }}
                           >
                             {editingCell?.rowId === row._id && editingCell?.field === col ? (
                               <Input
                                 autoFocus
-                                value={row[col]}
-                                onChange={(e) => handleCellEdit(row._id, col, e.target.value)}
-                                onBlur={() => setEditingCell(null)}
+                                value={editingValue}
+                                onChange={(e) => handleCellEditChange(e.target.value)}
+                                onBlur={() => handleCellEditEnd(row._id, col)}
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter") {
+                                    handleCellEditEnd(row._id, col)
+                                  } else if (e.key === "Escape") {
                                     setEditingCell(null)
+                                    setEditingValue("")
                                   }
                                 }}
                                 className="h-6 font-mono text-sm p-1"
@@ -616,29 +806,32 @@ export function DataGrid({
                               className={cn(
                                 "flex-1 rounded px-3 py-2 font-mono text-sm border transition-all",
                                 manualMode && "cursor-pointer hover:shadow-md",
-                                (row._corrected_value || row._ai_suggestion) && "bg-green-50 dark:bg-green-950/30 border-green-500",
+                                getResultCellColor(row),
                               )}
                               onClick={() => {
                                 if (manualMode) {
-                                  setEditingCell({ rowId: row._id, field: resultColumn })
+                                  handleCellEditStart(row._id, resultColumn)
                                 }
                               }}
                             >
                               {editingCell?.rowId === row._id && editingCell?.field === resultColumn ? (
                                 <Input
                                   autoFocus
-                                  value={row[resultColumn] || ""}
-                                  onChange={(e) => handleCellEdit(row._id, resultColumn, e.target.value)}
-                                  onBlur={() => setEditingCell(null)}
+                                  value={editingValue}
+                                  onChange={(e) => handleCellEditChange(e.target.value)}
+                                  onBlur={() => handleCellEditEnd(row._id, resultColumn)}
                                   onKeyDown={(e) => {
                                     if (e.key === "Enter") {
+                                      handleCellEditEnd(row._id, resultColumn)
+                                    } else if (e.key === "Escape") {
                                       setEditingCell(null)
+                                      setEditingValue("")
                                     }
                                   }}
                                   className="h-6 font-mono text-sm p-1"
                                 />
                               ) : (
-                                <span>{row._corrected_value || row._ai_suggestion || row[resultColumn] || "-"}</span>
+                                <span>{row[resultColumn] || "-"}</span>
                               )}
                             </div>
                             {/* Only show Info icon if there's AI suggestion/reasoning and not yet confirmed */}
@@ -681,43 +874,66 @@ export function DataGrid({
                         </td>
                       )}
                       <td className="px-4 py-3 text-sm">
-                        {/* Only show buttons if there's AI suggestion, not yet confirmed, and Result != AI Suggest */}
-                        {row._ai_suggestion &&
-                          !row._confirmed &&
-                          ((row[resultColumn] || "") !== (row._corrected_value || row._ai_suggestion || row[resultColumn] || "")) && (
-                          <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2">
+                          {(row._corrected_value || row._ai_suggestion) && (
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={() => handleConfirm(row._id)}
-                                  className="h-7 w-7 p-0 bg-green-50 hover:bg-green-100 dark:bg-green-950/30 dark:hover:bg-green-950/50 border-green-500 text-green-700 dark:text-green-300"
+                                  onClick={() => setCompareRow(row)}
+                                  className="h-7 w-7 p-0 bg-transparent"
                                 >
-                                  <Check className="h-3.5 w-3.5" />
+                                  <GitCompare className="h-3.5 w-3.5" />
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent>
-                                <p>Confirm AI suggestion</p>
+                                <p>Compare current vs AI</p>
                               </TooltipContent>
                             </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleReject(row._id)}
-                                  className="h-7 w-7 p-0 bg-red-50 hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-950/50 border-red-500 text-red-700 dark:text-red-300"
-                                >
-                                  <X className="h-3.5 w-3.5" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Reject AI suggestion</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </div>
-                        )}
+                          )}
+
+                          {/* Show buttons when there's AI suggestion and not confirmed (excluding ambiguous and correct) */}
+                          {row._ai_suggestion &&
+                            !row._confirmed &&
+                            ((row._validation_status || "").toString().toLowerCase() !== "ambiguous") &&
+                            ((row._validation_status || "").toString().toLowerCase() !== "correct") &&
+                            ((row._ai_type || "").toString().toLowerCase() !== "correct") &&
+                            ((row._ai_suggestion || "").toString().toLowerCase() !== "true") && (
+                            <>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleConfirm(row._id)}
+                                    className="h-7 w-7 p-0 bg-green-50 hover:bg-green-100 dark:bg-green-950/30 dark:hover:bg-green-950/50 border-green-500 text-green-700 dark:text-green-300"
+                                  >
+                                    <Check className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Confirm AI suggestion</p>
+                                </TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleReject(row._id)}
+                                    className="h-7 w-7 p-0 bg-red-50 hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-950/50 border-red-500 text-red-700 dark:text-red-300"
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Reject AI suggestion</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </>
+                          )}
+                        </div>
                         {/* Show confirmed icon if confirmed */}
                         {row._confirmed && (
                           <Tooltip>
@@ -798,6 +1014,116 @@ export function DataGrid({
           </div>
         </div>
       </div>
+
+      <Dialog open={!!compareRow} onOpenChange={(open) => !open && setCompareRow(null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Compare Result</DialogTitle>
+            <DialogDescription>
+              Review the current value versus AI's proposed value before confirming.
+            </DialogDescription>
+          </DialogHeader>
+
+          {compareRow && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-2">Current</p>
+                  <div className="bg-secondary/50 rounded px-3 py-2 border border-border font-mono text-sm">
+                    {String(compareRow[resultColumn] ?? "-")}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-2">AI</p>
+                  <div className="bg-secondary/50 rounded px-3 py-2 border border-border font-mono text-sm">
+                    {String((compareRow._corrected_value ?? (compareRow._ai_suggestion ?? "")) || "-")}
+                  </div>
+                </div>
+              </div>
+
+              {compareRow._ai_reasoning && (
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-2">Reasoning</p>
+                  <p className="text-sm text-foreground">{compareRow._ai_reasoning}</p>
+                </div>
+              )}
+
+              {(compareRow._validation_status || compareRow._ai_type) && (
+                <div className="text-xs">
+                  <span className="text-muted-foreground mr-1">Type:</span>
+                  <span className="font-medium">{String(compareRow._ai_type || compareRow._validation_status)}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            {compareRow && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    handleReject(compareRow._id)
+                    setCompareRow(null)
+                  }}
+                >
+                  Reject
+                </Button>
+                <Button
+                  onClick={() => {
+                    handleConfirm(compareRow._id)
+                    setCompareRow(null)
+                  }}
+                >
+                  Accept
+                </Button>
+              </div>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Export CSV</DialogTitle>
+            <DialogDescription>
+              Choose the delimiter for your CSV export. The best delimiter has been automatically detected based on your data.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="delimiter">Delimiter</Label>
+              <Select value={exportDelimiter} onValueChange={setExportDelimiter}>
+                <SelectTrigger id="delimiter">
+                  <SelectValue placeholder="Select delimiter" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value=",">Comma (,)</SelectItem>
+                  <SelectItem value=";">Semicolon (;)</SelectItem>
+                  <SelectItem value="|">Pipe (|)</SelectItem>
+                  <SelectItem value="\t">Tab</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Selected: {getDelimiterName(exportDelimiter)}
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowExportDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => handleExport(exportDelimiter)} className="gap-2">
+              <Download className="h-4 w-4" />
+              Export
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </TooltipProvider>
   )
 }

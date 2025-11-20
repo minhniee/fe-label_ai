@@ -1,141 +1,120 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, CheckCircle, XCircle, ArrowLeft } from "lucide-react";
-import Link from "next/link";
+import { useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { getMe } from "@/app/api/auth";
 
-export default function AuthCallback() {
+export default function AuthCallbackPage() {
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
-  const [hydrated, setHydrated] = useState(false);
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
+  const searchParams = useSearchParams();
 
   useEffect(() => {
-    // Chờ client-side mount xong
-    setHydrated(true);
-  }, []);
+    const accessToken = searchParams.get("access_token");
+    const refreshToken = searchParams.get("refresh_token");
+    const picture = searchParams.get("picture");
+    const error = searchParams.get("error");
 
-  useEffect(() => {
-    if (!hydrated || typeof window === 'undefined') return; // tránh chạy trên server
+    if (error) {
+      console.error("OAuth Error:", error);
+      router.replace("/login?error=oauth_failed");
+      return;
+    }
 
-    const handleAuthCallback = async () => {
+    if (accessToken) {
       try {
-        const url = window.location.href;
-        console.log("📍 URL hiện tại:", url);
+        localStorage.setItem("access_token", accessToken);
+        if (refreshToken) {
+          localStorage.setItem("refresh_token", refreshToken);
+        }
+        if (picture) {
+          // Save the picture URL separately for easy access by the sidebar
+          localStorage.setItem("picture", picture);
+        }
+      } catch (e) {
+        console.error("Failed to save auth data to localStorage", e);
+        router.replace("/login?error=storage_failed");
+        return;
+      }
 
-        const params = new URLSearchParams(window.location.search);
-        const errorParam = params.get("error");
+      // Check for pending invitation token
+      const pendingInviteToken = localStorage.getItem("pending_invite_token");
+      if (pendingInviteToken) {
+        // Remove the pending token
+        localStorage.removeItem("pending_invite_token");
+        
+        // Redirect to accept invitation page to handle acceptance
+        router.replace(`/invites/accept?token=${pendingInviteToken}`);
+        return;
+      }
 
-        // Check for OAuth errors first
-        if (errorParam) {
-          setError("Có lỗi xảy ra trong quá trình xác thực với Google. Vui lòng thử lại.");
-          setStatus('error');
-          return;
+      // Async function to handle user info and redirect
+      const handleRedirect = async () => {
+        // Get user info to validate redirect URL
+        let userRoleId: number | null = null;
+        try {
+          const me = await getMe();
+          userRoleId = me?.role_id || null;
+          // Update localStorage with user info
+          if (me) {
+            localStorage.setItem("user", JSON.stringify(me));
+          }
+        } catch (e) {
+          console.error("Failed to get user info:", e);
         }
 
-        // With HTTP-only cookies, we don't need to check for tokens in URL params
-        // The backend has already set the cookies, so we can proceed directly
-        
-        setStatus('success');
-        
-        // Redirect after a short delay to show success state
-        setTimeout(() => {
-          const redirectPath = localStorage.getItem('redirect_after_login') || '/dashboard';
-          localStorage.removeItem('redirect_after_login');
-          router.replace(redirectPath);
-        }, 1500);
+        // Check for saved redirect URL from Google login
+        const redirectAfterLogin = localStorage.getItem("redirect_after_login");
+        if (redirectAfterLogin) {
+          // Remove the saved redirect URL
+          localStorage.removeItem("redirect_after_login");
+          
+          // Extract path + search from URL if it's a full URL, otherwise use as-is
+          let redirectPath: string;
+          try {
+            // Try to parse as full URL (with protocol)
+            if (redirectAfterLogin.startsWith('http://') || redirectAfterLogin.startsWith('https://')) {
+              const url = new URL(redirectAfterLogin);
+              redirectPath = url.pathname + url.search;
+            } else {
+              // Already a path + search (relative URL)
+              redirectPath = redirectAfterLogin;
+            }
+          } catch {
+            // If parsing fails, assume it's already a path + search
+            redirectPath = redirectAfterLogin;
+          }
+          
+          // Validate redirect path based on user role
+          const isAdminRoute = redirectPath.includes('/admin/');
+          const isAdmin = userRoleId === 1; // Admin role_id = 1
+          
+          // Only allow redirect to admin routes if user is admin
+          if (isAdminRoute && !isAdmin) {
+            // User is not admin but trying to access admin route, redirect to projects
+            console.warn("Non-admin user attempted to access admin route, redirecting to /projects");
+            router.replace("/projects");
+          } else {
+            // Safe to redirect to saved URL
+            router.replace(redirectPath);
+          }
+        } else {
+          // Default redirect to projects
+          router.replace("/projects");
+        }
+      };
 
-      } catch (err) {
-        console.error('Auth callback error:', err);
-        setError("Có lỗi xảy ra trong quá trình đăng nhập.");
-        setStatus('error');
-      }
-    };
-
-    handleAuthCallback();
-  }, [hydrated, router]);
-
-  if (!hydrated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <Card className="w-full max-w-md mx-4">
-          <CardContent className="flex flex-col items-center justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600 mb-4" />
-            <p className="text-gray-600">Đang khởi tạo...</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+      handleRedirect();
+    } else {
+      // Handle case where no token is provided
+      router.replace("/login?error=no_token");
+    }
+  }, [router, searchParams]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold text-gray-900">
-            {status === 'success' ? 'Đăng nhập thành công!' : 
-             status === 'error' ? 'Đăng nhập thất bại' : 
-             'Đang xử lý đăng nhập...'}
-          </CardTitle>
-          <CardDescription>
-            {status === 'success' ? 'Chào mừng bạn quay trở lại!' :
-             status === 'error' ? 'Vui lòng thử lại sau' :
-             'Vui lòng chờ trong giây lát...'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col items-center space-y-4">
-          {status === 'loading' && (
-            <>
-              <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
-              <p className="text-gray-600 text-center">
-                Đang xác thực với Google...
-              </p>
-            </>
-          )}
-
-          {status === 'success' && (
-            <>
-              <CheckCircle className="h-12 w-12 text-green-600" />
-              <p className="text-gray-600 text-center">
-                Đang chuyển hướng đến trang chủ...
-              </p>
-            </>
-          )}
-
-          {status === 'error' && (
-            <>
-              <XCircle className="h-12 w-12 text-red-600" />
-              <Alert className="w-full">
-                <AlertDescription>
-                  {error || 'Có lỗi xảy ra trong quá trình đăng nhập.'}
-                </AlertDescription>
-              </Alert>
-              <div className="flex flex-col sm:flex-row gap-2 w-full">
-                <Button 
-                  onClick={() => window.location.reload()} 
-                  className="flex-1"
-                >
-                  Thử lại
-                </Button>
-                <Button 
-                  variant="outline" 
-                  asChild
-                  className="flex-1"
-                >
-                  <Link href="/login">
-                    <ArrowLeft className="w-4 h-4 mr-2" />
-                    Về trang chủ
-                  </Link>
-                </Button>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="flex flex-col items-center space-y-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
     </div>
   );
 }

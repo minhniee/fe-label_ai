@@ -1,31 +1,14 @@
-import { getAuthHeaders } from "./auth"
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
-
-/**
- * Centralized API management for LabelAI functionality
- * All functions include authentication headers automatically
- */
-
+import api from "./client"
 /**
  * Get dataset version data
  */
 export async function getDatasetVersionData(datasetId: string, versionId: string) {
   try {
-    const response = await fetch(`/api/datasets/${datasetId}/versions/${versionId}`, {
-      method: "GET",
-      headers: getAuthHeaders(),
+    const response = await api.get(`/datasets/${datasetId}/versions/${versionId}`,{
     })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.error || `HTTP ${response.status}`)
-    }
-
-    const result = await response.json()
-    return result
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Failed to get dataset version data"
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || error.message || "Failed to get dataset version data"
     throw new Error(errorMessage)
   }
 }
@@ -35,21 +18,31 @@ export async function getDatasetVersionData(datasetId: string, versionId: string
  */
 export async function getDatasets() {
   try {
-    const response = await fetch("/api/datasets", {
-      method: "GET",
-      headers: getAuthHeaders(),
+    const response = await api.get(`/datasets`,{
     })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.error || `HTTP ${response.status}`)
+    const datasets = response.data
+    
+    // Transform backend format to frontend format
+    const transformedDatasets = (Array.isArray(datasets) ? datasets : []).map((ds: any) => ({
+      id: String(ds.dataset_id),
+      name: ds.name || '',
+      description: ds.description || '',
+      rowCount: 0, // Will be populated by version data
+      columns: [],
+      createdAt: ds.created_at || new Date().toISOString(),
+    }))
+    
+    return {
+      success: true,
+      datasets: transformedDatasets
     }
-
-    const result = await response.json()
-    return result
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Failed to get datasets"
-    throw new Error(errorMessage)
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || error.message || "Failed to get datasets"
+    return {
+      success: false,
+      error: errorMessage,
+      datasets: []
+    }
   }
 }
 
@@ -58,21 +51,59 @@ export async function getDatasets() {
  */
 export async function getDatasetVersions(datasetId: string) {
   try {
-    const response = await fetch(`/api/datasets/${datasetId}/versions`, {
-      method: "GET",
-      headers: getAuthHeaders(),
+    const response = await api.get(`/datasets/${datasetId}/versions`,{
     })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.error || `HTTP ${response.status}`)
+    const versions = response.data
+    
+    // Get files for each version to populate data
+    const transformedVersions = await Promise.all(
+      (Array.isArray(versions) ? versions : []).map(async (v: any) => {
+        let rowCount = 0
+        let columnCount = 0
+        let columns: string[] = []
+        let fileName = `Version ${v.version_number}`
+        
+        try {
+          // Get files for this version
+          const filesResponse = await api.get(`/datasets/versions/${v.version_id}/files`,{
+          })
+          const files = filesResponse.data
+          if (Array.isArray(files) && files.length > 0) {
+            const file = files[0]
+            rowCount = file.line_count || 0
+            columnCount = file.column_count || 0
+            columns = file.column_names || []
+            fileName = file.file_name || fileName
+          }
+        } catch (err) {
+          // If fetching file data fails, use defaults
+        }
+        
+        return {
+          id: String(v.version_id),
+          versionNumber: String(v.version_number),
+          fileName,
+          description: v.changelog || '',
+          rowCount,
+          columnCount,
+          columns,
+          uploadDate: v.created_at || new Date().toISOString(),
+          status: 'active'
+        }
+      })
+    )
+    
+    return {
+      success: true,
+      versions: transformedVersions
     }
-
-    const result = await response.json()
-    return result
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Failed to get dataset versions"
-    throw new Error(errorMessage)
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || error.message || "Failed to get dataset versions"
+    return {
+      success: false,
+      error: errorMessage,
+      versions: []
+    }
   }
 }
 
@@ -87,35 +118,147 @@ export async function labelData(data: {
   resultColumn?: string
   referenceContext?: string
   multiColumnConfig?: any
+  project_id?: number
+  embedding_provider?: string
+  embedding_api_key?: string
+  embedding_model?: string
+  document_ids?: number[]
 }) {
   try {
-    // Call backend endpoint directly to support all models (GPT, Claude, DeepSeek, Qwen, etc.)
-    const response = await fetch(`${API_BASE}/ai-labeling/label`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeaders(),
-      },
-      body: JSON.stringify({
-        rows: data.rows,
-        model: data.model,
-        apiKey: data.apiKey,
-        contextColumn: data.contextColumn,
-        resultColumn: data.resultColumn || "",
-        referenceContext: data.referenceContext || "",
-        multiColumnConfig: Array.isArray(data.multiColumnConfig) ? data.multiColumnConfig : [],
-      }),
+    const response = await api.post(`/ai-labeling/label`, {
+      rows: data.rows,
+      model: data.model,
+      apiKey: data.apiKey,
+      contextColumn: data.contextColumn,
+      resultColumn: data.resultColumn || "",
+      referenceContext: data.referenceContext || "",
+      multiColumnConfig: Array.isArray(data.multiColumnConfig) ? data.multiColumnConfig : [],
+      project_id: data.project_id,
+      embedding_provider: data.embedding_provider || "local",
+      embedding_api_key: data.embedding_api_key,
+      embedding_model: data.embedding_model,
+      document_ids: data.document_ids,
     })
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.error || error.message || "Failed to label data"
+    throw new Error(errorMessage)
+  }
+}
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.error || `HTTP ${response.status}`)
+/**
+ * Document RAG API functions
+ */
+
+/**
+ * Upload document to project (NotebookLM style)
+ */
+export async function uploadDocument(projectId: number, file: File) {
+  try {
+    const formData = new FormData()
+    formData.append("file", file)
+
+    const response = await api.post(
+      `/documents/upload?project_id=${projectId}`,
+      formData
+    )
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || error.message || "Failed to upload document"
+    throw new Error(errorMessage)
+  }
+}
+
+/**
+ * Get all documents in a project
+ */
+export async function getProjectDocuments(projectId: number) {
+  try {
+    const response = await api.get(`/documents/project/${projectId}`)
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || error.message || "Failed to get documents"
+    throw new Error(errorMessage)
+  }
+}
+
+/**
+ * Search documents in project
+ */
+export async function searchDocuments(
+  projectId: number,
+  query: string,
+  topK: number = 5,
+  minScore: number = 0.3,
+  embeddingProvider: string = "local",
+  embeddingApiKey?: string,
+  embeddingModel?: string
+) {
+  try {
+    const params = new URLSearchParams({
+      project_id: projectId.toString(),
+      query,
+      top_k: topK.toString(),
+      min_score: minScore.toString(),
+      embedding_provider: embeddingProvider,
+    })
+    
+    if (embeddingApiKey) {
+      params.append('embedding_api_key', embeddingApiKey)
+    }
+    if (embeddingModel) {
+      params.append('embedding_model', embeddingModel)
     }
 
-    const result = await response.json()
-    return result
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Failed to label data"
+    const response = await api.post(`/documents/search?${params.toString()}`, {})
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || error.message || "Failed to search documents"
+    throw new Error(errorMessage)
+  }
+}
+
+/**
+ * Index project documents with custom embedding provider
+ */
+export async function indexProjectDocuments(
+  projectId: number,
+  embeddingProvider: string = "local",
+  embeddingApiKey?: string,
+  embeddingModel?: string,
+  forceReindex: boolean = false
+) {
+  try {
+    const params = new URLSearchParams({
+      project_id: projectId.toString(),
+      embedding_provider: embeddingProvider,
+      force_reindex: forceReindex.toString(),
+    })
+    
+    if (embeddingApiKey) {
+      params.append('embedding_api_key', embeddingApiKey)
+    }
+    if (embeddingModel) {
+      params.append('embedding_model', embeddingModel)
+    }
+
+    const response = await api.post(`/documents/index-project?${params.toString()}`, {})
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || error.message || "Failed to index documents"
+    throw new Error(errorMessage)
+  }
+}
+
+/**
+ * Delete a document
+ */
+export async function deleteDocument(documentId: number) {
+  try {
+    const response = await api.delete(`/documents/${documentId}`)
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || error.message || "Failed to delete document"
     throw new Error(errorMessage)
   }
 }
@@ -125,24 +268,11 @@ export async function labelData(data: {
  */
 export async function aiSearch(query: string) {
   try {
-    const response = await fetch("/api/ai-search", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeaders(),
-      },
-      body: JSON.stringify({ query }),
+    const response = await api.post(`/ai-search`, { query },{
     })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.error || `HTTP ${response.status}`)
-    }
-
-    const result = await response.json()
-    return result
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Failed to search"
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.error || error.message || "Failed to search"
     throw new Error(errorMessage)
   }
 }
@@ -150,54 +280,79 @@ export async function aiSearch(query: string) {
 /**
  * Generate data
  */
-export async function generateData(data: any) {
+export async function generateData(data: {
+  topic: string
+  rowCount: number
+  columns: string[]
+  instructions?: string
+  referenceContext?: string
+  apiKey?: string
+}) {
   try {
-    const response = await fetch("/api/generate-data", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeaders(),
-      },
-      body: JSON.stringify(data),
+    const response = await api.post(`/gen-ai/generate-dataset`, {
+      topic: data.topic,
+      row_count: data.rowCount,
+      columns: data.columns.join(", "),
+      instructions: data.instructions || "",
+      reference_context: data.referenceContext || "",
+      api_key: data.apiKey || "",
+    },{
     })
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.error || `HTTP ${response.status}`)
-    }
-
-    const result = await response.json()
-    return result
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Failed to generate data"
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.error || error?.response?.data?.detail || error.message || "Failed to generate data"
     throw new Error(errorMessage)
   }
 }
 
 /**
- * Generate more data
+ * Generate more data (from uploaded reference file)
  */
-export async function generateMoreData(data: any) {
+export async function generateMoreData(data: {
+  columns: string[];
+  count: number;
+  prompt: string;
+  contextColumn: string;
+  apiKey: string;
+  model: string;
+  referenceFileContent: string;
+}) {
   try {
-    const response = await fetch("/api/generate-more-data", {
+    console.log("Calling generateMoreData API:", {
+      url: `/gen-ai/generate-rows-from-file`,
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeaders(),
-      },
-      body: JSON.stringify(data),
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.error || `HTTP ${response.status}`)
-    }
-
-    const result = await response.json()
-    return result
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Failed to generate more data"
-    throw new Error(errorMessage)
+      columns: data.columns.length,
+      count: data.count,
+      hasContent: !!data.referenceFileContent,
+      contentLength: data.referenceFileContent?.length || 0
+    });
+    
+    const response = await api.post(`/gen-ai/generate-rows-from-file`, {
+      file_content: data.referenceFileContent,
+      columns: data.columns,
+      count: data.count,
+      prompt: data.prompt,
+      context_column: data.contextColumn,
+      api_key: data.apiKey,
+      model: data.model,
+    },{
+    });
+    return response.data;
+  } catch (error: any) {
+    console.error("Error generating more data:", error);
+    console.error("Error response:", error?.response?.data);
+    console.error("Request method:", error?.config?.method);
+    console.error("Request URL:", error?.config?.url);
+    
+    // Get error message from different possible locations
+    const errorMessage = 
+      error?.response?.data?.detail || 
+      error?.response?.data?.error || 
+      error?.message || 
+      "Failed to generate more data";
+    
+    throw new Error(errorMessage);
   }
 }
 
@@ -206,24 +361,11 @@ export async function generateMoreData(data: any) {
  */
 export async function submitDataset(data: any) {
   try {
-    const response = await fetch("/api/datasets/submit", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeaders(),
-      },
-      body: JSON.stringify(data),
+    const response = await api.post(`/datasets/submit`, data,{
     })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.error || `HTTP ${response.status}`)
-    }
-
-    const result = await response.json()
-    return result
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Failed to submit dataset"
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.error || error.message || "Failed to submit dataset"
     throw new Error(errorMessage)
   }
 }
@@ -236,29 +378,14 @@ export async function parseReference(file: File) {
     const formData = new FormData()
     formData.append("file", file)
 
-    const headers: Record<string, string> = {}
-    try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`
-      }
-    } catch {}
-
-    const response = await fetch("/api/parse-reference", {
-      method: "POST",
-      headers,
-      body: formData,
+    const response = await api.post(`/gen-ai/parse-reference`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
     })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.error || `HTTP ${response.status}`)
-    }
-
-    const result = await response.json()
-    return result
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Failed to parse reference file"
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.error || error.message || "Failed to parse reference file"
     throw new Error(errorMessage)
   }
 }
@@ -266,29 +393,71 @@ export async function parseReference(file: File) {
 /**
  * Test API key
  */
-export async function testApiKey(apiKey: string, model: string = "gemini-flash-2.5") {
+export async function testApiKey(apiKey: string, model: string = "gemini-2.5-flash") {
   try {
-    const response = await fetch(`${API_BASE}/ai-labeling/test-key`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeaders(),
-      },
-      body: JSON.stringify({
-        apiKey,
-        model,
-      }),
+    const response = await api.post(`/ai-labeling/test-key`, {
+      apiKey,
+      model,
+    },{
     })
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.error || error.message || "Failed to test API key"
+    throw new Error(errorMessage)
+  }
+}
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.error || `HTTP ${response.status}`)
-    }
+/**
+ * Semantic Search API functions
+ */
 
-    const result = await response.json()
-    return result
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Failed to test API key"
+/**
+ * Index a CSV file for semantic search
+ */
+export async function indexFileForSemanticSearch(fileId: number, textColumns?: string[], forceReindex: boolean = false) {
+  try {
+    const response = await api.post(`/api/semantic-search/index`, {
+      file_id: fileId,
+      text_columns: textColumns,
+      force_reindex: forceReindex,
+    }, {
+    })
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || error.message || "Failed to index file"
+    throw new Error(errorMessage)
+  }
+}
+
+/**
+ * Perform semantic search on an indexed file
+ */
+export async function semanticSearch(fileId: number, query: string, topK: number = 10, minScore: number = 0.3) {
+  try {
+    const response = await api.post(`/api/semantic-search/search`, {
+      file_id: fileId,
+      query: query,
+      top_k: topK,
+      min_score: minScore,
+    }, {
+    })
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || error.message || "Failed to search"
+    throw new Error(errorMessage)
+  }
+}
+
+/**
+ * Check if a file is indexed
+ */
+export async function getSemanticSearchIndexStatus(fileId: number) {
+  try {
+    const response = await api.get(`/api/semantic-search/index-status/${fileId}`, {
+    })
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || error.message || "Failed to get index status"
     throw new Error(errorMessage)
   }
 }

@@ -1,21 +1,4 @@
-import axios from 'axios'
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
-
-// Configure axios to send cookies with requests
-axios.defaults.withCredentials = true
-
-// Helper function to get auth headers (keeping for backward compatibility)
-const getAuthHeaders = () => {
-  const headers: Record<string, string> = {}
-  try {
-    const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`
-    }
-  } catch {}
-  return headers
-}
+import api from './client'
 
 export interface CreateLabelRequest {
   name: string
@@ -147,11 +130,7 @@ export interface DatasetLabelsOverview {
 
 export async function createLabel(data: CreateLabelRequest): Promise<CreateLabelResponse> {
   try {
-    const response = await axios.post<CreateLabelResponse>(`${API_BASE}/labels/`, data, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.post<CreateLabelResponse>(`/labels/`, data, {
     })
     return response.data
   } catch (error: any) {
@@ -165,11 +144,7 @@ export async function createLabel(data: CreateLabelRequest): Promise<CreateLabel
 // GET /labels/ - Get all labels
 export async function getAllLabels(): Promise<LabelResponse[]> {
   try {
-    const response = await axios.get<GetAllLabelsResponse>(`${API_BASE}/labels/`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<GetAllLabelsResponse>(`/labels/`, {
     })
     return response.data.labels
   } catch (error: any) {
@@ -181,11 +156,7 @@ export async function getAllLabels(): Promise<LabelResponse[]> {
 // GET /labels/{label_id}
 export async function getLabel(labelId: number): Promise<LabelResponse> {
   try {
-    const response = await axios.get<LabelResponse>(`${API_BASE}/labels/${labelId}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<LabelResponse>(`/labels/${labelId}`, {
     })
     return response.data
   } catch (error: any) {
@@ -197,11 +168,7 @@ export async function getLabel(labelId: number): Promise<LabelResponse> {
 // GET /labels/dataset/{dataset_id}
 export async function getLabelsByDataset(datasetId: number): Promise<GetLabelsByDatasetResponse> {
   try {
-    const response = await axios.get<GetLabelsByDatasetResponse>(`${API_BASE}/labels/dataset/${datasetId}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<GetLabelsByDatasetResponse>(`/labels/dataset/${datasetId}`, {
     })
     return response.data
   } catch (error: any) {
@@ -213,11 +180,7 @@ export async function getLabelsByDataset(datasetId: number): Promise<GetLabelsBy
 // POST /labels/search
 export async function searchLabels(filters: SearchLabelsRequest): Promise<SearchLabelsResponse> {
   try {
-    const response = await axios.post<SearchLabelsResponse>(`${API_BASE}/labels/search`, filters, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.post<SearchLabelsResponse>(`/labels/search`, filters, {
     })
     return response.data
   } catch (error: any) {
@@ -229,11 +192,7 @@ export async function searchLabels(filters: SearchLabelsRequest): Promise<Search
 // GET /labels/dataset/{dataset_id}/statistics
 export async function getLabelStatistics(datasetId: number): Promise<LabelStatsResponse[]> {
   try {
-    const response = await axios.get<LabelStatsResponse[]>(`${API_BASE}/labels/dataset/${datasetId}/statistics`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<LabelStatsResponse[]>(`/labels/dataset/${datasetId}/statistics`, {
     })
     return response.data
   } catch (error: any) {
@@ -245,11 +204,7 @@ export async function getLabelStatistics(datasetId: number): Promise<LabelStatsR
 // POST /labels/bulk
 export async function bulkCreateLabels(request: BulkCreateLabelsRequest): Promise<LabelResponse[]> {
   try {
-    const response = await axios.post<LabelResponse[]>(`${API_BASE}/labels/bulk`, request, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.post<LabelResponse[]>(`/labels/bulk`, request, {
     })
     return response.data
   } catch (error: any) {
@@ -261,11 +216,7 @@ export async function bulkCreateLabels(request: BulkCreateLabelsRequest): Promis
 // POST /labels/validate
 export async function validateLabel(data: CreateLabelRequest): Promise<LabelValidationResponse> {
   try {
-    const response = await axios.post<LabelValidationResponse>(`${API_BASE}/labels/validate`, data, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.post<LabelValidationResponse>(`/labels/validate`, data, {
     })
     return response.data
   } catch (error: any) {
@@ -277,11 +228,7 @@ export async function validateLabel(data: CreateLabelRequest): Promise<LabelVali
 // GET /labels/dataset/{dataset_id}/overview
 export async function getDatasetLabelsOverview(datasetId: number): Promise<DatasetLabelsOverview> {
   try {
-    const response = await axios.get<DatasetLabelsOverview>(`${API_BASE}/labels/dataset/${datasetId}/overview`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.get<DatasetLabelsOverview>(`/labels/dataset/${datasetId}/overview`, {
     })
     return response.data
   } catch (error: any) {
@@ -293,11 +240,7 @@ export async function getDatasetLabelsOverview(datasetId: number): Promise<Datas
 // PUT /labels/{label_id}
 export async function updateLabel(labelId: number, data: UpdateLabelRequest): Promise<LabelResponse> {
   try {
-    const response = await axios.put<LabelResponse>(`${API_BASE}/labels/${labelId}`, data, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    const response = await api.put<LabelResponse>(`/labels/${labelId}`, data, {
     })
     return response.data
   } catch (error: any) {
@@ -309,11 +252,7 @@ export async function updateLabel(labelId: number, data: UpdateLabelRequest): Pr
 // DELETE /labels/{label_id}
 export async function deleteLabel(labelId: number): Promise<void> {
   try {
-    await axios.delete(`${API_BASE}/labels/${labelId}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+    await api.delete(`/labels/${labelId}`, {
     })
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to delete label'

@@ -20,6 +20,12 @@ export function ColumnSelector({
   onContextColumnChange,
   onResultColumnChange,
 }: ColumnSelectorProps) {
+  // Filter out internal columns that should never be selectable
+  const internalColumns = ["_id", "_ai_suggestion", "_ai_reasoning", "_confirmed", "_validation_status", "_corrected_value", "__corrected_value", "_is_new"]
+  const selectableColumns = columns.filter(
+    (col) => !internalColumns.includes(col) && !col.startsWith("_validation_status") && !col.startsWith("_corrected_value") && !col.startsWith("__corrected_value")
+  )
+
   return (
     <Card className="p-4">
       <div className="flex items-start gap-4">
@@ -36,7 +42,7 @@ export function ColumnSelector({
                 <SelectValue placeholder="Select context column" />
               </SelectTrigger>
               <SelectContent>
-                {columns.map((col) => (
+                {selectableColumns.map((col) => (
                   <SelectItem key={col} value={col}>
                     {col}
                   </SelectItem>
@@ -54,7 +60,7 @@ export function ColumnSelector({
                 <SelectValue placeholder="Select result column" />
               </SelectTrigger>
               <SelectContent>
-                {columns.map((col) => (
+                {selectableColumns.map((col) => (
                   <SelectItem key={col} value={col}>
                     {col}
                   </SelectItem>

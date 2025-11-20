@@ -7,10 +7,11 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Database, Calendar, Columns, Loader2, Sparkles, FileText, ArrowLeft, ChevronRight, Upload, Key, CheckCircle2, XCircle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import Papa from "papaparse"
+import * as dataset from "@/app/api/dataset"
 import { getDatasets, getDatasetVersions, testApiKey } from "@/app/api/labelai"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { parseCSVFromFile, getApiKeyFromStorage, saveApiKeyToStorage } from "@/lib/label-ai-utils"
 
 interface Dataset {
   id: string
@@ -35,7 +36,7 @@ interface DatasetVersion {
 
 interface DatasetSelectorProps {
   onVersionSelect: (datasetId: string, versionId: string) => void
-  onGenerateClick: () => void
+  onGenerateClick?: () => void
   onFileUpload?: (data: any[], columns: string[], fileName: string) => void
 }
 
@@ -56,15 +57,12 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
   useEffect(() => {
     fetchDatasets()
     // Load API key from localStorage if available
-    try {
-      const savedApiKey = localStorage.getItem("gemini_api_key")
-      if (savedApiKey) {
-        setApiKey(savedApiKey)
-      }
-    } catch (error) {
-      // Ignore localStorage errors
+    const savedApiKey = getApiKeyFromStorage()
+    if (savedApiKey) {
+      setApiKey(savedApiKey)
     }
   }, [])
+
 
   const fetchDatasets = async () => {
     try {
@@ -197,16 +195,12 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
     setApiKeyStatus("idle")
 
     try {
-      const result = await testApiKey(apiKey.trim(), "gemini-flash-2.5")
+      const result = await testApiKey(apiKey.trim(), "gemini-2.5-flash")
 
       if (result.success) {
         setApiKeyStatus("valid")
         // Save API key to localStorage
-        try {
-          localStorage.setItem("gemini_api_key", apiKey.trim())
-        } catch (error) {
-          // Ignore localStorage errors
-        }
+        saveApiKeyToStorage(apiKey.trim())
         toast({
           title: "API Key Valid",
           description: result.message || "API key is valid and ready to use",
@@ -232,7 +226,7 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
     }
   }
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
 
@@ -247,58 +241,30 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
 
     setIsUploading(true)
 
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        try {
-          if (results.errors.length > 0) {
-            throw new Error(results.errors[0].message)
-          }
+    try {
+      const { data, columns } = await parseCSVFromFile(file)
 
-          const data = results.data as any[]
-          const columns = results.meta.fields || []
+      onFileUpload?.(data, columns, file.name)
 
-          if (data.length === 0) {
-            throw new Error("CSV file is empty")
-          }
+      toast({
+        title: "File uploaded successfully",
+        description: `Loaded ${data.length} rows with ${columns.length} columns`,
+      })
 
-          if (columns.length === 0) {
-            throw new Error("No columns found in CSV file")
-          }
-
-          onFileUpload?.(data, columns, file.name)
-
-          toast({
-            title: "File uploaded successfully",
-            description: `Loaded ${data.length} rows with ${columns.length} columns`,
-          })
-
-          // Reset file input
-          if (fileInputRef.current) {
-            fileInputRef.current.value = ""
-          }
-        } catch (error) {
-          console.error("Error parsing CSV:", error)
-          toast({
-            title: "Upload failed",
-            description: error instanceof Error ? error.message : "Failed to parse CSV file",
-            variant: "destructive",
-          })
-        } finally {
-          setIsUploading(false)
-        }
-      },
-      error: (error) => {
-        console.error("Error reading file:", error)
-        toast({
-          title: "Upload failed",
-          description: error.message || "Failed to read CSV file",
-          variant: "destructive",
-        })
-        setIsUploading(false)
-      },
-    })
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""
+      }
+    } catch (error) {
+      console.error("Error parsing CSV:", error)
+      toast({
+        title: "Upload failed",
+        description: error instanceof Error ? error.message : "Failed to parse CSV file",
+        variant: "destructive",
+      })
+    } finally {
+      setIsUploading(false)
+    }
   }
 
   if (loading) {
@@ -336,10 +302,12 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
                 </>
               )}
             </Button>
-            <Button onClick={onGenerateClick} variant="outline">
-              <Sparkles className="h-4 w-4 mr-2" />
-              Generate New Data
-            </Button>
+            {onGenerateClick && (
+              <Button onClick={onGenerateClick} variant="outline">
+                <Sparkles className="h-4 w-4 mr-2" />
+                Generate New Data
+              </Button>
+            )}
           </div>
         </div>
 
@@ -462,10 +430,12 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
               </>
             )}
           </Button>
-          <Button onClick={onGenerateClick} variant="outline">
-            <Sparkles className="h-4 w-4 mr-2" />
-            Generate New Data
-          </Button>
+          {onGenerateClick && (
+            <Button onClick={onGenerateClick} variant="outline">
+              <Sparkles className="h-4 w-4 mr-2" />
+              Generate New Data
+            </Button>
+          )}
         </div>
       </div>
 

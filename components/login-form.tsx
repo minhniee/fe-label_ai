@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -21,13 +21,20 @@ import { Input } from "@/components/ui/input"
 import { Eye, EyeOff } from "lucide-react"
 import { loginUser, persistAuth } from "@/app/api/auth"
 import { useToast } from "@/hooks/use-toast"
-import GoogleLoginButton from "@/components/google-login-button"
+import GoogleLoginButton from "@/components/google-login"
 import Link from "next/link"
+
+interface LoginFormProps extends React.ComponentProps<"div"> {
+  callbackUrl?: string | null;
+  error?: string | null;
+}
 
 export function LoginForm({
   className,
+  callbackUrl,
+  error,
   ...props
-}: React.ComponentProps<"div">) {
+}: LoginFormProps) {
   const { toast } = useToast()
   const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
@@ -37,6 +44,43 @@ export function LoginForm({
     password: "",
   })
 
+  // Display error message from URL query params
+  useEffect(() => {
+    if (error) {
+      let errorMessage = "An error occurred during authentication";
+      
+      switch (error) {
+        case "oauth_failed":
+          errorMessage = "Google OAuth authentication failed. Please try again.";
+          break;
+        case "oauth_error":
+          errorMessage = "OAuth authentication error. Please try again.";
+          break;
+        case "no_token":
+          errorMessage = "No authentication token received. Please try again.";
+          break;
+        case "storage_failed":
+          errorMessage = "Failed to save authentication data. Please check your browser settings.";
+          break;
+        default:
+          errorMessage = `Authentication error: ${error}`;
+      }
+      
+      toast({
+        title: "Authentication Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      
+      // Clean up the URL by removing the error parameter
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("error");
+        window.history.replaceState({}, "", url.toString());
+      }
+    }
+  }, [error, toast])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
@@ -45,20 +89,39 @@ export function LoginForm({
       const token = await loginUser(formData.identifier, formData.password)
       persistAuth(token)
       
+      // Clear any old redirect_after_login from previous sessions
+      try {
+        localStorage.removeItem('redirect_after_login')
+      } catch {}
+      
       toast({
         title: "Login successful",
         description: "Welcome back!",
       })
 
-      // Redirect based on role
-      const roleId = token.user?.role_id
-      if (roleId === 1 || roleId === 2) {
-        window.location.href = "/dashboard"
-      } else if (roleId === 3) {
-        window.location.href = "/dashboard"
-      } else {
-        window.location.href = "/dashboard"
+      // Validate callbackUrl based on user role
+      let redirectUrl = "/projects"; // Default redirect
+      
+      if (callbackUrl) {
+        // Check if callbackUrl is an admin route
+        const isAdminRoute = callbackUrl.includes('/admin/');
+        
+        // Get user role from token
+        const userRoleId = token?.user?.role_id;
+        const isAdmin = userRoleId === 1; // Admin role_id = 1
+        
+        // Only allow redirect to admin routes if user is admin
+        if (isAdminRoute && !isAdmin) {
+          // User is not admin but trying to access admin route, redirect to projects
+          console.warn("Non-admin user attempted to access admin route, redirecting to /projects");
+          redirectUrl = "/projects";
+        } else {
+          // Safe to redirect to callbackUrl
+          redirectUrl = callbackUrl;
+        }
       }
+      
+      window.location.href = redirectUrl;
     } catch (error: any) {
       toast({
         title: "Login failed",
@@ -80,6 +143,7 @@ export function LoginForm({
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
+        
         <CardHeader>
           <CardTitle>Login to your account</CardTitle>
           <CardDescription>
@@ -104,12 +168,12 @@ export function LoginForm({
               <Field>
                 <div className="flex items-center">
                   <FieldLabel htmlFor="password">Password</FieldLabel>
-                  <Link
+                  {/* <Link
                     href="/forgot-password"
                     className="ml-auto inline-block text-sm underline-offset-4 hover:underline"
                   >
                     Forgot your password?
-                  </Link>
+                  </Link> */}
                 </div>
                 <div className="relative">
                   <Input

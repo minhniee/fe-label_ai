@@ -1,15 +1,17 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Plus, Sparkles, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
-import type { RowData } from "@/app/page"
+import type { RowData } from "@/app/(navigation)/[projectId]/labelai/page"
 import { generateMoreData } from "@/app/api/labelai"
+import { getApiKeyFromStorage } from "@/lib/label-ai-utils"
 
 interface DataManagerProps {
   data: RowData[]
@@ -20,6 +22,8 @@ interface DataManagerProps {
   contextColumn: string
   apiKey?: string
   model?: string
+  // (NEW) Reference CSV file content, required for Generate More (enforced by UI)
+  referenceFileContent?: string
 }
 
 export function DataManager({
@@ -30,17 +34,72 @@ export function DataManager({
   onGenerateMore,
   contextColumn,
   apiKey,
-  model = "gemini-flash-2.5",
+  model = "gemini-2.5-flash",
+  referenceFileContent = "" // default empty
 }: DataManagerProps) {
   const [showAddRow, setShowAddRow] = useState(false)
   const [showAddColumn, setShowAddColumn] = useState(false)
-  const [showGenerateMore, setShowGenerateMore] = useState(false)
+  const [showGenerateDialog, setShowGenerateDialog] = useState(false)
   const [newColumnName, setNewColumnName] = useState("")
   const [generateCount, setGenerateCount] = useState("5")
   const [generatePrompt, setGeneratePrompt] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
   const [newRowData, setNewRowData] = useState<Record<string, string>>({})
+  const [effectiveApiKey, setEffectiveApiKey] = useState<string>("")
+  const [effectiveModel, setEffectiveModel] = useState<string>("gemini-2.5-flash")
   const { toast } = useToast()
+
+  // Load API key from localStorage or props
+  useEffect(() => {
+    const savedApiKey = getApiKeyFromStorage()
+    const finalApiKey = apiKey || savedApiKey || ""
+    setEffectiveApiKey(finalApiKey)
+    setEffectiveModel(model || "gemini-2.5-flash")
+  }, [apiKey, model])
+
+  // Convert current data to CSV format for reference
+  const convertDataToCSV = (): string => {
+    // Filter out internal columns (starting with _)
+    const exportColumns = columns.filter(col => !col.startsWith("_"))
+    
+    // Build CSV header
+    const header = exportColumns.join(",")
+    
+    // Build CSV rows
+    const rows = data.map((row) => {
+      return exportColumns
+        .map((col) => {
+          const value = row[col] || ""
+          const stringValue = String(value)
+          // Escape quotes and wrap in quotes if value contains comma, newline, or quote
+          const needsQuotes = stringValue.includes(",") || 
+                             stringValue.includes("\n") || 
+                             stringValue.includes("\r") || 
+                             stringValue.includes('"')
+          if (needsQuotes) {
+            return `"${stringValue.replace(/"/g, '""')}"`
+          }
+          return stringValue
+        })
+        .join(",")
+    })
+    
+    return [header, ...rows].join("\n")
+  }
+
+  // Get reference content: prioritize data, then referenceFileContent, then prompt
+  const getReferenceContent = (): string => {
+    // If we have data, use it
+    if (data.length > 0) {
+      return convertDataToCSV()
+    }
+    // Otherwise use reference file content if available
+    if (referenceFileContent) {
+      return referenceFileContent
+    }
+    // If no data and no file, we'll need prompt (handled in validation)
+    return ""
+  }
 
   const handleAddRow = () => {
     const row: RowData = {
@@ -89,38 +148,57 @@ export function DataManager({
   }
 
   const handleGenerateMore = async () => {
-    if (!apiKey) {
+    const finalApiKey = effectiveApiKey || getApiKeyFromStorage()
+    
+    if (!finalApiKey) {
       toast({
         title: "API key required",
-        description: "Please provide an API key to generate data",
+        description: "Please provide an API key to generate data. You can enter it in the Model Selector section above.",
         variant: "destructive",
       })
       return
     }
 
-    if (data.length === 0) {
+    // Get reference content (data, file, or require prompt)
+    const referenceContent = getReferenceContent()
+    
+    // If no data and no reference file, require prompt to generate from scratch
+    if (!referenceContent && !generatePrompt.trim()) {
       toast({
-        title: "No data to reference",
-        description: "Please load or create some data first",
+        title: "Prompt required",
+        description: "Please enter a description of the data you want to generate, or upload a reference file, or load data first",
         variant: "destructive",
       })
       return
+    }
+
+    // Build reference content: use CSV data if available, otherwise use reference file
+    // If neither exists, create a minimal CSV with headers only (backend requires CSV format)
+    let finalReferenceContent: string
+    if (referenceContent) {
+      finalReferenceContent = referenceContent
+    } else {
+      // Create minimal CSV with headers only when no data/file
+      // Backend requires CSV format, so we create a header row
+      const exportColumns = columns.filter(col => !col.startsWith("_"))
+      finalReferenceContent = exportColumns.join(",") + "\n"
+      // Add a placeholder row to help AI understand structure
+      finalReferenceContent += exportColumns.map(() => "example").join(",")
     }
 
     setIsGenerating(true)
-
     try {
       const result = await generateMoreData({
-        existingData: data.slice(0, 10),
+        referenceFileContent: finalReferenceContent,
         columns,
-        count: Number.parseInt(generateCount),
-        prompt: generatePrompt,
-        apiKey,
-        model,
+        count: Number.parseInt(generateCount) || 5,
+        prompt: generatePrompt.trim() || (referenceContent ? "Generate similar data based on the provided reference" : ""),
+        apiKey: finalApiKey,
+        model: effectiveModel,
         contextColumn,
       })
-
       if (result.success) {
+        // result.data now expected to be array of new row dicts
         const newRows = result.data.map((row: any, index: number) => ({
           _id: `row-generated-${Date.now()}-${index}`,
           _is_new: true,
@@ -129,12 +207,10 @@ export function DataManager({
           _confirmed: false,
           ...row,
         }))
-
         onGenerateMore(newRows)
         setGenerateCount("5")
         setGeneratePrompt("")
-        setShowGenerateMore(false)
-
+        setShowGenerateDialog(false)
         toast({
           title: "Data generated",
           description: `Successfully generated ${newRows.length} new rows`,
@@ -250,67 +326,179 @@ export function DataManager({
               <Sparkles className="h-4 w-4" />
               <h3 className="font-semibold">Generate More</h3>
             </div>
-            {showGenerateMore ? (
-              <div className="space-y-3">
-                <div>
-                  <Label className="text-xs">Number of Rows</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    max="50"
-                    value={generateCount}
-                    onChange={(e) => setGenerateCount(e.target.value)}
-                    className="h-8 text-sm"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs">Additional Instructions</Label>
-                  <Textarea
-                    placeholder="Optional: describe what kind of data to generate"
-                    value={generatePrompt}
-                    onChange={(e) => setGeneratePrompt(e.target.value)}
-                    className="h-16 text-sm resize-none"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    onClick={handleGenerateMore}
-                    disabled={isGenerating}
-                    className="flex-1 h-8 text-xs gap-1"
-                  >
-                    {isGenerating ? (
-                      <>
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Generating...
-                      </>
-                    ) : (
-                      "Generate"
-                    )}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setShowGenerateMore(false)}
-                    className="flex-1 h-8 text-xs"
-                  >
-                    Cancel
-                  </Button>
-                </div>
+            
+            {/* Show info about data source */}
+            {data.length > 0 && (
+              <div className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950/20 p-2 rounded">
+                ✓ Using current CSV data ({data.length} rows) as reference
               </div>
-            ) : (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setShowGenerateMore(true)}
-                className="w-full h-8 text-xs"
-                disabled={!apiKey}
-              >
-                Generate More Data
-              </Button>
             )}
+            {!data.length && referenceFileContent && (
+              <div className="text-xs text-muted-foreground bg-green-50 dark:bg-green-950/20 p-2 rounded">
+                ✓ Using uploaded reference file
+              </div>
+            )}
+            {!data.length && !referenceFileContent && (
+              <div className="text-xs text-muted-foreground bg-yellow-50 dark:bg-yellow-950/20 p-2 rounded">
+                ⚠ No data or file. Enter a prompt to generate from scratch.
+              </div>
+            )}
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowGenerateDialog(true)}
+              className="w-full h-8 text-xs gap-1"
+            >
+              <Sparkles className="h-3 w-3" />
+              Generate More Data
+            </Button>
           </div>
         </Card>
+
+        {/* Generate More Dialog */}
+        <Dialog open={showGenerateDialog} onOpenChange={setShowGenerateDialog}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Generate More Data</DialogTitle>
+              <DialogDescription>
+                Generate new rows based on your current data, uploaded file, or custom prompt. The generated data will match your CSV column structure.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4 py-4">
+              {/* Data source info */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Data Source</Label>
+                {data.length > 0 && (
+                  <div className="text-sm text-muted-foreground bg-blue-50 dark:bg-blue-950/20 p-3 rounded-lg">
+                    ✓ Using current CSV data ({data.length} rows) as reference
+                  </div>
+                )}
+                {!data.length && referenceFileContent && (
+                  <div className="text-sm text-muted-foreground bg-green-50 dark:bg-green-950/20 p-3 rounded-lg">
+                    ✓ Using uploaded reference file
+                  </div>
+                )}
+                {!data.length && !referenceFileContent && (
+                  <div className="text-sm text-muted-foreground bg-yellow-50 dark:bg-yellow-950/20 p-3 rounded-lg">
+                    ⚠ No data or file. You must enter a prompt to generate from scratch.
+                  </div>
+                )}
+              </div>
+
+              {/* Number of rows */}
+              <div className="space-y-2">
+                <Label htmlFor="generate-count" className="text-sm font-medium">
+                  Number of Rows *
+                </Label>
+                <Input
+                  id="generate-count"
+                  type="number"
+                  min="1"
+                  max="50"
+                  value={generateCount}
+                  onChange={(e) => setGenerateCount(e.target.value)}
+                  placeholder="Enter number of rows to generate"
+                  className="h-10"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Enter how many rows you want to generate (1-50)
+                </p>
+              </div>
+
+              {/* Prompt */}
+              <div className="space-y-2">
+                <Label htmlFor="generate-prompt" className="text-sm font-medium">
+                  Description / Prompt {!data.length && !referenceFileContent ? "*" : ""}
+                </Label>
+                <Textarea
+                  id="generate-prompt"
+                  placeholder={
+                    data.length > 0
+                      ? "Optional: describe what kind of data to generate (e.g., 'similar customer reviews', 'variations with different ratings')"
+                      : referenceFileContent
+                      ? "Optional: describe variations or specific requirements (e.g., 'generate more diverse examples', 'include more negative feedback')"
+                      : "Required: describe the data you want to generate (e.g., 'customer reviews for a restaurant with ratings from 1-5 stars')"
+                  }
+                  value={generatePrompt}
+                  onChange={(e) => setGeneratePrompt(e.target.value)}
+                  className="min-h-[100px] resize-none"
+                  rows={4}
+                />
+                {!data.length && !referenceFileContent && (
+                  <p className="text-xs text-muted-foreground">
+                    Describe the data structure and content you want AI to generate. Be specific about the columns and their expected values.
+                  </p>
+                )}
+                {(data.length > 0 || referenceFileContent) && (
+                  <p className="text-xs text-muted-foreground">
+                    Optional: Provide additional instructions to customize the generated data (e.g., "generate more diverse examples", "focus on negative reviews")
+                  </p>
+                )}
+              </div>
+
+              {/* Columns preview */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Columns</Label>
+                <div className="flex flex-wrap gap-2 p-3 bg-secondary/50 rounded-lg">
+                  {columns.filter(col => !col.startsWith("_")).map((col) => (
+                    <span key={col} className="text-xs bg-background px-2 py-1 rounded font-mono border">
+                      {col}
+                    </span>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Generated data will match these columns
+                </p>
+              </div>
+
+              {/* API Key warning */}
+              {!effectiveApiKey && (
+                <div className="space-y-2">
+                  <div className="text-sm text-muted-foreground bg-yellow-50 dark:bg-yellow-950/20 p-3 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                    ⚠ <strong>API Key required:</strong> Please enter your API key in the Model Selector section above before generating data.
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowGenerateDialog(false)
+                  setGeneratePrompt("")
+                }}
+                disabled={isGenerating}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleGenerateMore}
+                disabled={
+                  isGenerating || 
+                  !generateCount || 
+                  Number.parseInt(generateCount) < 1 ||
+                  (!data.length && !referenceFileContent && !generatePrompt.trim())
+                }
+                className="gap-2"
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4" />
+                    Generate Data
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   )

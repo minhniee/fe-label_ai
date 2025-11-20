@@ -1,0 +1,247 @@
+"use client"
+
+import { useState, useEffect, useCallback, useRef } from "react"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { X, Search, Sparkles, Loader2 } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
+import { semanticSearch, getSemanticSearchIndexStatus, indexFileForSemanticSearch } from "@/app/api/labelai"
+import { Badge } from "@/components/ui/badge"
+
+interface SemanticSearchFilterProps {
+  fileId: number | null
+  onSearchResults: (results: any[]) => void
+  placeholder?: string
+}
+
+export function SemanticSearchFilter({ 
+  fileId, 
+  onSearchResults, 
+  placeholder = "Semantic search (e.g., thiên nhiên)..." 
+}: SemanticSearchFilterProps) {
+  const [searchQuery, setSearchQuery] = useState("")
+  const [isSearching, setIsSearching] = useState(false)
+  const [isIndexed, setIsIndexed] = useState<boolean | null>(null)
+  const [isIndexing, setIsIndexing] = useState(false)
+  const { toast } = useToast()
+  const checkingRef = useRef(false) // Prevent concurrent checks
+  const lastCheckedFileIdRef = useRef<number | null>(null) // Track last checked fileId
+
+  // Memoize checkIndexStatus to prevent unnecessary re-renders and ensure stable reference
+  // Fix: Improve race condition handling to prevent duplicate API calls
+  const checkIndexStatus = useCallback(async () => {
+    if (!fileId || checkingRef.current) return
+    
+    // Skip if we already checked this fileId
+    if (lastCheckedFileIdRef.current === fileId) {
+      return
+    }
+    
+    checkingRef.current = true
+    const currentFileId = fileId // Capture fileId to check against later
+    lastCheckedFileIdRef.current = currentFileId
+    
+    try {
+      const status = await getSemanticSearchIndexStatus(currentFileId)
+      // Fix: Only update state if fileId hasn't changed during the async call
+      if (lastCheckedFileIdRef.current === currentFileId) {
+        setIsIndexed(status.is_indexed || false)
+      }
+    } catch (error) {
+      // Fix: Only update state if fileId hasn't changed during the async call
+      if (lastCheckedFileIdRef.current === currentFileId) {
+        setIsIndexed(false)
+      }
+    } finally {
+      // Only clear checking flag if this is still the current request
+      if (lastCheckedFileIdRef.current === currentFileId) {
+        checkingRef.current = false
+      }
+    }
+  }, [fileId])
+
+  // Check index status when fileId changes
+  useEffect(() => {
+    if (fileId) {
+      // Reset check status when fileId changes to a different value
+      if (lastCheckedFileIdRef.current !== fileId) {
+        lastCheckedFileIdRef.current = null
+        setIsIndexed(null)
+      }
+      checkIndexStatus()
+    } else {
+      setIsIndexed(null)
+      lastCheckedFileIdRef.current = null
+    }
+  }, [fileId, checkIndexStatus])
+
+  const handleIndex = async () => {
+    if (!fileId) {
+      toast({
+        title: "Error",
+        description: "No file selected",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsIndexing(true)
+    try {
+      await indexFileForSemanticSearch(fileId)
+      setIsIndexed(true)
+      toast({
+        title: "Success",
+        description: "File indexed successfully. You can now use semantic search.",
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to index file",
+        variant: "destructive",
+      })
+    } finally {
+      setIsIndexing(false)
+    }
+  }
+
+  const handleSearch = async () => {
+    if (!fileId) {
+      toast({
+        title: "Error",
+        description: "No file selected",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!searchQuery.trim()) {
+      onSearchResults([])
+      return
+    }
+
+    if (!isIndexed) {
+      toast({
+        title: "Not Indexed",
+        description: "Please index the file first before searching",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsSearching(true)
+    try {
+      const results = await semanticSearch(fileId, searchQuery, 20, 0.3)
+      onSearchResults(results.results || [])
+      
+      if (results.num_results === 0) {
+        toast({
+          title: "No Results",
+          description: "No matching rows found. Try a different query.",
+        })
+      } else {
+        toast({
+          title: "Search Complete",
+          description: `Found ${results.num_results} matching rows`,
+        })
+      }
+    } catch (error: any) {
+      toast({
+        title: "Search Error",
+        description: error.message || "Failed to perform semantic search",
+        variant: "destructive",
+      })
+      onSearchResults([])
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  const handleClear = () => {
+    setSearchQuery("")
+    onSearchResults([])
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      handleSearch()
+    }
+  }
+
+  if (!fileId) {
+    return null
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="relative flex-1 max-w-md">
+        <Sparkles className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-purple-500" />
+        <Input
+          type="text"
+          placeholder={placeholder}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyPress={handleKeyPress}
+          className="pl-10 pr-10"
+          disabled={!isIndexed || isSearching}
+        />
+        {searchQuery && (
+          <button
+            onClick={handleClear}
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            disabled={isSearching}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+      
+      {isIndexed === false && (
+        <Button
+          onClick={handleIndex}
+          disabled={isIndexing}
+          variant="outline"
+          size="sm"
+        >
+          {isIndexing ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Indexing...
+            </>
+          ) : (
+            <>
+              <Sparkles className="h-4 w-4 mr-2" />
+              Index File
+            </>
+          )}
+        </Button>
+      )}
+
+      {isIndexed && (
+        <>
+          <Button
+            onClick={handleSearch}
+            disabled={isSearching || !searchQuery.trim()}
+            variant="default"
+            size="sm"
+          >
+            {isSearching ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Searching...
+              </>
+            ) : (
+              <>
+                <Search className="h-4 w-4 mr-2" />
+                Search
+              </>
+            )}
+          </Button>
+          <Badge variant="secondary" className="text-xs">
+            Indexed
+          </Badge>
+        </>
+      )}
+    </div>
+  )
+}
+

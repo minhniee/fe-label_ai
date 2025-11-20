@@ -10,6 +10,7 @@ import { Sparkles, Loader2 } from "lucide-react"
 import { ReferenceUploader } from "@/components/label-ai/reference-uploader"
 import { useToast } from "@/hooks/use-toast"
 import { generateData } from "@/app/api/labelai"
+import { parseCSVFromText } from "@/lib/label-ai-utils"
 
 interface DataGeneratorProps {
   onDataGenerated: (data: any[], columns: string[], datasetName: string) => void
@@ -21,6 +22,7 @@ export function DataGenerator({ onDataGenerated }: DataGeneratorProps) {
   const [columns, setColumns] = useState("context, category")
   const [instructions, setInstructions] = useState("")
   const [apiKey, setApiKey] = useState("")
+  const [referenceContext, setReferenceContext] = useState("")
   const [generating, setGenerating] = useState(false)
   const { toast } = useToast()
 
@@ -54,27 +56,19 @@ export function DataGenerator({ onDataGenerated }: DataGeneratorProps) {
           .map((c) => c.trim())
           .filter(Boolean),
         instructions: instructions.trim(),
+        referenceContext: referenceContext.trim(),
         apiKey: apiKey.trim(),
       })
 
       if (result.success) {
-        // Parse the CSV data
-        const lines = result.csv.trim().split("\n")
-        const headers = lines[0].split(",").map((h: string) => h.trim())
-        const rows = lines.slice(1).map((line: string) => {
-          const values = line.split(",").map((v: string) => v.trim())
-          const row: any = {}
-          headers.forEach((header: string, index: number) => {
-            row[header] = values[index] || ""
-          })
-          return row
-        })
+        // Parse the CSV data using centralized function
+        const { data, columns } = parseCSVFromText(result.csv)
 
-        onDataGenerated(rows, headers, `Generated: ${topic.substring(0, 30)}`)
+        onDataGenerated(data, columns, `Generated: ${topic.substring(0, 30)}`)
 
         toast({
           title: "Data generated",
-          description: `Successfully generated ${rows.length} rows`,
+          description: `Successfully generated ${data.length} rows`,
         })
       } else {
         toast({
@@ -145,7 +139,7 @@ export function DataGenerator({ onDataGenerated }: DataGeneratorProps) {
             </div>
           </div>
             <ReferenceUploader
-              onReferenceUpdate={(content) => {
+              onReferenceUpdate={(content, files) => {
                 setReferenceContext(content)
               }}
             />

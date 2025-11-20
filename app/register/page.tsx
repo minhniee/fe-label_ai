@@ -2,7 +2,9 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { getMe } from "@/app/api/auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -13,6 +15,9 @@ import { registerUser, loginUser, persistAuth } from "@/app/api/auth"
 import { FPTLogo } from "@/components/fpt-logo"
 
 export default function RegisterPage() {
+  const router = useRouter()
+  const [isChecking, setIsChecking] = useState(true)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isNameFocused, setIsNameFocused] = useState(false)
@@ -28,6 +33,41 @@ export default function RegisterPage() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [serverError, setServerError] = useState("")
+
+  // Check if user is already authenticated
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        // Check if user has valid token
+        const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null
+        
+        if (token) {
+          // Verify token is valid by calling /auth/me
+          try {
+            await getMe()
+            // User is already authenticated, redirect to projects
+            setIsAuthenticated(true)
+            router.replace("/projects")
+            return
+          } catch (error) {
+            // Token is invalid, clear it and show register form
+            console.log("Token invalid, showing register form")
+            localStorage.removeItem("access_token")
+            localStorage.removeItem("refresh_token")
+            localStorage.removeItem("user")
+          }
+        }
+        
+        // No token or invalid token, show register form
+        setIsChecking(false)
+      } catch (error) {
+        console.error("Auth check error:", error)
+        setIsChecking(false)
+      }
+    }
+
+    checkAuth()
+  }, [router])
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -124,12 +164,26 @@ export default function RegisterPage() {
       persistAuth(loginData)
 
       // Redirect to dashboard after successful login
-      window.location.href = "/dashboard"
+      window.location.href = "/projects"
     } catch (err: any) {
       setServerError(err?.message || "An error occurred. Please try again.")
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  // Show loading while checking authentication
+  if (isChecking || isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <p className="text-gray-600 text-sm">
+            {isAuthenticated ? "Redirecting to dashboard..." : "Checking authentication..."}
+          </p>
+        </div>
+      </div>
+    )
   }
 
   return (

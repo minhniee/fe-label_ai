@@ -31,7 +31,6 @@ export function CSVComparison() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
       <header className="mb-8 text-center">
-        <h1 className="text-4xl font-bold mb-3">CSV File Comparison Tool</h1>
         <p className="text-muted-foreground text-lg">Upload two CSV files to compare and visualize their differences</p>
       </header>
 

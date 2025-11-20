@@ -1,12 +1,9 @@
 "use client"
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { UserManagement } from "@/components/user-management"
-import { LabelManagement } from "@/components/label-management"
-import { ProgressStatistics } from "@/components/progress-statistics"
-import { BatchManagement } from "@/components/batch-management"
-import { InterAnnotatorAgreement } from "@/components/inter-annotator-agreement"
-import { DataExport } from "@/components/data-export"
+import { Button } from "@/components/ui/button"
+import Link from "next/link"
+import { ExternalLink, Download, Users, BarChart3, LayoutDashboard, FileText } from "lucide-react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default function AdminPage() {
   return (
@@ -16,41 +13,79 @@ export default function AdminPage() {
         <h1 className="text-3xl font-bold text-foreground">System Administration</h1>
       </div>
 
-      {/* Admin Tabs */}
-      <Tabs defaultValue="batches" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6 lg:w-[900px]">
-          <TabsTrigger value="batches">Batch Management</TabsTrigger>
-          {/* <TabsTrigger value="agreement">Inter-Annotator</TabsTrigger> */}
-          {/* <TabsTrigger value="export">Export data</TabsTrigger> */}
-          <TabsTrigger value="users">User Management</TabsTrigger>
-          <TabsTrigger value="labels">Labels Management</TabsTrigger>
-          <TabsTrigger value="statistics">Statistics</TabsTrigger>
-        </TabsList>
+      {/* Navigation Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card className="hover:shadow-lg transition-shadow">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <LayoutDashboard className="h-5 w-5" />
+              Dashboard
+            </CardTitle>
+            <CardDescription>View system overview and statistics</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/admin/dashboard">
+              <Button className="w-full" variant="outline">
+                Go to Dashboard
+                <ExternalLink className="w-4 h-4 ml-2" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+        <Card className="hover:shadow-lg transition-shadow">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              User Management
+            </CardTitle>
+            <CardDescription>Manage user accounts and permissions</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/admin/manage-users">
+              <Button className="w-full" variant="outline">
+                Go to User Management
+                <ExternalLink className="w-4 h-4 ml-2" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
 
-        <TabsContent value="batches" className="space-y-6">
-          <BatchManagement />
-        </TabsContent>
+        <Card className="hover:shadow-lg transition-shadow">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5" />
+              Statistics
+            </CardTitle>
+            <CardDescription>View progress and performance statistics</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/admin/statistic">
+              <Button className="w-full" variant="outline">
+                Go to Statistics
+                <ExternalLink className="w-4 h-4 ml-2" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
 
-        {/* <TabsContent value="agreement" className="space-y-6">
-          <InterAnnotatorAgreement />
-        </TabsContent> */}
-
-        {/* <TabsContent value="export" className="space-y-6">
-          <DataExport />
-        </TabsContent> */}
-
-        <TabsContent value="users" className="space-y-6">
-          <UserManagement />
-        </TabsContent>
-
-        <TabsContent value="labels" className="space-y-6">
-          <LabelManagement />
-        </TabsContent>
-
-        <TabsContent value="statistics" className="space-y-6">
-          <ProgressStatistics />
-        </TabsContent>
-      </Tabs>
+        <Card className="hover:shadow-lg transition-shadow">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Audit Log
+            </CardTitle>
+            <CardDescription>Track system changes and user activities</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/admin/audit-log">
+              <Button className="w-full" variant="outline">
+                Go to Audit Log
+                <ExternalLink className="w-4 h-4 ml-2" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }

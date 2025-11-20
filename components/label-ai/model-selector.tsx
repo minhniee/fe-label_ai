@@ -7,10 +7,11 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import type { RowData } from "@/app/(navigation)/labelai/page"
+import type { RowData } from "@/app/(navigation)/[projectId]/labelai/page"
 import { useToast } from "@/hooks/use-toast"
 import { MultiColumnConfig } from "@/components/label-ai/multi-column-config"
 import { testApiKey, labelData } from "@/app/api/labelai"
+import { getApiKeyFromStorage, saveApiKeyToStorage } from "@/lib/label-ai-utils"
 
 interface ModelSelectorProps {
   data: RowData[]
@@ -19,6 +20,23 @@ interface ModelSelectorProps {
   referenceContext: string
   columns: string[]
   onDataUpdate: (data: RowData[]) => void
+  apiKey?: string
+  selectedModel?: string
+  projectId?: number
+  embeddingConfig?: {
+    provider: string
+    apiKey?: string
+    model?: string
+  }
+  documentIds?: number[]  // NEW: selected document IDs for RAG
+  onLabel?: (
+    rows: RowData[],
+    model: string,
+    apiKey: string,
+    contextColumn: string,
+    referenceContext: string
+  ) => Promise<RowData[]>
+  onTestKey?: (apiKey: string, model: string) => Promise<boolean>
 }
 
 export function ModelSelector({
@@ -28,8 +46,15 @@ export function ModelSelector({
   referenceContext,
   columns,
   onDataUpdate,
+  apiKey: providedApiKey,
+  selectedModel: providedModel,
+  projectId,
+  embeddingConfig,
+  documentIds,
+  onLabel,
+  onTestKey,
 }: ModelSelectorProps) {
-  const [model, setModel] = useState("gemini-flash-2.5")
+  const [model, setModel] = useState("gemini-2.5-flash")
   const [apiKey, setApiKey] = useState("")
   const [isLabeling, setIsLabeling] = useState(false)
   const [isTestingKey, setIsTestingKey] = useState(false)
@@ -39,18 +64,17 @@ export function ModelSelector({
 
   // Load API key from localStorage on mount
   useEffect(() => {
-    try {
-      const savedApiKey = localStorage.getItem("llm_api_key") || localStorage.getItem("gemini_api_key")
-      if (savedApiKey) {
-        setApiKey(savedApiKey)
-      }
-    } catch (error) {
-      // Ignore localStorage errors
+    const savedApiKey = getApiKeyFromStorage()
+    if (savedApiKey) {
+      setApiKey(savedApiKey)
     }
   }, [])
 
+  const effectiveModel = providedModel ?? model
+  const effectiveApiKey = providedApiKey ?? apiKey
+
   const handleTestKey = async () => {
-    if (!apiKey.trim()) {
+    if (!effectiveApiKey.trim()) {
       toast({
         title: "No API key provided",
         description: "Please enter an API key to test.",
@@ -63,23 +87,32 @@ export function ModelSelector({
     setKeyStatus("idle")
 
     try {
-      const result = await testApiKey(apiKey.trim(), model)
-
-      if (result.success) {
-        setKeyStatus("valid")
-        // Save API key to localStorage
-        try {
-          localStorage.setItem("llm_api_key", apiKey.trim())
-        } catch (error) {
-          // Ignore localStorage errors
+      if (onTestKey) {
+        const ok = await onTestKey(effectiveApiKey.trim(), effectiveModel)
+        if (ok) {
+          setKeyStatus("valid")
+          saveApiKeyToStorage(effectiveApiKey.trim())
+          toast({
+            title: "API Key Valid",
+            description: "Your API key is valid and ready to use.",
+          })
+        } else {
+          setKeyStatus("invalid")
+          throw new Error("API key validation failed")
         }
-        toast({
-          title: "API Key Valid",
-          description: result.message || "Your API key is valid and ready to use.",
-        })
       } else {
-        setKeyStatus("invalid")
-        throw new Error(result.error)
+        const result = await testApiKey(effectiveApiKey.trim(), effectiveModel)
+        if (result.success) {
+          setKeyStatus("valid")
+          saveApiKeyToStorage(effectiveApiKey.trim())
+          toast({
+            title: "API Key Valid",
+            description: result.message || "Your API key is valid and ready to use.",
+          })
+        } else {
+          setKeyStatus("invalid")
+          throw new Error(result.error)
+        }
       }
     } catch (error) {
       setKeyStatus("invalid")
@@ -112,7 +145,7 @@ export function ModelSelector({
       return
     }
 
-    if (!apiKey.trim()) {
+    if (!effectiveApiKey.trim()) {
       toast({
         title: "API key required",
         description: "Please enter your Gemini API key to use AI labeling.",
@@ -124,24 +157,46 @@ export function ModelSelector({
     setIsLabeling(true)
 
     try {
-      const result = await labelData({
-        rows: data,
-        model,
-        apiKey: apiKey.trim(),
-        contextColumn,
-        resultColumn,
-        referenceContext,
-        multiColumnConfig,
-      })
-
-      if (result.success) {
-        onDataUpdate(result.data)
+      if (onLabel) {
+        const labeled = await onLabel(
+          data,
+          effectiveModel,
+          effectiveApiKey.trim(),
+          contextColumn,
+          referenceContext
+        )
+        onDataUpdate(labeled)
         toast({
           title: "Labeling complete",
-          description: `Successfully labeled ${result.data.length} rows with ${model}`,
+          description: `Successfully labeled ${labeled.length} rows with ${effectiveModel}`,
         })
       } else {
-        throw new Error(result.error)
+        const result = await labelData({
+          rows: data,
+          model: effectiveModel,
+          apiKey: effectiveApiKey.trim(),
+          contextColumn,
+          resultColumn,
+          referenceContext,
+          multiColumnConfig,
+          project_id: projectId,
+          embedding_provider: embeddingConfig?.provider || "local",
+          embedding_api_key: embeddingConfig?.apiKey,
+          embedding_model: embeddingConfig?.model,
+          // Pass empty array if no documents selected (user unselected all)
+          // Pass undefined only if documentIds prop is not provided at all
+          document_ids: documentIds !== undefined ? (documentIds.length > 0 ? documentIds : []) : undefined,
+        })
+
+        if (result.success) {
+          onDataUpdate(result.data)
+          toast({
+            title: "Labeling complete",
+            description: `Successfully labeled ${result.data.length} rows with ${effectiveModel}`,
+          })
+        } else {
+          throw new Error(result.error)
+        }
       }
     } catch (error) {
       console.error("Error labeling data:", error)
@@ -171,21 +226,13 @@ export function ModelSelector({
         <div className="flex items-end gap-4">
           <div className="flex-1 space-y-2">
             <Label htmlFor="model">AI Model</Label>
-            <Select value={model} onValueChange={setModel}>
+            <Select value={effectiveModel} onValueChange={providedModel ? () => {} : setModel} disabled={!!providedModel}>
               <SelectTrigger id="model">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="gemini-flash-2.5">Gemini Flash 2.5</SelectItem>
-                <SelectItem value="gemini-1.5-pro">Gemini 1.5 Pro</SelectItem>
-                <SelectItem value="gemini-1.5-flash">Gemini 1.5 Flash</SelectItem>
+                <SelectItem value="gemini-2.5-flash">Gemini Flash 2.5</SelectItem>
                 <SelectItem value="gpt-4o">GPT-4o</SelectItem>
-                <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
-                <SelectItem value="gpt-4-turbo">GPT-4 Turbo</SelectItem>
-                <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
-                <SelectItem value="qwen-turbo">Qwen Turbo</SelectItem>
-                <SelectItem value="qwen-plus">Qwen Plus</SelectItem>
-                <SelectItem value="qwen-max">Qwen Max</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -200,11 +247,14 @@ export function ModelSelector({
                   id="api-key"
                   type="password"
                   placeholder="Enter your API key"
-                  value={apiKey}
+                  value={effectiveApiKey}
                   onChange={(e) => {
-                    setApiKey(e.target.value)
+                    if (!providedApiKey) {
+                      setApiKey(e.target.value)
+                    }
                     setKeyStatus("idle")
                   }}
+                  disabled={!!providedApiKey}
                 />
                 {keyStatus === "valid" && (
                   <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-500" />
@@ -216,7 +266,7 @@ export function ModelSelector({
               <Button
                 variant="outline"
                 onClick={handleTestKey}
-                disabled={isTestingKey || !apiKey}
+                disabled={isTestingKey || !effectiveApiKey}
                 className="gap-2 bg-transparent"
               >
                 {isTestingKey ? (
