@@ -30,14 +30,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" >
+    <html lang="en" suppressHydrationWarning>
       <body
-        className={`bg-background text-foreground antialiased ${geistSans.variable} ${geistMono.variable}`}>
-          <QueryProvider>
-            <Suspense fallback={null}>{children}</Suspense>
-            <Analytics />
-            <SonnerToaster />
-          </QueryProvider>
+        suppressHydrationWarning
+        className={`bg-background text-foreground antialiased ${geistSans.variable} ${geistMono.variable}`}
+      >
+        <QueryProvider>
+          <Suspense fallback={null}>{children}</Suspense>
+          <Analytics />
+          <SonnerToaster />
+        </QueryProvider>
       </body>
     </html>
   );

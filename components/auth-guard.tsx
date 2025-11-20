@@ -101,9 +101,12 @@ export function AuthGuard({ children, allowedRoleIds }: AuthGuardProps) {
     return () => { cancelled = true }
   }, [mounted, router, allowedRoleIds])
 
-  if (loading) {
+  if (!mounted || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div
+        suppressHydrationWarning
+        className="min-h-screen flex items-center justify-center bg-background"
+      >
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     )
