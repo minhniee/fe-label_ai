@@ -1291,38 +1291,40 @@ export default function Home() {
               projectId={parseInt(projectId)}
               originalData={originalData}
               onDataUpdate={(updatedRows) => {
+                const preserveUserData = !manualMode
+                const mergeRows = (newRow: RowData, oldRow: RowData) => {
+                  const originalRow = originalData.find((d) => d._id === newRow._id)
+                  const isModified = isRowModified(originalRow, newRow)
+
+                  const userData: Record<string, any> = {}
+                  if (preserveUserData) {
+                    Object.keys(oldRow).forEach((k) => {
+                      if (!k.startsWith("_") && oldRow[k] !== originalRow?.[k]) {
+                        userData[k] = oldRow[k]
+                      }
+                    })
+                  }
+
+                  const metaFields: Record<string, any> = {}
+                  Object.keys(newRow).forEach((k) => {
+                    if (k.startsWith("_")) {
+                      metaFields[k] = (newRow as any)[k]
+                    }
+                  })
+
+                  return {
+                    ...newRow,
+                    ...userData,
+                    ...metaFields,
+                    _isModified: isModified || oldRow._isModified,
+                  }
+                }
+
                 // If updatedRows length matches allData length, replace entire dataset
                 if (updatedRows.length === data.length && updatedRows.length > 0) {
                   const merged = updatedRows.map((newRow) => {
                     const oldRow = data.find((d) => d._id === newRow._id) || newRow
-                    const originalRow = originalData.find((d) => d._id === newRow._id)
-                    
-                    // Check if row has been modified compared to original
-                    const isModified = isRowModified(originalRow, newRow)
-                    
-                    // Always preserve user-modified data columns (non-meta columns that differ from original)
-                    const userData: any = {}
-                    Object.keys(oldRow).forEach((k) => {
-                      if (!k.startsWith("_") && oldRow[k] !== originalRow?.[k]) {
-                        userData[k] = oldRow[k] // Preserve user changes
-                      }
-                    })
-                    
-                    // Extract meta fields from updated row
-                    const metaFields: any = {}
-                    Object.keys(newRow).forEach((k) => {
-                      if (k.startsWith("_")) {
-                        metaFields[k] = (newRow as any)[k]
-                      }
-                    })
-                    
-                    // Merge: AI meta fields + user data + modification flag
-                    return {
-                      ...newRow, // Start with updated row (includes all columns)
-                      ...userData, // Override with user-modified data columns
-                      ...metaFields, // Ensure meta fields are from updated row
-                      _isModified: isModified || oldRow._isModified
-                    }
+                    return mergeRows(newRow, oldRow)
                   })
                   setData(merged)
                 } else {
@@ -1330,34 +1332,7 @@ export default function Home() {
                   const newData = data.map((row) => {
                     const updated = updatedRows.find((r) => r._id === row._id)
                     if (!updated) return row
-                    
-                    const originalRow = originalData.find((d) => d._id === row._id)
-                    // Check if row has been modified compared to original
-                    const isModified = isRowModified(originalRow, updated)
-                    
-                    // Always preserve user-modified data columns (non-meta columns that differ from original)
-                    const userData: any = {}
-                    Object.keys(row).forEach((k) => {
-                      if (!k.startsWith("_") && row[k] !== originalRow?.[k]) {
-                        userData[k] = row[k] // Preserve user changes
-                      }
-                    })
-                    
-                    // Extract meta fields from updated row
-                    const metaFields: any = {}
-                    Object.keys(updated).forEach((k) => {
-                      if (k.startsWith("_")) {
-                        metaFields[k] = (updated as any)[k]
-                      }
-                    })
-                    
-                    // Merge: AI meta fields + user data + modification flag
-                    return {
-                      ...updated, // Start with updated row (includes all columns)
-                      ...userData, // Override with user-modified data columns
-                      ...metaFields, // Ensure meta fields are from updated row
-                      _isModified: isModified || row._isModified
-                    }
+                    return mergeRows(updated, row)
                   })
                   setData(newData)
                 }
