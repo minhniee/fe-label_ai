@@ -239,11 +239,53 @@ export default function Home() {
               const parsed = parseCSVFromText(contentStr)
               setFileDelimiter(parsed.delimiter)  // Save delimiter for later use
               
-              // Convert parsed data to headers and rows format
-              headers = parsed.columns
-              rows = parsed.data.map((row: any) => {
-                return headers.map((header: string) => String(row[header] || ""))
+              // Parse metadata columns mapping
+              const metadataMapping: Record<string, string> = {
+                "ai_suggestion": "_ai_suggestion",
+                "ai_reasoning": "_ai_reasoning",
+                "ai_corrected_value": "_corrected_value",
+                "ai_validation_status": "_validation_status",
+                "ai_type": "_ai_type",
+                "ai_confidence": "_ai_confidence",
+              }
+              
+              // Restore metadata before converting to array format
+              const metadataColumns = Object.keys(metadataMapping)
+              parsed.data = parsed.data.map((row: any) => {
+                const restoredRow: any = { ...row }
+                // Restore metadata columns
+                metadataColumns.forEach(csvCol => {
+                  if (row[csvCol] !== undefined && row[csvCol] !== null && row[csvCol] !== "") {
+                    const internalKey = metadataMapping[csvCol]
+                    restoredRow[internalKey] = String(row[csvCol])
+                  }
+                })
+                return restoredRow
               })
+              
+              // Filter out metadata columns from display headers
+              headers = parsed.columns.filter((h: string) => !metadataColumns.includes(h))
+              
+              // Convert to array format for compatibility
+              rows = parsed.data.map((row: any) => {
+                // Include all columns (including metadata in restoredRow)
+                const allHeaders = [...parsed.columns, ...Object.keys(metadataMapping).map(k => metadataMapping[k])]
+                return allHeaders.map((header: string) => {
+                  // Check if it's a metadata column (internal format)
+                  if (header.startsWith("_")) {
+                    return String(row[header] || "")
+                  }
+                  // Check if it's a metadata column (CSV format)
+                  const csvCol = Object.entries(metadataMapping).find(([_, v]) => v === header)?.[0]
+                  if (csvCol && row[csvCol] !== undefined) {
+                    return String(row[csvCol] || "")
+                  }
+                  return String(row[header] || "")
+                })
+              })
+              
+              // Use all headers including metadata for row mapping
+              headers = [...parsed.columns.filter((h: string) => !metadataColumns.includes(h)), ...Object.values(metadataMapping)]
             } catch (parseError) {
               console.error("Failed to parse CSV content:", parseError)
               throw parseError
@@ -304,17 +346,20 @@ export default function Home() {
         return
       }
       
-      setColumns(headers)
+      // Filter out internal metadata columns from display headers
+      const internalColumns = ["_id", "_ai_suggestion", "_ai_reasoning", "_confirmed", "_validation_status", "_corrected_value", "_ai_type", "_ai_confidence"]
+      const displayHeaders = headers.filter(h => !internalColumns.includes(h) && !h.startsWith("_"))
+      setColumns(displayHeaders)
       
-      // Auto-detect context and result columns
-      const detectedContextCol = detectContextColumn(headers)
-      const detectedResultCol = detectResultColumn(headers)
+      // Auto-detect context and result columns (exclude metadata columns)
+      const detectedContextCol = detectContextColumn(displayHeaders)
+      const detectedResultCol = detectResultColumn(displayHeaders)
       
       setContextColumn(detectedContextCol)
       setResultColumn(detectedResultCol)
       setVisibleColumns([detectedContextCol, detectedResultCol])
       
-      // Transform rows to RowData format
+      // Transform rows to RowData format (metadata already restored during parsing)
       const transformedData: RowData[] = rows.map((row: any, index: number) => {
         const rowObj: RowData = {
           _id: `row-${index}`,
@@ -324,14 +369,34 @@ export default function Home() {
         }
         
         // Handle both array and object formats
+        // At this point, if metadata was restored, headers include internal format columns
         if (Array.isArray(row)) {
           headers.forEach((header, i) => {
-            rowObj[header] = row[i] ?? ""
+            if (header.startsWith("_")) {
+              // Internal column (metadata)
+              rowObj[header as keyof RowData] = row[i] ?? ""
+            } else {
+              // Regular column
+              rowObj[header] = row[i] ?? ""
+            }
           })
         } else if (row && typeof row === "object") {
-          headers.forEach((header) => {
-            rowObj[header] = (row as any)[header] ?? ""
+          // If row is already object format, copy all properties
+          Object.keys(row).forEach((key) => {
+            if (key.startsWith("_")) {
+              // Internal column (metadata)
+              rowObj[key as keyof RowData] = row[key] ?? ""
+            } else {
+              // Regular column
+              rowObj[key] = row[key] ?? ""
+            }
           })
+        }
+        
+        // Set confirmed status based on AI suggestion
+        if (rowObj._ai_suggestion && rowObj._ai_suggestion.toString().trim() !== "") {
+          // Default to false so user can review
+          rowObj._confirmed = false
         }
         
         return rowObj

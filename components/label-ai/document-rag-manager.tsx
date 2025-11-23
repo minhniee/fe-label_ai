@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Database, Upload, Loader2, Settings, CheckCircle2, RefreshCw, Trash2 } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
@@ -50,54 +50,19 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
   const [embeddingModel, setEmbeddingModel] = useState("")
   const { toast } = useToast()
 
-  useEffect(() => {
-    loadDocuments()
-  }, [projectId])
+  // Use refs to avoid dependency issues with callbacks
+  const onEmbeddingConfigChangeRef = useRef(onEmbeddingConfigChange)
+  const onDocumentsChangeRef = useRef(onDocumentsChange)
+  const onSelectedDocumentsChangeRef = useRef(onSelectedDocumentsChange)
 
-  // Reset model when provider changes
+  // Keep refs updated
   useEffect(() => {
-    // Reset model when provider changes to avoid invalid combinations
-    if (embeddingProvider === "local") {
-      setEmbeddingModel("")
-    } else {
-      // Set default model for non-local providers if not set
-      const defaultModels: Record<string, string> = {
-        openai: "text-embedding-3-small",
-        gemini: "models/text-embedding-004",
-        qwen: "text-embedding-v2"
-      }
-      // Only set default if model is empty (to avoid overwriting user selection)
-      if (embeddingModel === "" && defaultModels[embeddingProvider]) {
-        setEmbeddingModel(defaultModels[embeddingProvider])
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [embeddingProvider])
+    onEmbeddingConfigChangeRef.current = onEmbeddingConfigChange
+    onDocumentsChangeRef.current = onDocumentsChange
+    onSelectedDocumentsChangeRef.current = onSelectedDocumentsChange
+  }, [onEmbeddingConfigChange, onDocumentsChange, onSelectedDocumentsChange])
 
-  useEffect(() => {
-    // Notify parent of embedding config changes
-    onEmbeddingConfigChange?.({
-      provider: embeddingProvider,
-      apiKey: embeddingApiKey || undefined,
-      model: embeddingModel || undefined,
-    })
-  }, [embeddingProvider, embeddingApiKey, embeddingModel, onEmbeddingConfigChange])
-
-  useEffect(() => {
-    // Notify parent of selected documents changes
-    onSelectedDocumentsChange?.(selectedDocumentIds)
-    
-    // Save selection to localStorage when it changes
-    if (selectedDocumentIds.length > 0) {
-      try {
-        localStorage.setItem(`doc_selection_${projectId}`, JSON.stringify(selectedDocumentIds))
-      } catch (e) {
-        // Ignore localStorage errors
-      }
-    }
-  }, [selectedDocumentIds, onSelectedDocumentsChange, projectId])
-
-  const loadDocuments = async () => {
+  const loadDocuments = useCallback(async () => {
     setIsLoading(true)
     try {
       const result = await getProjectDocuments(projectId)
@@ -105,7 +70,7 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
         const docs: Document[] = result.documents || []
         setDocuments(docs)
         // Notify parent about documents status
-        onDocumentsChange?.(docs.length > 0)
+        onDocumentsChangeRef.current?.(docs.length > 0)
         
         // Try to restore previous selection from localStorage
         try {
@@ -136,11 +101,58 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
         description: "Failed to load documents",
         variant: "destructive",
       })
-      onDocumentsChange?.(false)
+      onDocumentsChangeRef.current?.(false)
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [projectId])
+
+  useEffect(() => {
+    loadDocuments()
+  }, [loadDocuments])
+
+  // Reset model when provider changes
+  useEffect(() => {
+    // Reset model when provider changes to avoid invalid combinations
+    if (embeddingProvider === "local") {
+      setEmbeddingModel("")
+    } else {
+      // Set default model for non-local providers if not set
+      const defaultModels: Record<string, string> = {
+        openai: "text-embedding-3-small",
+        gemini: "models/text-embedding-004",
+        qwen: "text-embedding-v2"
+      }
+      // Only set default if model is empty (to avoid overwriting user selection)
+      if (embeddingModel === "" && defaultModels[embeddingProvider]) {
+        setEmbeddingModel(defaultModels[embeddingProvider])
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [embeddingProvider])
+
+  useEffect(() => {
+    // Notify parent of embedding config changes
+    onEmbeddingConfigChangeRef.current?.({
+      provider: embeddingProvider,
+      apiKey: embeddingApiKey || undefined,
+      model: embeddingModel || undefined,
+    })
+  }, [embeddingProvider, embeddingApiKey, embeddingModel])
+
+  useEffect(() => {
+    // Notify parent of selected documents changes
+    onSelectedDocumentsChangeRef.current?.(selectedDocumentIds)
+    
+    // Save selection to localStorage when it changes
+    if (selectedDocumentIds.length > 0) {
+      try {
+        localStorage.setItem(`doc_selection_${projectId}`, JSON.stringify(selectedDocumentIds))
+      } catch (e) {
+        // Ignore localStorage errors
+      }
+    }
+  }, [selectedDocumentIds, projectId])
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files

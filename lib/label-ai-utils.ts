@@ -16,14 +16,43 @@ export async function parseCSVFromFile(
       .then((detectedDelimiter) => {
         Papa.parse(file, {
           header: true,
-          skipEmptyLines: true,
           // Normalize headers: trim and strip BOM to prevent merged/misaligned columns
           transformHeader: (h) => (h || "").replace(/^\uFEFF/, "").trim(),
           delimiter: detectedDelimiter,
+          // Make parsing more lenient
+          transform: (value) => {
+            // Trim whitespace from values
+            return typeof value === "string" ? value.trim() : value
+          },
+          // Handle newlines in quoted fields
+          newline: "\n",
+          // Don't throw on field count mismatches - just log warnings
+          skipEmptyLines: "greedy",
           complete: (results) => {
             try {
-              if (results.errors.length > 0) {
-                throw new Error(results.errors[0].message)
+              // Filter out non-critical errors (like field count mismatches)
+              // Only throw on critical errors that prevent parsing
+              const criticalErrors = results.errors.filter(
+                (error) =>
+                  error.type !== "FieldMismatch" &&
+                  error.type !== "Quotes" &&
+                  error.code !== "TooManyFields" &&
+                  error.code !== "TooFewFields"
+              )
+
+              if (criticalErrors.length > 0) {
+                throw new Error(criticalErrors[0].message || "Failed to parse CSV")
+              }
+
+              // Log warnings for field mismatches but don't throw
+              const warnings = results.errors.filter(
+                (error) =>
+                  error.type === "FieldMismatch" ||
+                  error.code === "TooManyFields" ||
+                  error.code === "TooFewFields"
+              )
+              if (warnings.length > 0) {
+                console.warn("CSV parsing warnings:", warnings)
               }
 
               const data = results.data as any[]
@@ -74,14 +103,43 @@ export function parseCSVFromText(
 
   const result = Papa.parse(text, {
     header: true,
-    skipEmptyLines: true,
     // Normalize headers: trim and strip BOM to prevent merged/misaligned columns
     transformHeader: (h) => (h || "").replace(/^\uFEFF/, "").trim(),
     delimiter: detectedDelimiter,
+    // Make parsing more lenient
+    transform: (value) => {
+      // Trim whitespace from values
+      return typeof value === "string" ? value.trim() : value
+    },
+    // Handle newlines in quoted fields
+    newline: "\n",
+    // Don't throw on field count mismatches - just log warnings
+    skipEmptyLines: "greedy",
   })
 
-  if (result.errors.length > 0) {
-    throw new Error(result.errors[0].message || "Failed to parse CSV")
+  // Filter out non-critical errors (like field count mismatches)
+  // Only throw on critical errors that prevent parsing
+  const criticalErrors = result.errors.filter(
+    (error) =>
+      error.type !== "FieldMismatch" &&
+      error.type !== "Quotes" &&
+      error.code !== "TooManyFields" &&
+      error.code !== "TooFewFields"
+  )
+
+  if (criticalErrors.length > 0) {
+    throw new Error(criticalErrors[0].message || "Failed to parse CSV")
+  }
+
+  // Log warnings for field mismatches but don't throw
+  const warnings = result.errors.filter(
+    (error) =>
+      error.type === "FieldMismatch" ||
+      error.code === "TooManyFields" ||
+      error.code === "TooFewFields"
+  )
+  if (warnings.length > 0) {
+    console.warn("CSV parsing warnings:", warnings)
   }
 
   const data = result.data as any[]
@@ -259,5 +317,31 @@ export function saveApiKeyToStorage(apiKey: string): void {
   } catch (error) {
     // Ignore localStorage errors
   }
+}
+
+/**
+ * Convert data array to CSV format string
+ * Handles proper escaping of commas, quotes, and newlines
+ */
+export function convertDataToCSV(data: any[], columns: string[]): string {
+  const csvRows: string[] = []
+  
+  // Add header row
+  csvRows.push(columns.join(","))
+  
+  // Add data rows
+  data.forEach((row) => {
+    const values = columns.map((col) => {
+      const value = row[col] || ""
+      // Escape commas, quotes, and newlines in CSV
+      if (typeof value === "string" && (value.includes(",") || value.includes('"') || value.includes("\n"))) {
+        return `"${value.replace(/"/g, '""')}"`
+      }
+      return value
+    })
+    csvRows.push(values.join(","))
+  })
+  
+  return csvRows.join("\n")
 }
 

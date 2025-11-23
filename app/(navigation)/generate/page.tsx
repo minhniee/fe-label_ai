@@ -13,6 +13,7 @@ import { viewAllProjects } from "@/app/api/project"
 import { uploadFilesToProject } from "@/app/api/project"
 import { projectToSlug } from "@/types/project"
 import { ArrowLeft } from "lucide-react"
+import { convertDataToCSV } from "@/lib/label-ai-utils"
 
 export type RowData = {
   _id: string
@@ -129,26 +130,8 @@ const handleDataGenerated = (data: any[], columns: string[], name: string) => {
     try {
       setImporting(true)
 
-      // Convert data to CSV format
-      const csvRows: string[] = []
-      
-      // Add header row
-      csvRows.push(generatedColumns.join(","))
-      
-      // Add data rows
-      generatedData.forEach((row) => {
-        const values = generatedColumns.map((col) => {
-          const value = row[col] || ""
-          // Escape commas and quotes in CSV
-          if (typeof value === "string" && (value.includes(",") || value.includes('"') || value.includes("\n"))) {
-            return `"${value.replace(/"/g, '""')}"`
-          }
-          return value
-        })
-        csvRows.push(values.join(","))
-      })
-
-      const csvContent = csvRows.join("\n")
+      // Convert data to CSV format using utility function
+      const csvContent = convertDataToCSV(generatedData, generatedColumns)
       const blob = new Blob([csvContent], { type: "text/csv" })
       const file = new File([blob], `${datasetName || "generated-data"}.csv`, { type: "text/csv" })
 

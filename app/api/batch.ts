@@ -1,6 +1,6 @@
 import api from './client'
 
-export type BatchStatus = "pending" | "in_progress" | "completed" | "blocked"
+export type BatchStatus = "pending" | "auto_labeling" | "auto_labeled" | "in_progress" | "completed" | "blocked"
 
 export interface CreateBatchRequest {
   name: string
@@ -265,6 +265,51 @@ export interface ProjectBatchStatsResponse {
   completed_batches: number
   overall_progress: number
   assigned_users: number
+}
+
+// =============================================
+// AUTO-LABELING TYPES
+// =============================================
+
+export interface AutoLabelingConfig {
+  model: string
+  api_key: string
+  context_column: string
+  result_column?: string
+  reference_context?: string
+  embedding_provider?: string
+  embedding_api_key?: string
+  embedding_model?: string
+  document_ids?: number[]
+  multi_column_config?: any[]
+  prompt_type?: string  // "auto_labeling" or "fact_checking"
+}
+
+export interface AutoLabelBatchRequest {
+  batch_id: number
+  config: AutoLabelingConfig
+}
+
+export interface AutoLabelBatchResponse {
+  success: boolean
+  batch_id: number
+  message: string
+  status: "started" | "completed" | "failed"
+  files_labeled: number
+  total_files: number
+  error?: string | null
+}
+
+export interface AutoLabelStatusResponse {
+  batch_id: number
+  status: BatchStatus
+  files_processed: number
+  total_files: number
+  current_file?: string | null
+  progress_percentage: number
+  error?: string | null
+  started_at?: string | null
+  completed_at?: string | null
 }
 
 // GET /batches/
@@ -714,6 +759,39 @@ export async function getProjectBatches(projectId: number, filters?: Omit<BatchF
     return response.data
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to get project batches'
+    throw new Error(errorMessage)
+  }
+}
+
+// =============================================
+// AUTO-LABELING ENDPOINTS
+// =============================================
+
+// POST /batches/{batch_id}/auto-label
+export async function autoLabelBatch(request: AutoLabelBatchRequest) {
+  try {
+    const response = await api.post<AutoLabelBatchResponse>(
+      `/batches/${request.batch_id}/auto-label`,
+      request,
+      {}
+    )
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to start auto-labeling'
+    throw new Error(errorMessage)
+  }
+}
+
+// GET /batches/{batch_id}/auto-label/status
+export async function getAutoLabelStatus(batchId: number) {
+  try {
+    const response = await api.get<AutoLabelStatusResponse>(
+      `/batches/${batchId}/auto-label/status`,
+      {}
+    )
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to get auto-labeling status'
     throw new Error(errorMessage)
   }
 }
