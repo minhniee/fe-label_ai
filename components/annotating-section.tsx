@@ -130,7 +130,7 @@ export default function AnnotatingSection() {
                 <p>
                   Once a batch is assigned to a user for annotation, it will
                   appear as an annotation job in the Annotating column. Deleting
-                  images from the Annotating column will send them back to the
+                  files from the Annotating column will send them back to the
                   Unassigned column as a batch.
               </p>
               </div>

@@ -459,6 +459,21 @@ export default function ProjectBatchPage() {
     }
   };
 
+  const handleAutoLabelNavigation = () => {
+    if (!batchId) {
+      toast.error("Batch information is missing");
+      return;
+    }
+
+    const params = new URLSearchParams();
+    if (batchName) {
+      params.set("jobName", batchName);
+    }
+
+    const query = params.toString();
+    router.push(`/${projectSlug}/annotate/job/${batchId}/auto-label${query ? `?${query}` : ""}`);
+  };
+
   const handleMemberToggle = (memberId: string) => {
     setSelectedMembers((prev) =>
       prev.includes(memberId)
@@ -791,25 +806,26 @@ export default function ProjectBatchPage() {
                 </div>
               </Card>
 
-              {/* Auto-Label Option */}
-              {/* <Card className="p-4 border-2 border-primary/20 bg-primary/5 hover:border-primary/40 transition-colors cursor-pointer">
+              {/* Auto-Label with AI Option */}
+              <Card
+                className="p-4 border hover:border-primary/40 transition-colors cursor-pointer"
+                onClick={handleAutoLabelNavigation}
+              >
                 <div className="flex items-start gap-3">
                   <div className="flex items-center gap-2">
-                    <Zap className="h-5 w-5 text-primary" />
-                    <Database className="h-4 w-4 text-primary" />
+                    <Sparkles className="h-4 w-4 text-primary" />
                   </div>
                   <div className="flex-1">
-                    <div className="font-semibold mb-1">Auto-Label Entire Batch</div>
-                    <div className="text-sm text-muted-foreground mb-3">
-                      Use your own custom model or a zero-shot model to automatically label your entire batch.
+                    <div className="flex items-center justify-between">
+                      <div className="font-semibold mb-1">Auto-Label with AI</div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     </div>
-                    <Button size="sm" variant="outline" className="w-full">
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      Try with SAM3
-                    </Button>
+                    <div className="text-sm text-muted-foreground">
+                      Use AI models to automatically label your entire batch with custom configurations.
+                    </div>
                   </div>
                 </div>
-              </Card> */}
+              </Card>
 
               {/* Hire Outsourced Labelers Option */}
               {/* <Card className="p-4 border hover:border-primary/40 transition-colors cursor-pointer opacity-60">
