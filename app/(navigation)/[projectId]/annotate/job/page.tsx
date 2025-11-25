@@ -27,6 +27,7 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer";
 
+
 export default function ProjectJobPage() {
   const params = useParams();
   const router = useRouter();
@@ -77,6 +78,59 @@ export default function ProjectJobPage() {
       loadCollaborators();
     }
   }, [batchId, project]);
+
+  // Derive current assignment display whenever assignments/collaborators change
+  useEffect(() => {
+    if (!batchData) {
+      setAssignedUser(null);
+      return;
+    }
+
+    if (batchAssignments.length > 0) {
+      const mostRecentAssignment = batchAssignments[0];
+      const collaborator = collaborators.find(c => c.user_id === mostRecentAssignment.user_id);
+
+      if (collaborator) {
+        setAssignedUser({
+          user_id: mostRecentAssignment.user_id,
+          email: collaborator.user_email || collaborator.user_username || "",
+          role_id: collaborator.role_id,
+          role_name: collaborator.role_name,
+          assigned_at: mostRecentAssignment.assigned_at,
+          assigner_username: mostRecentAssignment.assigner_username,
+        });
+        return;
+      }
+    }
+
+    // Check for pending email assignment from batch metadata
+    const pendingEmails = batchData.batch_metadata?.assigned_pending_emails || [];
+    if (pendingEmails.length > 0) {
+      const invitation = pendingInvitations.find(inv => inv.email === pendingEmails[0]);
+      setAssignedUser({
+        email: pendingEmails[0],
+        role_id: invitation?.role_id,
+        role_name: invitation ? getRoleName(invitation.role_id) : undefined,
+        is_pending: true,
+      });
+      return;
+    }
+
+    // Fallback to current user if they are labeling themselves
+    if (currentUser) {
+      const currentUserCollaborator = collaborators.find(c => c.user_id === currentUser.user_id);
+      setAssignedUser({
+        user_id: currentUser.user_id,
+        email: currentUser.email || currentUserCollaborator?.user_email || currentUser.username || "",
+        role_id: currentUserCollaborator?.role_id,
+        role_name: currentUserCollaborator?.role_name,
+        is_owner: true,
+      });
+      return;
+    }
+
+    setAssignedUser(null);
+  }, [batchAssignments, collaborators, pendingInvitations, currentUser, batchData]);
 
   // Load user progress when assigned user changes
   useEffect(() => {
@@ -149,26 +203,6 @@ export default function ProjectJobPage() {
       setBatchAssignments(sortedAssignments);
       console.log("Sorted assignments:", sortedAssignments);
       
-      // Get the most recent assignment for current assignment display
-      if (sortedAssignments.length > 0) {
-        const mostRecentAssignment = sortedAssignments[0];
-        setAssignedUser({
-          user_id: mostRecentAssignment.user_id,
-          username: mostRecentAssignment.user_username,
-          assigned_at: mostRecentAssignment.assigned_at,
-          assigner_username: mostRecentAssignment.assigner_username
-        });
-      } else {
-        // If no assignment, check if owner is doing it (label myself)
-        if (currentUser) {
-          setAssignedUser({
-            user_id: currentUser.user_id,
-            username: currentUser.username || currentUser.email,
-            is_owner: true
-          });
-        }
-      }
-
       // Fetch project files
       const projectFiles = await getProjectFiles(parseInt(project!.id));
 
@@ -499,24 +533,6 @@ export default function ProjectJobPage() {
                 <span>{annotatedFiles.length} Annotated • {unannotatedFiles.length} Unannotated</span>
               </div>
             </div>
-
-            {/* User-specific Progress */}
-            {/* {assignedUser && userProgress && (
-              <div className="space-y-2 pt-2 border-t">
-                <div className="text-xs text-muted-foreground">
-                  {assignedUser.username || assignedUser.email}'s Progress
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">
-                    {userCompletedFiles} / {userAssignedFiles} Files
-                  </span>
-                  <span className="text-muted-foreground">
-                    {Math.round(userProgressPercentage)}%
-                  </span>
-                </div>
-                <Progress value={userProgressPercentage} className="h-2" />
-              </div>
-            )} */}
           </div>
         </div>
 
@@ -638,8 +654,13 @@ export default function ProjectJobPage() {
           <div className="space-y-2">
             {/* Display assigned user */}
             {assignedUser ? (
-              <div className="p-3 border rounded-lg">
-                <p className="font-medium text-sm">{assignedUser.username || assignedUser.email || 'Unknown'}</p>
+              <div className="p-3 rounded-lg">
+                <p className="font-medium text-sm">{assignedUser.email || 'Unknown'}</p>
+                {assignedUser.role_name && (
+                  <Badge variant="outline" className="mt-2 text-xs">
+                    {assignedUser.role_name}
+                  </Badge>
+                )}
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">No user assigned</p>
@@ -655,14 +676,53 @@ export default function ProjectJobPage() {
             {(() => {
               const allEvents: any[] = [];
 
-              // Add job creation
+              // Helper function to get user email from user_id
+              const getUserEmail = (userId: number) => {
+                const collaborator = collaborators.find(c => c.user_id === userId);
+                return collaborator?.user_email || collaborator?.user_username || '';
+              };
+
+              // Helper function to get user initials for avatar
+              const getUserInitials = (email: string) => {
+                if (!email) return '?';
+                const parts = email.split('@')[0];
+                if (parts.length >= 2) {
+                  return parts.substring(0, 2).toUpperCase();
+                }
+                return parts.charAt(0).toUpperCase();
+              };
+
+              // Add job creation with assignment (if there's an assignment)
               if (batchData?.created_at) {
-                allEvents.push({
-                  type: 'creation',
-                  timestamp: batchData.created_at,
-                  message: `Job created${batchData.creator_username ? ` by ${batchData.creator_username}` : ''}`,
-                  color: 'bg-orange-500'
-                });
+                // Find the first assignment (oldest) to show who it was assigned to
+                const firstAssignment = batchAssignments.length > 0 
+                  ? batchAssignments[batchAssignments.length - 1] // Get oldest (last in sorted array)
+                  : assignmentHistory && assignmentHistory.length > 0
+                  ? assignmentHistory[0] // Or first in history
+                  : null;
+
+                if (firstAssignment) {
+                  const assignedEmail = firstAssignment.user_id 
+                    ? getUserEmail(firstAssignment.user_id)
+                    : firstAssignment.user_username || '';
+                  
+                  allEvents.push({
+                    type: 'creation',
+                    timestamp: batchData.created_at,
+                    message: `Job created via API and assigned it to ${assignedEmail}`,
+                    color: 'bg-orange-500',
+                    user_email: assignedEmail,
+                    user_id: firstAssignment.user_id
+                  });
+                } else {
+                  // No assignment found, just show creation
+                  allEvents.push({
+                    type: 'creation',
+                    timestamp: batchData.created_at,
+                    message: `Job created via API`,
+                    color: 'bg-orange-500'
+                  });
+                }
               }
 
               // Add assignment history (deleted assignments) - each is a separate log entry
@@ -672,13 +732,19 @@ export default function ProjectJobPage() {
               if (assignmentHistory && Array.isArray(assignmentHistory) && assignmentHistory.length > 0) {
                 assignmentHistory.forEach((historyEntry, idx) => {
                   console.log(`Adding history entry ${idx}:`, historyEntry);
+                  const assignedEmail = historyEntry.user_id 
+                    ? getUserEmail(historyEntry.user_id)
+                    : historyEntry.user_username || '';
+                  
                   allEvents.push({
                     type: 'assignment_history',
                     timestamp: historyEntry.assigned_at,
-                    message: `${historyEntry.assigner_username || 'Someone'} assigned ${historyEntry.user_username || 'user'} as labeler`,
+                    message: `${historyEntry.assigner_username || 'Someone'} assigned ${assignedEmail} as labeler`,
                     color: 'bg-blue-500',
                     assignment_id: historyEntry.assignment_id,
-                    is_deleted: true
+                    is_deleted: true,
+                    user_email: assignedEmail,
+                    user_id: historyEntry.user_id
                   });
                 });
               } else {
@@ -687,12 +753,18 @@ export default function ProjectJobPage() {
 
               // Add current batch assignments (active ones) - each is a separate log entry
               batchAssignments.forEach(assignment => {
+                const assignedEmail = assignment.user_id 
+                  ? getUserEmail(assignment.user_id)
+                  : assignment.user_username || '';
+                
                 allEvents.push({
                   type: 'assignment',
                   timestamp: assignment.assigned_at,
-                  message: `${assignment.assigner_username || 'Someone'} assigned ${assignment.user_username || 'user'} as labeler`,
+                  message: `${assignment.assigner_username || 'Someone'} assigned ${assignedEmail} as labeler`,
                   color: 'bg-blue-500',
-                  assignment_id: assignment.assignment_id
+                  assignment_id: assignment.assignment_id,
+                  user_email: assignedEmail,
+                  user_id: assignment.user_id
                 });
               });
 
@@ -723,12 +795,12 @@ export default function ProjectJobPage() {
               return allEvents.map((event, index) => (
                 <div key={event.assignment_id || event.event_id || `event-${index}`} className="flex items-start gap-3">
                   <div className={`w-2 h-2 rounded-full ${event.color} mt-2`} />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{event.message}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(event.timestamp).toLocaleString()}
-                    </p>
-                  </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{event.message}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(event.timestamp).toLocaleString()}
+                      </p>
+                    </div>
                 </div>
               ));
             })()}

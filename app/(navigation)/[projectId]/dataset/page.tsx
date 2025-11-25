@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, ChangeEvent } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -40,12 +40,15 @@ import {
   Upload,
 } from "lucide-react";
 import { useProjectFromSlug } from "@/hooks/use-project-from-slug";
-import { getDatasets, getDatasetVersions, exportDatasetVersion, uploadFileToDataset, type Dataset, type DatasetVersion } from "@/app/api/dataset";
+import { getDatasets, getDatasetVersions, exportDatasetVersion, downloadDatasetVersionFile, uploadFileToDataset, type Dataset, type DatasetVersion } from "@/app/api/dataset";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
+import { uploadFilesToProject } from "@/app/api/project";
+import { createProjectBatch } from "@/app/api/batch";
 
 export default function ProjectDatasetPage() {
   const params = useParams();
+  const router = useRouter();
   const { project } = useProjectFromSlug();
   const projectSlug = params.projectId as string;
 
@@ -68,6 +71,10 @@ export default function ProjectDatasetPage() {
   const [versionsLoading, setVersionsLoading] = useState<Record<number, boolean>>({});
   const [uploadingDatasetId, setUploadingDatasetId] = useState<number | null>(null);
   const fileInputsRef = useRef<Record<number, HTMLInputElement | null>>({});
+  const [labelingContext, setLabelingContext] = useState<{ dataset: Dataset; version: DatasetVersion } | null>(null);
+  const [batchNameInput, setBatchNameInput] = useState("");
+  const [batchDescriptionInput, setBatchDescriptionInput] = useState("");
+  const [creatingBatch, setCreatingBatch] = useState(false);
 
   useEffect(() => {
     loadDatasets();
@@ -254,6 +261,18 @@ export default function ProjectDatasetPage() {
                     <Download className="h-4 w-4 mr-2" />
                     Export
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="default"
+                    className="ml-2"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openLabelingDialog(dataset, version);
+                    }}
+                    disabled={creatingBatch && labelingContext?.version.version_id === version.version_id}
+                  >
+                    {creatingBatch && labelingContext?.version.version_id === version.version_id ? "Preparing..." : "Create Batch"}
+                  </Button>
                 </div>
               ))
           )}
@@ -305,6 +324,76 @@ export default function ProjectDatasetPage() {
     }
   };
 
+  const openLabelingDialog = (dataset: Dataset, version: DatasetVersion) => {
+    setLabelingContext({ dataset, version });
+    setBatchNameInput(`${dataset.name} - v${version.version_number}`);
+    setBatchDescriptionInput(version.changelog || "");
+  };
+
+  const closeLabelingDialog = () => {
+    if (creatingBatch) return;
+    setLabelingContext(null);
+    setBatchNameInput("");
+    setBatchDescriptionInput("");
+  };
+
+  const handleCreateBatchFromVersion = async () => {
+    if (!labelingContext || !project?.id) {
+      toast.error("Project context missing");
+      return;
+    }
+
+    const { dataset, version } = labelingContext;
+    const batchName = batchNameInput.trim() || `${dataset.name} - v${version.version_number}`;
+    setCreatingBatch(true);
+
+    try {
+      // Step 1: export dataset version as CSV (proxied through backend to avoid CORS)
+      const exportResult = await downloadDatasetVersionFile(
+        dataset.dataset_id,
+        version.version_id,
+        "csv",
+        `${dataset.name}-v${version.version_number}.csv`
+      );
+
+      const file = new File(
+        [exportResult.blob],
+        exportResult.fileName || `${dataset.name}-v${version.version_number}.csv`,
+        { type: exportResult.contentType || exportResult.blob.type || "text/csv" }
+      );
+
+      // Step 2: upload to current project
+      const uploadResponse = await uploadFilesToProject(parseInt(project.id), [file], "text");
+      const fileIds = uploadResponse?.files?.map((fileInfo) => fileInfo.file_id) || [];
+      if (fileIds.length === 0) {
+        throw new Error("Uploaded file but did not receive file details");
+      }
+
+      // Step 3: create batch linked to these files
+      const batchResponse = await createProjectBatch({
+        project_id: parseInt(project.id),
+        name: batchName,
+        description: batchDescriptionInput.trim() || undefined,
+        file_ids: fileIds,
+        batch_metadata: {
+          source: "dataset_version",
+          dataset_id: dataset.dataset_id,
+          version_id: version.version_id,
+          version_number: version.version_number,
+          file_ids: fileIds,
+        },
+      });
+
+      toast.success("Batch created from dataset version. Check the Unassigned section to continue labeling.");
+      closeLabelingDialog();
+    } catch (error: any) {
+      console.error("Failed to prepare batch from dataset version:", error);
+      toast.error(error.message || "Failed to prepare batch from this version");
+    } finally {
+      setCreatingBatch(false);
+    }
+  };
+
   // Pagination
   const totalPages = Math.ceil(filteredDatasets.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -326,20 +415,7 @@ export default function ProjectDatasetPage() {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold">Dataset</h1>
-            {/* <Button variant="ghost" size="sm" className="gap-2">
-              <HelpCircle className="h-4 w-4" />
-              How to Search
-            </Button> */}
           </div>
-          {/* <Button
-            variant="outline"
-            onClick={() => {
-              toast.info("Please select a dataset and click Export button");
-            }}
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Export Dataset
-          </Button> */}
           <Dialog open={isExportOpen} onOpenChange={setIsExportOpen}>
             <DialogContent className="max-w-md">
               <DialogHeader>
@@ -525,6 +601,55 @@ export default function ProjectDatasetPage() {
           </div>
         )}
       </div>
+
+      {/* Labeling Dialog */}
+      <Dialog open={!!labelingContext} onOpenChange={(open) => (open ? null : closeLabelingDialog())}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Start Labeling from Dataset Version</DialogTitle>
+            <DialogDescription>
+              We&apos;ll export this version, upload it to the project, create a new batch, and redirect you to the labeling flow.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label>Dataset</Label>
+              <p className="text-sm font-medium">
+                {labelingContext?.dataset.name} (v{labelingContext?.version.version_number})
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="batch-name">Batch name</Label>
+              <Input
+                id="batch-name"
+                value={batchNameInput}
+                onChange={(e) => setBatchNameInput(e.target.value)}
+                placeholder="Enter batch name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="batch-description">Description (optional)</Label>
+              <Input
+                id="batch-description"
+                value={batchDescriptionInput}
+                onChange={(e) => setBatchDescriptionInput(e.target.value)}
+                placeholder="Add notes about this version"
+              />
+            </div>
+            <div className="text-sm text-muted-foreground">
+              This will create a new batch in this project so you can choose Label Myself, Label with Team, or Auto-Label with AI.
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeLabelingDialog} disabled={creatingBatch}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateBatchFromVersion} disabled={creatingBatch}>
+              {creatingBatch ? "Preparing..." : "Create Batch"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Pagination Footer */}
       <div className="border-t bg-background p-4">
