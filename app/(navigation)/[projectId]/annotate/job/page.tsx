@@ -202,7 +202,7 @@ export default function ProjectJobPage() {
       );
       setBatchAssignments(sortedAssignments);
       console.log("Sorted assignments:", sortedAssignments);
-      
+
       // Fetch project files
       const projectFiles = await getProjectFiles(parseInt(project!.id));
 
@@ -496,7 +496,7 @@ export default function ProjectJobPage() {
             </div>
           </div>
           <div className="flex items-center justify-between gap-2 mt-4">
-              <Button 
+            <Button 
               className="flex-1" 
               onClick={() => {
                 // Navigate to labelai page with jobId in path
@@ -521,12 +521,12 @@ export default function ProjectJobPage() {
           <div className="space-y-4">
             {/* Overall Progress */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Overall Progress</span>
                 <span className="text-muted-foreground font-medium">
                   {Math.round(progress)}%
-                </span>
-              </div>
+                  </span>
+                </div>
               <Progress value={progress} className="h-2" />
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>{annotatedFiles.length} / {totalFiles} Files</span>
@@ -706,9 +706,9 @@ export default function ProjectJobPage() {
                     ? getUserEmail(firstAssignment.user_id)
                     : firstAssignment.user_username || '';
                   
-                  allEvents.push({
-                    type: 'creation',
-                    timestamp: batchData.created_at,
+                allEvents.push({
+                  type: 'creation',
+                  timestamp: batchData.created_at,
                     message: `Job created via API and assigned it to ${assignedEmail}`,
                     color: 'bg-orange-500',
                     user_email: assignedEmail,
@@ -720,8 +720,8 @@ export default function ProjectJobPage() {
                     type: 'creation',
                     timestamp: batchData.created_at,
                     message: `Job created via API`,
-                    color: 'bg-orange-500'
-                  });
+                  color: 'bg-orange-500'
+                });
                 }
               }
 
@@ -795,12 +795,12 @@ export default function ProjectJobPage() {
               return allEvents.map((event, index) => (
                 <div key={event.assignment_id || event.event_id || `event-${index}`} className="flex items-start gap-3">
                   <div className={`w-2 h-2 rounded-full ${event.color} mt-2`} />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">{event.message}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(event.timestamp).toLocaleString()}
-                      </p>
-                    </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{event.message}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(event.timestamp).toLocaleString()}
+                    </p>
+                  </div>
                 </div>
               ));
             })()}

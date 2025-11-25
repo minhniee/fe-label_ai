@@ -826,24 +826,6 @@ export default function ProjectBatchPage() {
                   </div>
                 </div>
               </Card>
-
-              {/* Hire Outsourced Labelers Option */}
-              {/* <Card className="p-4 border hover:border-primary/40 transition-colors cursor-pointer opacity-60">
-                <div className="flex items-start gap-3">
-                  <UserPlus className="h-5 w-5 text-muted-foreground" />
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <div className="font-semibold mb-1">Hire Outsourced Labelers</div>
-                      <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800">
-                        Upgrade
-                      </Badge>
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      Work with a professional labeling team vetted by our team.
-                    </div>
-                  </div>
-                </div>
-              </Card> */}
             </div>
           )}
 
@@ -1143,8 +1125,8 @@ export default function ProjectBatchPage() {
                 Click to browse or drag and drop files here
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Supports: .jpg, .png, .pdf, .xlsx, .json, .csv
-              </p>
+                Supports: .csv, .xlsx, .json, .pdf
+              </p>  
             </div>
           ) : (
             <div className="space-y-4">

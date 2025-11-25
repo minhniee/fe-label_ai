@@ -1,27 +1,34 @@
-"use client"
+"use client";
 
-import type React from "react"
-import { useState, useRef, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent } from "@/components/ui/card"
-import { FileUp, FolderOpen, File as FileIcon, X, Upload, Image as ImageIcon, FileText, ExternalLink } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
-import { toast as sonnerToast } from "sonner"
-import { uploadFilesToProject, getProjectFiles } from "@/app/api/project"
-import { createProjectBatch, splitProjectFile } from "@/app/api/batch"
-import { useProjectFromSlug } from "@/hooks/use-project-from-slug"
-import { projectToSlug } from "@/types/project"
-import { useUserPermissions } from "@/hooks/use-user-permissions"
+import type React from "react";
+import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  FileUp,
+  FolderOpen,
+  File as FileIcon,
+  X,
+  Upload,
+  FileText,
+  ExternalLink,
+} from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { toast as sonnerToast } from "sonner";
+import { uploadFilesToProject, getProjectFiles } from "@/app/api/project";
+import { createProjectBatch, splitProjectFile } from "@/app/api/batch";
+import { useProjectFromSlug } from "@/hooks/use-project-from-slug";
+import { projectToSlug } from "@/types/project";
+import { useUserPermissions } from "@/hooks/use-user-permissions";
 
 // Define supported file formats
-const IMAGE_EXTENSIONS = [".jpg", ".png", ".bmp", ".webp", ".avif"];
 const PDF_EXTENSIONS = [".pdf"];
-const DATA_EXTENSIONS = [".xlsx", ".json", ".csv"];
-const ALL_SUPPORTED_EXTENSIONS = [...IMAGE_EXTENSIONS, ...PDF_EXTENSIONS, ...DATA_EXTENSIONS];
+const DATA_EXTENSIONS = [".csv", ".xlsx", ".xlsv", ".json"];
+const ALL_SUPPORTED_EXTENSIONS = [...PDF_EXTENSIONS, ...DATA_EXTENSIONS];
 
-type Tab = "all" | "annotated" | "not-annotated"
+type Tab = "all" | "annotated" | "not-annotated";
 
 export function UploadForm() {
   const router = useRouter();
@@ -32,9 +39,12 @@ export function UploadForm() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("all");
-  const [filePreviewUrls, setFilePreviewUrls] = useState<{ [key: string]: string }>({});
-  const [annotatedFiles, setAnnotatedFiles] = useState<Set<string>>(new Set());
   const [projectFiles, setProjectFiles] = useState<any[]>([]);
+  const isDataFile = (file: File) => {
+    const extension = `.${file.name.split(".").pop()?.toLowerCase() ?? ""}`;
+    return DATA_EXTENSIONS.includes(extension);
+  };
+
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -43,7 +53,14 @@ export function UploadForm() {
   // Set default batch name on mount
   useEffect(() => {
     const now = new Date();
-    const formattedDate = `Uploaded on ${now.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' })} at ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`;
+    const formattedDate = `Uploaded on ${now.toLocaleDateString("en-US", {
+      month: "2-digit",
+      day: "2-digit",
+    })} at ${now.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    })}`;
     setBatchName(formattedDate);
   }, []);
 
@@ -54,19 +71,9 @@ export function UploadForm() {
     }
   }, [project]);
 
-  // Update annotated files when project files or selected files change
-  useEffect(() => {
-    if (projectFiles.length > 0 && selectedFiles.length > 0) {
-      updateAnnotatedFiles();
-    } else {
-      // If no project files or selected files, reset annotated files
-      setAnnotatedFiles(new Set());
-    }
-  }, [projectFiles, selectedFiles]);
-
   const loadProjectFiles = async () => {
     if (!project) return;
-    
+
     try {
       setIsLoadingFiles(true);
       const files = await getProjectFiles(parseInt(project.id));
@@ -79,48 +86,6 @@ export function UploadForm() {
     }
   };
 
-  const updateAnnotatedFiles = () => {
-    // Create a map of filename -> annotation_status from project files
-    const fileStatusMap = new Map<string, string>();
-    projectFiles.forEach(file => {
-      // Check if filename exists and is valid
-      if (file && file.filename && typeof file.filename === 'string') {
-        fileStatusMap.set(file.filename.toLowerCase(), file.annotation_status || 'unannotated');
-      }
-    });
-
-    // Check which selected files are annotated
-    const annotatedSet = new Set<string>();
-    selectedFiles.forEach(file => {
-      if (file && file.name) {
-        const fileName = file.name.toLowerCase();
-        const status = fileStatusMap.get(fileName);
-        
-        // File is annotated if it exists in project and has status 'completed' or 'verified'
-        if (status === 'completed' || status === 'verified') {
-          annotatedSet.add(file.name); // Use original file.name for Set key
-        }
-      }
-    });
-
-    setAnnotatedFiles(annotatedSet);
-  };
-
-  // Generate or revoke preview URLs for images
-  useEffect(() => {
-    const newUrls: { [key: string]: string } = {};
-    selectedFiles.forEach((file) => {
-      if (IMAGE_EXTENSIONS.some((ext) => file.name.toLowerCase().endsWith(ext))) {
-        const url = URL.createObjectURL(file);
-        newUrls[file.name] = url;
-      }
-    });
-    setFilePreviewUrls(newUrls);
-
-    return () => {
-      Object.values(newUrls).forEach(url => URL.revokeObjectURL(url));
-    };
-  }, [selectedFiles]);
 
   const validateFiles = (files: File[]): File[] => {
     return files.filter((file) => {
@@ -132,7 +97,11 @@ export function UploadForm() {
   const addFiles = async (newFiles: File[]) => {
     const validFiles = validateFiles(newFiles);
     const uniqueNewFiles = validFiles.filter(
-      (file) => !selectedFiles.some((existingFile) => existingFile.name === file.name && existingFile.size === file.size)
+      (file) =>
+        !selectedFiles.some(
+          (existingFile) =>
+            existingFile.name === file.name && existingFile.size === file.size
+        )
     );
     setSelectedFiles((prev) => [...prev, ...uniqueNewFiles]);
   };
@@ -179,7 +148,7 @@ export function UploadForm() {
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     await addFiles(Array.from(e.target.files || []));
-    if (e.target) e.target.value = '';
+    if (e.target) e.target.value = "";
   };
 
   const removeFile = (fileName: string) => {
@@ -188,69 +157,82 @@ export function UploadForm() {
 
   const getFilteredFiles = () => {
     if (activeTab === "all") return selectedFiles;
-    
-    // For annotated/not-annotated tabs, only show image files
-    const imageFiles = selectedFiles.filter(file => 
-      IMAGE_EXTENSIONS.some(ext => file.name.toLowerCase().endsWith(ext))
-    );
-    
+
+    // For annotated/not-annotated tabs, only show supported data files
+    const dataFiles = selectedFiles.filter(isDataFile);
+
     if (activeTab === "annotated") {
       // Show files that are annotated (completed or verified)
-      return imageFiles.filter((file) => {
+      return dataFiles.filter((file) => {
         if (!file || !file.name) return false;
         const fileName = file.name.toLowerCase();
-        const projectFile = projectFiles.find(pf => 
-          pf && pf.filename && typeof pf.filename === 'string' && 
-          pf.filename.toLowerCase() === fileName
+        const projectFile = projectFiles.find(
+          (pf) =>
+            pf &&
+            pf.filename &&
+            typeof pf.filename === "string" &&
+            pf.filename.toLowerCase() === fileName
         );
-        return projectFile && (projectFile.annotation_status === 'completed' || projectFile.annotation_status === 'verified');
+        return (
+          projectFile &&
+          (projectFile.annotation_status === "completed" ||
+            projectFile.annotation_status === "verified")
+        );
       });
     }
-    
+
     if (activeTab === "not-annotated") {
       // Show files that are NOT annotated (unannotated, annotating, or new files not in project)
-      return imageFiles.filter((file) => {
+      return dataFiles.filter((file) => {
         if (!file || !file.name) return false;
         const fileName = file.name.toLowerCase();
-        const projectFile = projectFiles.find(pf => 
-          pf && pf.filename && typeof pf.filename === 'string' && 
-          pf.filename.toLowerCase() === fileName
+        const projectFile = projectFiles.find(
+          (pf) =>
+            pf &&
+            pf.filename &&
+            typeof pf.filename === "string" &&
+            pf.filename.toLowerCase() === fileName
         );
-        
+
         // If file doesn't exist in project, it's not annotated (new file)
         if (!projectFile) return true;
-        
+
         // If file exists but status is unannotated or annotating, it's not annotated
-        return projectFile.annotation_status === 'unannotated' || projectFile.annotation_status === 'annotating';
+        return (
+          projectFile.annotation_status === "unannotated" ||
+          projectFile.annotation_status === "annotating"
+        );
       });
     }
-    
+
     return selectedFiles;
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    
+
     if (selectedFiles.length === 0) {
-      toast({ 
-        title: "No files selected", 
-        description: "Please select files to upload.", 
-        variant: "destructive" 
+      toast({
+        title: "No files selected",
+        description: "Please select files to upload.",
+        variant: "destructive",
       });
       return;
     }
 
     if (!project) {
-      toast({ 
-        title: "No project selected", 
-        description: "Please select a project first.", 
-        variant: "destructive" 
+      toast({
+        title: "No project selected",
+        description: "Please select a project first.",
+        variant: "destructive",
       });
       return;
     }
 
     setIsUploading(true);
-    const toastId = sonnerToast.loading(`Uploading ${selectedFiles.length} files...`);
+    const toastId = sonnerToast.loading(
+      `Uploading ${selectedFiles.length} files...`
+    );
 
     try {
       // Step 1: Upload files to project
@@ -262,33 +244,38 @@ export function UploadForm() {
       console.log("Upload response:", uploadResponse);
 
       // Step 2: Extract file_ids from the files array
-      const fileIds = uploadResponse?.files?.map(file => file.file_id) || [];
-      
+      const fileIds = uploadResponse?.files?.map((file) => file.file_id) || [];
+
       console.log("Upload response:", uploadResponse);
       console.log("Extracted file IDs:", fileIds);
-      
+
       // Step 3: Prepare batch metadata with file_ids and CSV row counts from API
-      const csvRowCountsFromApi = await fetchCsvRowCountsFromApi(uploadResponse?.files || []);
+      const csvRowCountsFromApi = await fetchCsvRowCountsFromApi(
+        uploadResponse?.files || []
+      );
       const batchMetadata: any = {
-        file_ids: fileIds
+        file_ids: fileIds,
       };
-      
+
       if (Object.keys(csvRowCountsFromApi).length > 0) {
         batchMetadata.csv_row_counts = csvRowCountsFromApi;
-        const totalRows = Object.values(csvRowCountsFromApi).reduce((sum, count) => sum + count, 0);
+        const totalRows = Object.values(csvRowCountsFromApi).reduce(
+          (sum, count) => sum + count,
+          0
+        );
         batchMetadata.total_csv_rows = totalRows;
       }
-      
+
       // Step 5: Create a batch with ONLY the newly uploaded files
       if (uploadResponse?.success && fileIds.length > 0) {
         sonnerToast.success("Files uploaded successfully!", { id: toastId });
-        
+
         const batchResponse = await createProjectBatch({
           project_id: parseInt(project.id),
           name: batchName,
           description: `Batch created with ${fileIds.length} files`,
           file_ids: fileIds, // Use file_ids extracted from files array
-          batch_metadata: batchMetadata
+          batch_metadata: batchMetadata,
         });
 
         console.log("Batch created response:", batchResponse);
@@ -300,10 +287,14 @@ export function UploadForm() {
         const projectSlug = projectToSlug(project);
         const fileIdsParam = encodeURIComponent(JSON.stringify(fileIds));
         console.log("URL parameter fileIds:", fileIdsParam);
-        router.push(`/${projectSlug}/annotate/batch?batchId=${batchResponse.batch_id}&fileIds=${fileIdsParam}`);
+        router.push(
+          `/${projectSlug}/annotate/batch?batchId=${batchResponse.batch_id}&fileIds=${fileIdsParam}`
+        );
       } else {
         console.error("No files in response:", uploadResponse);
-        sonnerToast.error("No files were uploaded successfully.", { id: toastId });
+        sonnerToast.error("No files were uploaded successfully.", {
+          id: toastId,
+        });
       }
     } catch (error: any) {
       console.error("Upload error:", error);
@@ -314,7 +305,7 @@ export function UploadForm() {
       toast({
         title: "Upload Failed",
         description: error.message || "An error occurred during upload.",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setIsUploading(false);
@@ -322,134 +313,217 @@ export function UploadForm() {
   };
 
   const filteredFiles = getFilteredFiles();
-  const imageFiles = selectedFiles.filter(file => IMAGE_EXTENSIONS.some(ext => file.name.toLowerCase().endsWith(ext)));
-  
-  // Calculate counts based on actual project files annotation status
-  const annotatedCount = imageFiles.filter(file => {
+
+  // Calculate counts based on actual project files annotation status (data files only)
+  const annotationEligibleFiles = selectedFiles.filter(isDataFile);
+  const annotatedCount = annotationEligibleFiles.filter((file) => {
     if (!file || !file.name) return false;
     const fileName = file.name.toLowerCase();
-    const projectFile = projectFiles.find(pf => 
-      pf && pf.filename && typeof pf.filename === 'string' && 
-      pf.filename.toLowerCase() === fileName
+    const projectFile = projectFiles.find(
+      (pf) =>
+        pf &&
+        pf.filename &&
+        typeof pf.filename === "string" &&
+        pf.filename.toLowerCase() === fileName
     );
-    return projectFile && (projectFile.annotation_status === 'completed' || projectFile.annotation_status === 'verified');
+    return (
+      projectFile &&
+      (projectFile.annotation_status === "completed" ||
+        projectFile.annotation_status === "verified")
+    );
   }).length;
-  
-  const notAnnotatedCount = imageFiles.length - annotatedCount;
+
+  const notAnnotatedCount = annotationEligibleFiles.length - annotatedCount;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-
       {/* Top Header Inputs */}
       <div>
-          <label htmlFor="batch-name" className="text-sm font-medium">Batch Name:</label>
-          <Input id="batch-name" value={batchName} onChange={(e) => setBatchName(e.target.value)} placeholder="Enter batch name" />
+        <label htmlFor="batch-name" className="text-sm font-medium">
+          Batch Name:
+        </label>
+        <Input
+          id="batch-name"
+          value={batchName}
+          onChange={(e) => setBatchName(e.target.value)}
+          placeholder="Enter batch name"
+        />
       </div>
 
       {/* Tabs - only show when files are selected */}
       {selectedFiles.length > 0 && (
-          <div className="flex gap-6 border-b">
-              <button type="button" onClick={() => setActiveTab("all")} className={`pb-2 font-medium text-sm relative ${activeTab === 'all' ? 'text-primary border-b-2 border-primary -mb-px' : 'text-muted-foreground hover:text-foreground'}`}>
-                  All Files <span className="ml-1 text-xs bg-muted text-muted-foreground rounded-full px-2 py-0.5">{selectedFiles.length}</span>
-              </button>
-              <button type="button" onClick={() => setActiveTab("annotated")} className={`pb-2 font-medium text-sm relative ${activeTab === 'annotated' ? 'text-primary border-b-2 border-primary -mb-px' : 'text-muted-foreground hover:text-foreground'}`}>
-                  Annotated <span className="ml-1 text-xs bg-muted text-muted-foreground rounded-full px-2 py-0.5">{annotatedCount}</span>
-              </button>
-              <button type="button" onClick={() => setActiveTab("not-annotated")} className={`pb-2 font-medium text-sm relative ${activeTab === 'not-annotated' ? 'text-primary border-b-2 border-primary -mb-px' : 'text-muted-foreground hover:text-foreground'}`}>
-                  Not Annotated <span className="ml-1 text-xs bg-muted text-muted-foreground rounded-full px-2 py-0.5">{notAnnotatedCount}</span>
-              </button>
-          </div>
+        <div className="flex gap-6 border-b">
+          <button
+            type="button"
+            onClick={() => setActiveTab("all")}
+            className={`pb-2 font-medium text-sm relative ${
+              activeTab === "all"
+                ? "text-primary border-b-2 border-primary -mb-px"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            All Files{" "}
+            <span className="ml-1 text-xs bg-muted text-muted-foreground rounded-full px-2 py-0.5">
+              {selectedFiles.length}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("annotated")}
+            className={`pb-2 font-medium text-sm relative ${
+              activeTab === "annotated"
+                ? "text-primary border-b-2 border-primary -mb-px"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Annotated{" "}
+            <span className="ml-1 text-xs bg-muted text-muted-foreground rounded-full px-2 py-0.5">
+              {annotatedCount}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("not-annotated")}
+            className={`pb-2 font-medium text-sm relative ${
+              activeTab === "not-annotated"
+                ? "text-primary border-b-2 border-primary -mb-px"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Not Annotated{" "}
+            <span className="ml-1 text-xs bg-muted text-muted-foreground rounded-full px-2 py-0.5">
+              {notAnnotatedCount}
+            </span>
+          </button>
+        </div>
       )}
 
       {/* Main Upload Area */}
-      <div onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}>
+      <div
+        onDragEnter={handleDrag}
+        onDragLeave={handleDrag}
+        onDragOver={handleDrag}
+        onDrop={handleDrop}
+      >
         {selectedFiles.length === 0 ? (
           // EMPTY STATE VIEW
-          <div className={`text-center space-y-4 border-2 border-dashed rounded-lg p-12 transition-colors ${dragActive ? "border-primary bg-primary/5" : "border-border"}`}>
+          <div
+            className={`text-center space-y-4 border-2 border-dashed rounded-lg p-12 transition-colors ${
+              dragActive ? "border-primary bg-primary/5" : "border-border"
+            }`}
+          >
             <div className="flex justify-center">
-                <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
-                    <Upload className="w-8 h-8 text-muted-foreground" />
-                </div>
+              <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+                <Upload className="w-8 h-8 text-muted-foreground" />
+              </div>
             </div>
-            <h2 className="text-xl font-semibold">Drag and drop file(s) to upload, or:</h2>
+            <h2 className="text-xl font-semibold">
+              Drag and drop file(s) to upload, or:
+            </h2>
             <div className="flex gap-3 justify-center">
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={() => fileInputRef.current?.click()} 
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
                 className="gap-2"
                 disabled={!canCreate}
               >
-                <FileUp className="w-4 h-4" />Select File(s)
+                <FileUp className="w-4 h-4" />
+                Select File(s)
               </Button>
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={() => folderInputRef.current?.click()} 
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => folderInputRef.current?.click()}
                 className="gap-2"
                 disabled={!canCreate}
               >
-                <FolderOpen className="w-4 h-4" />Select Folder
+                <FolderOpen className="w-4 h-4" />
+                Select Folder
               </Button>
             </div>
             {!canCreate && (
-              <p className="text-sm text-muted-foreground">Viewer role cannot upload files</p>
+              <p className="text-sm text-muted-foreground">
+                Viewer role cannot upload files
+              </p>
             )}
-            <div className="pt-6">
-                <h3 className="text-sm font-semibold text-muted-foreground mb-4">Supported Formats</h3>
+            <div className="pt-6 flex justify-center">
+              <div className="w-full max-w-md">
+                <h3 className="text-sm font-semibold text-muted-foreground mb-4 text-center">
+                  Supported Formats
+                </h3>
+
                 <Card className="p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
-                        <div className="space-y-1">
-                            <h4 className="font-medium flex items-center gap-2"><ImageIcon className="w-4 h-4" /> Images</h4>
-                            <p className="text-sm text-muted-foreground">{IMAGE_EXTENSIONS.join(", ")}</p>
-                        </div>
-                        <div className="space-y-1">
-                            <h4 className="font-medium flex items-center gap-2"><FileText className="w-4 h-4" /> Files</h4>
-                            <p className="text-sm text-muted-foreground">{DATA_EXTENSIONS.join(", ")}</p>
-                        </div>
-                        <div className="space-y-1">
-                            <h4 className="font-medium flex items-center gap-2"><FileIcon className="w-4 h-4" /> PDFs</h4>
-                            <p className="text-sm text-muted-foreground">{PDF_EXTENSIONS.join(", ")}</p>
-                        </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+                    <div className="space-y-1 text-left">
+                      <h4 className="font-medium flex items-center gap-2">
+                        <FileText className="w-4 h-4" /> Files
+                      </h4>
+                      <p className="text-sm text-muted-foreground">
+                        {DATA_EXTENSIONS.join(", ")}
+                      </p>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-4 text-left">*Max size of 20MB and 16,400 × 10,900 pixels.</p>
+
+                    <div className="space-y-1 text-left md:text-right">
+                      <h4 className="font-medium flex items-center gap-2 md:justify-end">
+                        <FileIcon className="w-4 h-4" /> PDFs
+                      </h4>
+                      <p className="text-sm text-muted-foreground">
+                        {PDF_EXTENSIONS.join(", ")}
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground mt-4 text-left">
+                    *Max size of 20MB
+                  </p>
                 </Card>
+              </div>
             </div>
           </div>
         ) : (
           // POPULATED STATE VIEW
-          <Card className={`transition-colors ${dragActive ? "border-primary bg-primary/5" : "border-border"}`}>
+          <Card
+            className={`transition-colors ${
+              dragActive ? "border-primary bg-primary/5" : "border-border"
+            }`}
+          >
             <CardContent className="p-6 space-y-6">
               <div className="flex justify-between items-center pb-6 border-b">
                 <div>
-                  <h3 className="text-lg font-semibold">Drag and drop images and files.</h3>
+                  <h3 className="text-lg font-semibold">
+                    Drag and drop files to upload.
+                  </h3>
                   <div className="text-sm text-muted-foreground mt-1 space-x-2 flex items-center">
-                    <span>{IMAGE_EXTENSIONS.slice(0, 3).join(", ")}...</span>
-                    <span>{DATA_EXTENSIONS.join(", ")}</span>
+                    <span>{ALL_SUPPORTED_EXTENSIONS.join(", ")}</span>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-2">*Max size of 20MB and 16,400 × 10,900 pixels.</p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    *Max size of 20MB and 16,400 × 10,900 pixels.
+                  </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={() => fileInputRef.current?.click()} 
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
                     className="gap-2"
                     disabled={isUploading || !canCreate}
                   >
-                    <FileUp className="w-4 h-4" />Select Files
+                    <FileUp className="w-4 h-4" />
+                    Select Files
                   </Button>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={() => folderInputRef.current?.click()} 
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => folderInputRef.current?.click()}
                     className="gap-2"
                     disabled={isUploading || !canCreate}
                   >
-                    <FolderOpen className="w-4 h-4" />Select Folder
+                    <FolderOpen className="w-4 h-4" />
+                    Select Folder
                   </Button>
-                  <Button 
-                    type="submit" 
+                  <Button
+                    type="submit"
                     className="gap-2"
                     disabled={isUploading || !canCreate}
                   >
@@ -461,20 +535,25 @@ export function UploadForm() {
               {filteredFiles.length > 0 ? (
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 pt-6">
                   {filteredFiles.map((file) => (
-                    <div key={file.name} className="relative group rounded-lg overflow-hidden bg-muted aspect-video flex items-center justify-center text-center">
+                    <div
+                      key={file.name}
+                      className="relative group rounded-lg overflow-hidden bg-muted aspect-video flex items-center justify-center text-center"
+                    >
                       {canCreate && (
-                        <button type="button" onClick={() => removeFile(file.name)} className="absolute top-1 right-1 z-10 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          type="button"
+                          onClick={() => removeFile(file.name)}
+                          className="absolute top-1 right-1 z-10 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
                           <X className="w-3 h-3" />
                         </button>
                       )}
-                      {IMAGE_EXTENSIONS.some(ext => file.name.toLowerCase().endsWith(ext)) ? (
-                        <img src={filePreviewUrls[file.name]} alt={file.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="flex flex-col items-center gap-2 p-2">
-                          <FileIcon className="w-8 h-8 text-muted-foreground" />
-                          <p className="text-xs text-muted-foreground break-all">{file.name}</p>
-                        </div>
-                      )}
+                      <div className="flex flex-col items-center gap-2 p-2">
+                        <FileIcon className="w-8 h-8 text-muted-foreground" />
+                        <p className="text-xs text-muted-foreground break-all">
+                          {file.name}
+                        </p>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -488,8 +567,22 @@ export function UploadForm() {
         )}
       </div>
 
-      <input ref={fileInputRef} type="file" multiple accept={ALL_SUPPORTED_EXTENSIONS.join(",")} onChange={handleFileChange} className="hidden" />
-      <input ref={folderInputRef} type="file" multiple onChange={handleFileChange} className="hidden" {...{ webkitdirectory: "true" }} />
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        accept={ALL_SUPPORTED_EXTENSIONS.join(",")}
+        onChange={handleFileChange}
+        className="hidden"
+      />
+      <input
+        ref={folderInputRef}
+        type="file"
+        multiple
+        onChange={handleFileChange}
+        className="hidden"
+        {...{ webkitdirectory: "true" }}
+      />
     </form>
-  )
+  );
 }
