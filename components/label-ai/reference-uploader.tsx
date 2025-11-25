@@ -19,7 +19,14 @@ interface ReferenceUploaderProps {
   onReferenceUpdate: (content: string, files: ReferenceFile[]) => void
 }
 
+// ENABLED: Reference Uploader is enabled
+const REFERENCE_UPLOADER_ENABLED = true
+
 export function ReferenceUploader({ onReferenceUpdate }: ReferenceUploaderProps) {
+  if (!REFERENCE_UPLOADER_ENABLED) {
+    return null
+  }
+  
   const [files, setFiles] = useState<ReferenceFile[]>([])
   const [isUploading, setIsUploading] = useState(false)
   const { toast } = useToast()

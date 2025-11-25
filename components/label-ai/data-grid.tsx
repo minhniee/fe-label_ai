@@ -5,6 +5,7 @@ import { Check, ChevronLeft, ChevronRight, Download, X, CheckCheck, Send, Trash2
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -205,26 +206,46 @@ export function DataGrid({
       if (r._id !== rowId) return r
       // When confirming, prioritize correct_answer (_corrected_value) from auto-labeling prompt
       // This ensures we use the correct_answer field when user accepts
-      // Skip _ai_suggestion if it's just "true"/"false"/"correct"/"wrong" (status values, not actual labels)
       const aiSuggestion = row._ai_suggestion
       const aiType = (row._ai_type || "").toString().toLowerCase()
       const isStatusValue = aiSuggestion && ["true", "false", "correct", "wrong", "ambiguous", "needs_label"].includes(String(aiSuggestion).toLowerCase())
       
-      let valueToFill = row._corrected_value
+      let valueToFill: string | null | undefined = row._corrected_value
       
-      // If _corrected_value is empty or is a status value, handle based on type
-      if (!valueToFill || valueToFill === "" || ["true", "false", "correct", "wrong", "ambiguous", "needs_label"].includes(String(valueToFill).toLowerCase())) {
-        // For "correct" type, keep existing value (it's already correct)
-        if (aiType === "correct" && r[resultColumn]) {
-          valueToFill = r[resultColumn]
-        } else if (aiSuggestion && !isStatusValue) {
-          // Only use _ai_suggestion if it's not a status value (i.e., it's an actual label)
-          valueToFill = aiSuggestion
+      // Check if _corrected_value is a valid value (not empty, not null, not a status string)
+      const correctedValueStr = String(valueToFill || "").trim().toLowerCase()
+      const isCorrectedValueStatus = ["true", "false", "correct", "wrong", "ambiguous", "needs_label"].includes(correctedValueStr)
+      const hasValidCorrectedValue = valueToFill && valueToFill !== "" && !isCorrectedValueStatus
+      
+      // Priority 1: Use _corrected_value if it's valid (this contains correct_answer from AI)
+      if (hasValidCorrectedValue) {
+        valueToFill = String(valueToFill).trim()
+      } 
+      // Priority 2: For "correct" type, keep existing value (it's already correct)
+      else if (aiType === "correct" && r[resultColumn]) {
+        valueToFill = r[resultColumn]
+      } 
+      // Priority 3: Use _ai_suggestion if it's not a status value (i.e., it's an actual label)
+      else if (aiSuggestion && !isStatusValue) {
+        valueToFill = String(aiSuggestion).trim()
+      } 
+      // Priority 4: For "wrong" type, if no corrected_value, try to use _correct_info as fallback
+      else if (aiType === "wrong" && row._correct_info && String(row._correct_info).trim() !== "") {
+        const correctInfoStr = String(row._correct_info).trim().toLowerCase()
+        if (!["true", "false", "correct", "wrong", "ambiguous", "needs_label"].includes(correctInfoStr)) {
+          valueToFill = String(row._correct_info).trim()
         } else {
           // Keep existing value if no valid corrected value
           valueToFill = r[resultColumn] || ""
         }
       }
+      // Priority 5: Keep existing value if no valid corrected value
+      else {
+        valueToFill = r[resultColumn] || ""
+      }
+      
+      // Debug logging
+      console.log(`[handleConfirm] Row ${rowId}: aiType=${aiType}, _corrected_value='${row._corrected_value}', valueToFill='${valueToFill}'`)
       
       if (isIncorrect || isCorrect || isAmbiguous) {
         return {
@@ -243,6 +264,25 @@ export function DataGrid({
     toast({
       title: "Confirmed",
       description: `Applied AI correct_answer to ${resultColumn}`,
+    })
+  }
+
+  const handleConfirmManual = (rowId: string) => {
+    // For manual mode: mark as confirmed when user confirms their manual edit
+    const updatedAllData = allData.map((r) =>
+      r._id === rowId
+        ? {
+            ...r,
+            _confirmed: true,
+            _isModified: false, // Clear modified flag after confirmation
+          }
+        : r,
+    )
+    
+    onDataUpdate(updatedAllData)
+    toast({
+      title: "Confirmed",
+      description: `Manual label has been confirmed`,
     })
   }
 
@@ -572,7 +612,12 @@ export function DataGrid({
   }
 
   const getResultCellColor = (row: RowData) => {
-    // Fix: Only show highlight if confirmed OR if there's AI suggestion/validation
+    // Priority 1: Manual edit - highlight with medium blue
+    if (manualMode && row._isModified) {
+      return "bg-blue-200 dark:bg-blue-900/40 border-blue-500"
+    }
+    
+    // Priority 2: Confirmed
     if (row._confirmed) {
       return "bg-green-50 dark:bg-green-950/30 border-green-500"
     }
@@ -776,9 +821,46 @@ export function DataGrid({
                         {currentPage * 50 + index + 1}
                       </td>
                       {contextColumn && (
-                        <td className="px-4 py-3 text-sm">
-                          <div className="max-w-md truncate" title={row[contextColumn]}>
-                            {row[contextColumn] || "-"}
+                        <td 
+                          className="px-4 py-3 text-sm relative"
+                          onMouseEnter={() => setHoveredCell({ rowId: row._id, field: contextColumn })}
+                          onMouseLeave={() => setHoveredCell(null)}
+                        >
+                          <div
+                            className={cn(
+                              "rounded px-3 py-2 text-sm border transition-all max-w-md",
+                              manualMode && "cursor-pointer hover:shadow-md",
+                              !manualMode && "line-clamp-3"
+                            )}
+                            onClick={() => {
+                              if (manualMode) {
+                                handleCellEditStart(row._id, contextColumn)
+                              }
+                            }}
+                          >
+                            {editingCell?.rowId === row._id && editingCell?.field === contextColumn ? (
+                              <Textarea
+                                autoFocus
+                                value={editingValue}
+                                onChange={(e) => handleCellEditChange(e.target.value)}
+                                onBlur={() => handleCellEditEnd(row._id, contextColumn)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && e.ctrlKey) {
+                                    e.preventDefault()
+                                    handleCellEditEnd(row._id, contextColumn)
+                                  } else if (e.key === "Escape") {
+                                    setEditingCell(null)
+                                    setEditingValue("")
+                                  }
+                                }}
+                                className="min-h-20 text-sm p-2 w-full resize-y"
+                                rows={Math.min(Math.max(editingValue.split('\n').length, 3), 10)}
+                              />
+                            ) : (
+                              <span className="break-words whitespace-pre-wrap block" title={row[contextColumn]}>
+                                {row[contextColumn] || "-"}
+                              </span>
+                            )}
                           </div>
                         </td>
                       )}
@@ -793,8 +875,16 @@ export function DataGrid({
                             className={cn(
                               "rounded px-3 py-2 font-mono text-sm border transition-all",
                               manualMode && "cursor-pointer hover:shadow-md",
-                              getCellColor(row._validation_status, !!(row._ai_suggestion || row._ai_reasoning)),
-                              getCellTextColor(row._validation_status, !!(row._ai_suggestion || row._ai_reasoning)),
+                              getCellColor(
+                                // Use same logic as Compare Result dialog: prioritize _ai_type, then _validation_status
+                                (row._ai_type || row._validation_status) as string | undefined,
+                                !!(row._ai_suggestion || row._ai_reasoning)
+                              ),
+                              getCellTextColor(
+                                // Use same logic as Compare Result dialog: prioritize _ai_type, then _validation_status
+                                (row._ai_type || row._validation_status) as string | undefined,
+                                !!(row._ai_suggestion || row._ai_reasoning)
+                              ),
                             )}
                             onClick={() => {
                               if (manualMode) {
@@ -803,23 +893,25 @@ export function DataGrid({
                             }}
                           >
                             {editingCell?.rowId === row._id && editingCell?.field === col ? (
-                              <Input
+                              <Textarea
                                 autoFocus
                                 value={editingValue}
                                 onChange={(e) => handleCellEditChange(e.target.value)}
                                 onBlur={() => handleCellEditEnd(row._id, col)}
                                 onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
+                                  if (e.key === "Enter" && e.ctrlKey) {
+                                    e.preventDefault()
                                     handleCellEditEnd(row._id, col)
                                   } else if (e.key === "Escape") {
                                     setEditingCell(null)
                                     setEditingValue("")
                                   }
                                 }}
-                                className="h-6 font-mono text-sm p-1"
+                                className="min-h-20 font-mono text-sm p-2 w-full resize-y"
+                                rows={Math.min(Math.max(editingValue.split('\n').length, 3), 10)}
                               />
                             ) : (
-                              <span>{row[col] || "-"}</span>
+                              <span className="break-words whitespace-pre-wrap block">{row[col] || "-"}</span>
                             )}
                           </div>
 
@@ -890,23 +982,25 @@ export function DataGrid({
                               }}
                             >
                               {editingCell?.rowId === row._id && editingCell?.field === resultColumn ? (
-                                <Input
+                                <Textarea
                                   autoFocus
                                   value={editingValue}
                                   onChange={(e) => handleCellEditChange(e.target.value)}
                                   onBlur={() => handleCellEditEnd(row._id, resultColumn)}
                                   onKeyDown={(e) => {
-                                    if (e.key === "Enter") {
+                                    if (e.key === "Enter" && e.ctrlKey) {
+                                      e.preventDefault()
                                       handleCellEditEnd(row._id, resultColumn)
                                     } else if (e.key === "Escape") {
                                       setEditingCell(null)
                                       setEditingValue("")
                                     }
                                   }}
-                                  className="h-6 font-mono text-sm p-1"
+                                  className="min-h-20 font-mono text-sm p-2 w-full resize-y"
+                                  rows={Math.min(Math.max(editingValue.split('\n').length, 3), 10)}
                                 />
                               ) : (
-                                <span>{row[resultColumn] || "-"}</span>
+                                <span className="break-words whitespace-pre-wrap block">{row[resultColumn] || "-"}</span>
                               )}
                             </div>
                             {/* Only show Info icon if there's AI suggestion/reasoning and not yet confirmed */}
@@ -968,8 +1062,27 @@ export function DataGrid({
                             </Tooltip>
                           )}
 
+                          {/* Show confirm button for manual edits in manual mode */}
+                          {manualMode && row._isModified && !row._confirmed && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleConfirmManual(row._id)}
+                                  className="h-7 w-7 p-0 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/30 dark:hover:bg-blue-950/50 border-blue-500 text-blue-700 dark:text-blue-300"
+                                >
+                                  <Check className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Confirm manual label</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+
                           {/* Show buttons when there's AI suggestion and not confirmed (excluding ambiguous and correct) */}
-                          {row._ai_suggestion &&
+                          {!manualMode && row._ai_suggestion &&
                             !row._confirmed &&
                             ((row._validation_status || "").toString().toLowerCase() !== "ambiguous") &&
                             ((row._validation_status || "").toString().toLowerCase() !== "correct") &&
