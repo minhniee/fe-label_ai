@@ -602,8 +602,19 @@ export default function Home() {
   // Convert data to CSV format (only modified rows merged with original)
   // Fix: Use Map for O(1) lookup instead of O(n²) find() in map()
   const convertDataToCSV = (dataRows: RowData[], columnsList: string[], delimiter: string = ","): string => {
-    // Filter out internal columns (starting with _)
-    const exportColumns = columnsList.filter(col => !col.startsWith("_"))
+    // Get all columns from data (including newly added columns) and filter out internal columns
+    const allColumnsFromData = new Set<string>()
+    dataRows.forEach((row) => {
+      Object.keys(row).forEach((key) => {
+        if (!key.startsWith("_")) {
+          allColumnsFromData.add(key)
+        }
+      })
+    })
+    
+    // Merge with columnsList to ensure order and include all known columns
+    const allColumns = new Set([...columnsList, ...Array.from(allColumnsFromData)])
+    const exportColumns = Array.from(allColumns).filter(col => !col.startsWith("_"))
     
     // Build CSV header
     const header = exportColumns.join(delimiter)
@@ -611,15 +622,13 @@ export default function Home() {
     // Create Map for O(1) lookup of original data
     const originalDataMap = new Map(originalData.map(r => [r._id, r]))
     
-    // Merge modified rows with original data
+    // Merge current rows with original data so new columns are preserved even if row wasn't marked modified
     const finalData = dataRows.map((row) => {
-      if (row._isModified) {
-        // Use modified row
-        return row
-      } else {
-        // Use original row from Map (O(1) lookup)
-        return originalDataMap.get(row._id) || row
+      const originalRow = originalDataMap.get(row._id)
+      if (originalRow) {
+        return { ...originalRow, ...row }
       }
+      return row
     })
     
     // Build CSV rows
@@ -1230,11 +1239,19 @@ export default function Home() {
                       // Check if row has been modified compared to original
                       const isModified = isRowModified(originalRow, updatedRow)
                       
-                      // Always preserve user-modified data columns (non-meta columns that differ from original)
-                      const userData: any = {}
+                      // Extract all data columns (non-meta) from updatedRow - this includes new columns
+                      const dataColumns: any = {}
+                      Object.keys(updatedRow).forEach((k) => {
+                        if (!k.startsWith("_")) {
+                          dataColumns[k] = (updatedRow as any)[k]
+                        }
+                      })
+                      
+                      // Preserve user-modified data columns from existingRow that differ from original
+                      // This ensures user edits are not lost
                       Object.keys(existingRow).forEach((k) => {
                         if (!k.startsWith("_") && existingRow[k] !== originalRow?.[k]) {
-                          userData[k] = existingRow[k] // Preserve user changes
+                          dataColumns[k] = existingRow[k] // Preserve user changes from existing row
                         }
                       })
                       
@@ -1246,11 +1263,10 @@ export default function Home() {
                         }
                       })
                       
-                      // Merge: AI meta fields + user data + modification flag
+                      // Merge: data columns (including new ones) + meta fields + modification flag
                       newData[index] = {
-                        ...updatedRow, // Start with updated row (includes all columns from AI)
-                        ...userData, // Override with user-modified data columns
-                        ...metaFields, // Ensure meta fields are from updated row
+                        ...dataColumns, // All data columns including new ones from updatedRow
+                        ...metaFields, // Meta fields from updated row
                         _isModified: isModified || existingRow._isModified
                       }
                     }
@@ -1292,15 +1308,59 @@ export default function Home() {
               originalData={originalData}
               onDataUpdate={(updatedRows) => {
                 const preserveUserData = !manualMode
+                
+                // Collect all new columns from updated rows
+                const newColumnsSet = new Set<string>(columns)
+                updatedRows.forEach((row) => {
+                  Object.keys(row).forEach((k) => {
+                    if (!k.startsWith("_") && !columns.includes(k)) {
+                      newColumnsSet.add(k)
+                    }
+                  })
+                })
+                
+                // Update columns if new columns found
+                if (newColumnsSet.size > columns.length) {
+                  const newColumns = Array.from(newColumnsSet)
+                  setColumns(newColumns)
+                  // Also update visibleColumns to include new columns
+                  const updatedVisibleColumns = [...visibleColumns]
+                  newColumns.forEach((col) => {
+                    if (!updatedVisibleColumns.includes(col)) {
+                      updatedVisibleColumns.push(col)
+                    }
+                  })
+                  setVisibleColumns(updatedVisibleColumns)
+                }
+                
                 const mergeRows = (newRow: RowData, oldRow: RowData) => {
                   const originalRow = originalData.find((d) => d._id === newRow._id)
                   const isModified = isRowModified(originalRow, newRow)
 
-                  const userData: Record<string, any> = {}
+                  // Extract all data columns (non-meta) from newRow - this includes new columns
+                  const dataColumns: Record<string, any> = {}
+                  Object.keys(newRow).forEach((k) => {
+                    if (!k.startsWith("_")) {
+                      dataColumns[k] = (newRow as any)[k]
+                    }
+                  })
+
+                  // In manualMode, also preserve all data columns from oldRow to ensure nothing is lost
+                  // This is important when editing new columns
+                  Object.keys(oldRow).forEach((k) => {
+                    if (!k.startsWith("_")) {
+                      // If newRow doesn't have this column or it's empty, preserve from oldRow
+                      if (dataColumns[k] === undefined || dataColumns[k] === "" || dataColumns[k] === null) {
+                        dataColumns[k] = oldRow[k]
+                      }
+                    }
+                  })
+
+                  // Preserve user-modified data columns from oldRow if preserveUserData is true
                   if (preserveUserData) {
                     Object.keys(oldRow).forEach((k) => {
                       if (!k.startsWith("_") && oldRow[k] !== originalRow?.[k]) {
-                        userData[k] = oldRow[k]
+                        dataColumns[k] = oldRow[k] // Preserve user changes from old row
                       }
                     })
                   }
@@ -1313,8 +1373,7 @@ export default function Home() {
                   })
 
                   return {
-                    ...newRow,
-                    ...userData,
+                    ...dataColumns, // All data columns including new ones from newRow
                     ...metaFields,
                     _isModified: isModified || oldRow._isModified,
                   }
