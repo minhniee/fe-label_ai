@@ -11,7 +11,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
-import type { RowData } from "@/app/(navigation)/[projectId]/labelai/page"
+import type { RowData } from "@/app/(navigation)/[projectId]/annotate/job/[jobId]/annotating/page"
 import { useToast } from "@/hooks/use-toast"
 import { submitDataset } from "@/app/api/labelai"
 import { generateDatasetFromProject } from "@/app/api/project"

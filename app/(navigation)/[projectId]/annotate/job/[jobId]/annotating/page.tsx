@@ -1262,6 +1262,7 @@ export default function JobLabelAIPage() {
                     })
 
                     return {
+                      _id: newRow._id || oldRow._id,
                       ...dataColumns,
                       ...metaFields,
                       _isModified: isModified || oldRow._isModified,

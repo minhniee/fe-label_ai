@@ -92,15 +92,15 @@ export function AutoLabelingStatus({
         return
       }
       
-      // Navigate to labelai page for review
+      // Navigate to annotating page for review
       const projectSlugValue = projectSlug || params.projectId as string
       const params_obj = new URLSearchParams({
         batchId: batchId.toString(),
         fileIds: JSON.stringify(fileIds),
         jobName: batch.name || `Batch ${batchId}`
       })
-      
-      router.push(`/${projectSlugValue}/labelai?${params_obj.toString()}`)
+
+      router.push(`/${projectSlugValue}/annotate/job/${batchId}/annotating?${params_obj.toString()}`)
     } catch (error: any) {
       toast({
         title: "Failed to navigate",
