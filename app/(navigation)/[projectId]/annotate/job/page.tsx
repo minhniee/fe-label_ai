@@ -497,7 +497,7 @@ export default function ProjectJobPage() {
           </div>
           <div className="flex items-center justify-between gap-2 mt-4">
             <Button 
-              className="flex-1" 
+              className="flex-1 cursor-pointer" 
               onClick={() => {
                 // Navigate to labelai page with jobId in path
                 const fileIds = unannotatedFiles.map(f => f.file_id);

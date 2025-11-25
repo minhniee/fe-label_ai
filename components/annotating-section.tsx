@@ -9,7 +9,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { getProjectBatches } from "@/app/api/batch";
+import { getProjectBatches, getBatchAssignments } from "@/app/api/batch";
 import { getProjectFiles } from "@/app/api/project";
 import { useProjectFromSlug } from "@/hooks/use-project-from-slug";
 import { toast } from "sonner";
@@ -54,8 +54,8 @@ export default function AnnotatingSection() {
         getProjectFiles(projectId),
       ]);
       
-      const jobsWithCounts = response.batches
-        .map((batch: any) => {
+      const jobPromises = response.batches
+        .map(async (batch: any) => {
           const fileIds: number[] = batch.batch_metadata?.file_ids || [];
           if (!fileIds.length) {
             return null;
@@ -81,11 +81,28 @@ export default function AnnotatingSection() {
             return null;
           }
 
+          let labelerName = batch.creator_username || "Unknown";
+          try {
+            const assignmentsResponse = await getBatchAssignments({
+              batch_id: batch.batch_id,
+              page: 1,
+              page_size: 1,
+            });
+            const firstAssignment = assignmentsResponse.assignments?.[0];
+            if (firstAssignment) {
+              labelerName =
+                firstAssignment.user_username ||
+                `User ${firstAssignment.user_id}`;
+            }
+          } catch (error) {
+            // silently ignore assignment fetch errors; fallback labeler remains
+          }
+
           return {
             batch_id: batch.batch_id,
             name: batch.name,
             created_at: batch.created_at,
-            labeler: batch.creator_username || "Unknown",
+            labeler: labelerName,
             total_files: batchFiles.length,
             annotatedCount: annotated,
             // Unannotated = unannotated + annotating (files that are not yet completed)
@@ -93,8 +110,10 @@ export default function AnnotatingSection() {
             annotatingCount: annotating,
             file_ids: fileIds,
           };
-        })
-        .filter(Boolean) as AnnotatingJob[];
+        });
+      const jobsWithCounts = (await Promise.all(jobPromises)).filter(
+        Boolean,
+      ) as AnnotatingJob[];
       
       setJobs(jobsWithCounts);
     } catch (error: any) {
