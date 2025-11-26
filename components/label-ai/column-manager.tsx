@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import type { RowData } from "@/app/(navigation)/labelai/page"
+import type { RowData } from "@/app/(navigation)/[projectId]/annotate/job/[jobId]/annotating/page"
 
 interface ColumnManagerProps {
   columns: string[]

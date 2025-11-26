@@ -128,18 +128,18 @@ export interface DatasetLabelsOverview {
   priority_distribution: Record<string, number>
 }
 
-export async function createLabel(data: CreateLabelRequest): Promise<CreateLabelResponse> {
-  try {
-    const response = await api.post<CreateLabelResponse>(`/labels/`, data, {
-    })
-    return response.data
-  } catch (error: any) {
-    if (axios.isAxiosError(error)) {
-      throw new Error(`Failed to create label: ${error.response?.statusText || error.message}`)
-    }
-    throw new Error('Failed to create label: Unknown error')
-  }
-}
+// export async function createLabel(data: CreateLabelRequest): Promise<CreateLabelResponse> {
+//   try {
+//     const response = await api.post<CreateLabelResponse>(`/labels/`, data, {
+//     })
+//     return response.data
+//   } catch (error: any) {
+//     if (axios.isAxiosError(error)) {
+//       throw new Error(`Failed to create label: ${error.response?.statusText || error.message}`)
+//     }
+//     throw new Error('Failed to create label: Unknown error')
+//   }
+// }
 
 // GET /labels/ - Get all labels
 export async function getAllLabels(): Promise<LabelResponse[]> {

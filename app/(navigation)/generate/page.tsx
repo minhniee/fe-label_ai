@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect, useCallback } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { DataGenerator } from "@/components/label-ai/data-generator"
@@ -13,6 +13,7 @@ import { viewAllProjects } from "@/app/api/project"
 import { uploadFilesToProject } from "@/app/api/project"
 import { projectToSlug } from "@/types/project"
 import { ArrowLeft } from "lucide-react"
+import { convertDataToCSV } from "@/lib/label-ai-utils"
 
 export type RowData = {
   _id: string
@@ -21,7 +22,9 @@ export type RowData = {
 
 export default function GeneratePage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { toast } = useToast()
+  const projectIdFromQuery = searchParams.get("projectId")
   const [generatedData, setGeneratedData] = useState<RowData[]>([])
   const [generatedColumns, setGeneratedColumns] = useState<string[]>([])
   const [datasetName, setDatasetName] = useState<string>("")
@@ -29,21 +32,13 @@ export default function GeneratePage() {
   const [projects, setProjects] = useState<any[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState<string>("")
   const [loadingProjects, setLoadingProjects] = useState(false)
-  const [importing, setImporting] = useState(false)
+const [importing, setImporting] = useState(false)
 
-  const handleDataGenerated = (data: any[], columns: string[], name: string) => {
-    setGeneratedData(data)
-    setGeneratedColumns(columns)
-    setDatasetName(name)
-    setShowImportDialog(true)
-    loadProjects()
-  }
-
-  const loadProjects = async () => {
+const loadProjects = useCallback(
+  async (prefillProjectId?: string | null) => {
     try {
       setLoadingProjects(true)
       const projectsList = await viewAllProjects()
-      // Convert to format expected by the component
       const convertedProjects = projectsList.map((p) => ({
         id: p.project_id.toString(),
         name: p.name,
@@ -64,9 +59,31 @@ export default function GeneratePage() {
           created_at: p.created_at,
           updated_at: p.updated_at,
           dataset_id: p.dataset_id,
-        })
+        }),
       }))
       setProjects(convertedProjects)
+
+      if (convertedProjects.length === 0) {
+        setSelectedProjectId("")
+        return
+      }
+
+      setSelectedProjectId((prev) => {
+        if (prev && convertedProjects.some((project) => project.id === prev)) {
+          return prev
+        }
+
+        if (prefillProjectId) {
+          const matchingProject =
+            convertedProjects.find((project) => project.slug === prefillProjectId) ??
+            convertedProjects.find((project) => project.id === prefillProjectId)
+          if (matchingProject) {
+            return matchingProject.id
+          }
+        }
+
+        return prev
+      })
     } catch (error: any) {
       toast({
         title: "Error",
@@ -76,6 +93,19 @@ export default function GeneratePage() {
     } finally {
       setLoadingProjects(false)
     }
+  },
+  [toast]
+)
+
+useEffect(() => {
+  loadProjects(projectIdFromQuery)
+}, [loadProjects, projectIdFromQuery])
+
+const handleDataGenerated = (data: any[], columns: string[], name: string) => {
+    setGeneratedData(data)
+    setGeneratedColumns(columns)
+    setDatasetName(name)
+    setShowImportDialog(true)
   }
 
   const handleImportToProject = async () => {
@@ -100,26 +130,8 @@ export default function GeneratePage() {
     try {
       setImporting(true)
 
-      // Convert data to CSV format
-      const csvRows: string[] = []
-      
-      // Add header row
-      csvRows.push(generatedColumns.join(","))
-      
-      // Add data rows
-      generatedData.forEach((row) => {
-        const values = generatedColumns.map((col) => {
-          const value = row[col] || ""
-          // Escape commas and quotes in CSV
-          if (typeof value === "string" && (value.includes(",") || value.includes('"') || value.includes("\n"))) {
-            return `"${value.replace(/"/g, '""')}"`
-          }
-          return value
-        })
-        csvRows.push(values.join(","))
-      })
-
-      const csvContent = csvRows.join("\n")
+      // Convert data to CSV format using utility function
+      const csvContent = convertDataToCSV(generatedData, generatedColumns)
       const blob = new Blob([csvContent], { type: "text/csv" })
       const file = new File([blob], `${datasetName || "generated-data"}.csv`, { type: "text/csv" })
 
@@ -150,16 +162,53 @@ export default function GeneratePage() {
     }
   }
 
+  const handleBack = () => {
+    if (projectIdFromQuery) {
+      router.push(`/${projectIdFromQuery}/upload-file`)
+    } else {
+      router.back()
+    }
+  }
+
   return (
     <div className="container mx-auto p-6 max-w-4xl">
       <Button
         variant="ghost"
-        onClick={() => router.back()}
+        onClick={handleBack}
         className="mb-4"
       >
         <ArrowLeft className="w-4 h-4 mr-2" />
         Back
       </Button>
+
+    <Card className="p-6 mb-4">
+      <div className="space-y-2">
+        <Label htmlFor="project-select">Select Project</Label>
+        <Select
+          value={selectedProjectId}
+          onValueChange={setSelectedProjectId}
+          disabled={loadingProjects || importing || projects.length === 0}
+        >
+          <SelectTrigger id="project-select">
+            <SelectValue
+              placeholder={
+                loadingProjects ? "Loading projects..." : projects.length === 0 ? "No projects available" : "Choose a project"
+              }
+            />
+          </SelectTrigger>
+          <SelectContent>
+            {projects.map((project) => (
+              <SelectItem key={project.id} value={project.id}>
+                {project.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-sm text-muted-foreground">
+          Generated data will be imported into the selected project once you confirm.
+        </p>
+      </div>
+    </Card>
 
       <Card className="p-6">
         <DataGenerator onDataGenerated={handleDataGenerated} />

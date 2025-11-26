@@ -2,9 +2,19 @@
 
 import { UploadForm } from "@/components/upload-form";
 import { useProjectFromSlug } from "@/hooks/use-project-from-slug";
+import { useParams, useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Sparkles } from "lucide-react";
 
 export default function ProjectUploadPage() {
   const { project } = useProjectFromSlug();
+  const params = useParams();
+  const router = useRouter();
+  const projectSlug = params.projectId as string;
+
+  const handleGenerateNewData = () => {
+    router.push(`/generate?projectId=${projectSlug}`);
+  };
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -15,6 +25,13 @@ export default function ProjectUploadPage() {
             Upload your files for project: {project?.name || "Loading..."}
           </p>
         </div>
+        <Button
+          onClick={handleGenerateNewData}
+          className="gap-2"
+        >
+          <Sparkles className="h-4 w-4" />
+          Generate new Data
+        </Button>
       </div>
       <UploadForm />
     </div>

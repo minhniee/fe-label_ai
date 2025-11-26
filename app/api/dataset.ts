@@ -99,6 +99,12 @@ export interface DatasetExportResponse {
   expires_in?: number
 }
 
+export interface DatasetExportDirectResult {
+  blob: Blob
+  fileName: string
+  contentType: string
+}
+
 export interface DatasetUpdateRequest {
   name?: string
   description?: string
@@ -441,6 +447,47 @@ export async function exportDatasetVersion(
     return response.data
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to export dataset'
+    throw new Error(errorMessage)
+  }
+}
+
+const extractFileName = (contentDisposition?: string, fallback?: string) => {
+  if (!contentDisposition) return fallback
+  const match = /filename="?([^";]+)"?/i.exec(contentDisposition)
+  return match?.[1] || fallback
+}
+
+export async function downloadDatasetVersionFile(
+  datasetId: number,
+  versionId: number,
+  exportFormat: "csv" | "json" | "xlsx",
+  fileName?: string
+): Promise<DatasetExportDirectResult> {
+  try {
+    const response = await api.post(
+      `/datasets/${datasetId}/versions/${versionId}/export/direct`,
+      {
+        export_format: exportFormat,
+        file_name: fileName,
+      },
+      {
+        responseType: "blob",
+      }
+    )
+
+    const resolvedFileName =
+      extractFileName(response.headers["content-disposition"], fileName) ||
+      `dataset_${datasetId}.${exportFormat}`
+
+    const contentType = response.headers["content-type"] || "application/octet-stream"
+
+    return {
+      blob: response.data as Blob,
+      fileName: resolvedFileName,
+      contentType,
+    }
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to download dataset export'
     throw new Error(errorMessage)
   }
 }

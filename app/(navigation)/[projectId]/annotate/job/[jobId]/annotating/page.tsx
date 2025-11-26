@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { useParams, useSearchParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -11,15 +11,22 @@ import { ReferenceUploader } from "@/components/label-ai/reference-uploader"
 import { DocumentRAGManager } from "@/components/label-ai/document-rag-manager"
 import { Loader2, ArrowLeft, Save, CheckCircle2, Settings2, Search, X } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { useDebounce } from "@/hooks/use-debounce"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { SearchFilter } from "@/components/label-ai/search-filter"
 import { SemanticSearchFilter } from "@/components/label-ai/semantic-search-filter"
 import { ColumnVisibility } from "@/components/label-ai/column-visibility"
 import { DataManager } from "@/components/label-ai/data-manager"
 import { ColumnManager } from "@/components/label-ai/column-manager"
+import { DatasetSelector } from "@/components/label-ai/dataset-selector"
 import { ErrorBoundary } from "@/components/error-boundary"
-import { getProjectFiles } from "@/app/api/project"
+import { getDatasetVersionData } from "@/app/api/labelai"
+import { getVersionFiles, uploadFileToDataset } from "@/app/api/dataset"
+import { getProjectFiles, generateDatasetFromProject } from "@/app/api/project"
 import { completeBatch } from "@/app/api/batch"
 import { getFilePreview } from "@/app/api/dataset"
 import { slugToProjectId } from "@/types/project"
@@ -62,7 +69,7 @@ export default function JobLabelAIPage() {
   const projectId = slugToProjectId(projectSlug)
   
   // Get batch information from route params [jobId]
-  const jobId = params.jobId as string
+  const jobId = params.jobId as string | undefined
   const batchId = jobId
   const fileIdsParam = searchParams.get("fileIds")
   const jobName = searchParams.get("jobName")
@@ -77,17 +84,15 @@ export default function JobLabelAIPage() {
   const [loading, setLoading] = useState(false)
   const [manualMode, setManualMode] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("")
   const [visibleColumns, setVisibleColumns] = useState<string[]>([])
+  const [showCompleteDialog, setShowCompleteDialog] = useState(false)
+  const [completing, setCompleting] = useState(false)
+  const [newDatasetName, setNewDatasetName] = useState("")
+  const [newDatasetDescription, setNewDatasetDescription] = useState("")
   
-  // Fix: Add debouncing for search query to prevent UI jank
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      setDebouncedSearchQuery(searchQuery)
-    }, 300) // 300ms debounce for search
-    
-    return () => clearTimeout(timeoutId)
-  }, [searchQuery])
+  // Use custom debounce hook for better performance
+  const debouncedSearchQuery = useDebounce(searchQuery, 300)
+  
   const [semanticSearchResults, setSemanticSearchResults] = useState<any[]>([])
   const [currentFileId, setCurrentFileId] = useState<number | null>(null)
   const [batchFiles, setBatchFiles] = useState<any[]>([])
@@ -99,76 +104,72 @@ export default function JobLabelAIPage() {
     apiKey?: string
     model?: string
   }>({ provider: "local" })
-  const [hasProjectDocuments, setHasProjectDocuments] = useState(false)  // NEW: track if project has documents
-  const [selectedDocumentIds, setSelectedDocumentIds] = useState<number[]>([])  // NEW: track selected document IDs
-  const [saving, setSaving] = useState(false)  // Track save state
-  const [fileDelimiter, setFileDelimiter] = useState<string>(",")  // Track delimiter used in current file
-  const [originalData, setOriginalData] = useState<RowData[]>([])  // Store original data for comparison
-  const [isScrolled, setIsScrolled] = useState(false)  // Track scroll state for floating sidebar
+  const [hasProjectDocuments, setHasProjectDocuments] = useState(false)
+  const [selectedDocumentIds, setSelectedDocumentIds] = useState<number[]>([])
+  const [saving, setSaving] = useState(false)
+  const [fileDelimiter, setFileDelimiter] = useState<string>(",")
+  const [originalData, setOriginalData] = useState<RowData[]>([])
+  const [isScrolled, setIsScrolled] = useState(false)
 
-  // Track scroll to show/hide floating sidebar
-  // Fix: Add debouncing to prevent UI jank from excessive scroll events
+  // Track scroll to show/hide floating sidebar with proper cleanup
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout
+    let timeoutId: NodeJS.Timeout | null = null
+    
     const handleScroll = () => {
-      // Clear previous timeout
-      if (timeoutId) {
+      if (timeoutId !== null) {
         clearTimeout(timeoutId)
       }
-      // Debounce scroll handler to reduce re-renders
+      
       timeoutId = setTimeout(() => {
         setIsScrolled(window.scrollY > 200)
-      }, 100) // 100ms debounce
+        timeoutId = null
+      }, 100)
     }
+    
     window.addEventListener("scroll", handleScroll, { passive: true })
+    
     return () => {
       window.removeEventListener("scroll", handleScroll)
-      if (timeoutId) {
+      if (timeoutId !== null) {
         clearTimeout(timeoutId)
       }
     }
   }, [])
 
-  // Sync originalData when data length changes significantly (likely a reload)
+  // Sync originalData when data changes significantly
   useEffect(() => {
-    // Only update originalData if length changed significantly and we have new rows
-    // This helps when data is reloaded from external sources
-    if (data.length > 0 && originalData.length > 0 && data.length !== originalData.length) {
-      // Fix: Use Set for O(1) lookup instead of O(n²) nested some() calls
-      const originalIds = new Set(originalData.map(orig => orig._id))
-      const hasNewRows = data.some(row => !originalIds.has(row._id))
-      
-      // If we have completely new rows (not just modifications), update originalData
-      // Only update if change is significant (>10% difference)
-      if (hasNewRows && originalData.length > 0 && 
-          Math.abs(data.length - originalData.length) > originalData.length * 0.1) {
-        // This is likely a reload, update originalData but preserve modification flags
-        setOriginalData(data.map(row => {
-          const { _isModified, ...rest } = row
-          return rest
-        }))
-      }
+    if (data.length === 0 || originalData.length === 0 || data.length === originalData.length) {
+      return
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.length]) // Only watch length to avoid infinite loops
+    
+    const lengthDiff = Math.abs(data.length - originalData.length)
+    if (lengthDiff <= originalData.length * 0.1) {
+      return
+    }
+    
+    const originalIds = new Set(originalData.map(orig => orig._id))
+    const hasNewRows = data.some(row => !originalIds.has(row._id))
+    
+    if (hasNewRows) {
+      setOriginalData(data.map(({ _isModified, ...rest }) => rest))
+    }
+  }, [data.length, originalData.length, data, originalData])
 
   const loadBatchFiles = useCallback(async () => {
     try {
       setLoading(true)
       
-      // Parse file IDs from URL
-      const fileIds: number[] = JSON.parse(fileIdsParam!)
+      if (!fileIdsParam) {
+        throw new Error("Missing fileIds")
+      }
+      const fileIds: number[] = JSON.parse(fileIdsParam)
       
-      // Get all project files
       const allFiles = await getProjectFiles(parseInt(projectId))
-      
-      // Filter files by batch file IDs
       const batchFileList = allFiles.filter(f => fileIds.includes(f.file_id))
       
       setBatchFiles(batchFileList)
       setDatasetName(jobName || `Batch ${batchId}`)
       
-      // Auto-load first file
       if (batchFileList.length > 0) {
         await loadFileData(batchFileList[0], 0)
       } else {
@@ -190,7 +191,6 @@ export default function JobLabelAIPage() {
     }
   }, [batchId, fileIdsParam, projectId, jobName, toast])
 
-  // Load batch files when in batch mode
   useEffect(() => {
     if (batchId && fileIdsParam && projectId) {
       loadBatchFiles()
@@ -201,91 +201,87 @@ export default function JobLabelAIPage() {
     try {
       setLoading(true)
       setCurrentFileIndex(fileIndex)
-      setCurrentFileId(file.file_id)  // Set current file ID for save functionality
+      setCurrentFileId(file.file_id)
       
-      console.log("Loading file:", file)
-      console.log("File ID:", file.file_id)
-      console.log("File type:", file.file_type)
-      
-      // Get file preview using API - try annotation API first, then dataset API
       let headers: string[] = []
       let rows: any[] = []
       
       try {
-        // Try annotation API first (for project files)
-        console.log("Trying annotation API for file_id:", file.file_id)
         try {
           const annotationContent = await getFileContentFromAnnotation(file.file_id)
-          console.log("Annotation API response:", annotationContent)
           
-          // Parse annotation API response
           if (annotationContent.content) {
-            // If content is a string, parse it using centralized function
             const contentStr = typeof annotationContent.content === 'string' 
               ? annotationContent.content 
               : JSON.stringify(annotationContent.content)
             
-            try {
-              const parsed = parseCSVFromText(contentStr)
-              setFileDelimiter(parsed.delimiter)  // Save delimiter for later use
-              
-              // Convert parsed data to headers and rows format
-              headers = parsed.columns
-              rows = parsed.data.map((row: any) => {
-                return headers.map((header: string) => String(row[header] || ""))
-              })
-            } catch (parseError) {
-              console.error("Failed to parse CSV content:", parseError)
-              throw parseError
+            const parsed = parseCSVFromText(contentStr)
+            setFileDelimiter(parsed.delimiter)
+            
+            const metadataMapping: Record<string, string> = {
+              "ai_suggestion": "_ai_suggestion",
+              "ai_reasoning": "_ai_reasoning",
+              "ai_corrected_value": "_corrected_value",
+              "ai_validation_status": "_validation_status",
+              "ai_type": "_ai_type",
+              "ai_confidence": "_ai_confidence",
             }
+            
+            const metadataColumns = Object.keys(metadataMapping)
+            parsed.data = parsed.data.map((row: any) => {
+              const restoredRow: any = { ...row }
+              metadataColumns.forEach(csvCol => {
+                if (row[csvCol] !== undefined && row[csvCol] !== null && row[csvCol] !== "") {
+                  const internalKey = metadataMapping[csvCol]
+                  restoredRow[internalKey] = String(row[csvCol])
+                }
+              })
+              return restoredRow
+            })
+            
+            headers = parsed.columns.filter((h: string) => !metadataColumns.includes(h))
+            rows = parsed.data.map((row: any) => {
+              const allHeaders = [...parsed.columns, ...Object.keys(metadataMapping).map(k => metadataMapping[k])]
+              return allHeaders.map((header: string) => {
+                if (header.startsWith("_")) {
+                  return String(row[header] || "")
+                }
+                const csvCol = Object.entries(metadataMapping).find(([_, v]) => v === header)?.[0]
+                if (csvCol && row[csvCol] !== undefined) {
+                  return String(row[csvCol] || "")
+                }
+                return String(row[header] || "")
+              })
+            })
+            
+            headers = [...parsed.columns.filter((h: string) => !metadataColumns.includes(h)), ...Object.values(metadataMapping)]
           } else if (annotationContent.headers && annotationContent.rows) {
             headers = annotationContent.headers
             rows = annotationContent.rows
           }
-          
-          console.log("From annotation API - headers:", headers, "rows:", rows.length)
         } catch (annotationError) {
           console.log("Annotation API failed, trying dataset API:", annotationError)
           
-          // Fallback to dataset API
           const preview = await getFilePreview(file.file_id, 1000)
-          console.log("Dataset API response:", preview)
           headers = preview.headers || []
           rows = preview.rows || []
-          console.log("From dataset API - headers:", headers, "rows:", rows.length)
         }
-        
-        console.log("Final extracted headers:", headers)
-        console.log("Final extracted rows count:", rows.length)
-        console.log("First row sample:", rows[0])
       } catch (error) {
-        console.error("Failed to get file content from both APIs:", error)
-        console.error("Error details:", error)
+        console.error("Failed to get file content:", error)
         toast({
           title: "Error",
-          description: `Failed to load file content: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          description: `Failed to load file content: ${error instanceof Error ? error.message : "Unknown error"}`,
           variant: "destructive",
         })
         return
       }
 
-      // Normalize rows if API returns array of objects instead of string[][]
       if (headers.length === 0 && Array.isArray(rows) && rows.length > 0 && typeof rows[0] === "object" && !Array.isArray(rows[0])) {
-        console.log("Normalizing rows from object format")
         headers = Object.keys(rows[0] as Record<string, unknown>)
         rows = (rows as Record<string, unknown>[]).map((r) => headers.map((h) => (r[h] ?? "") as string))
-        console.log("After normalization - headers:", headers, "rows:", rows.length)
       }
 
-      console.log("Final check - headers.length:", headers.length, "rows.length:", rows.length)
-
       if (headers.length === 0 || !Array.isArray(rows) || rows.length === 0) {
-        console.error("File is empty or invalid:", {
-          headersLength: headers.length,
-          rowsLength: rows.length,
-          isArray: Array.isArray(rows),
-          file
-        })
         toast({
           title: "Empty file",
           description: "This file has no content to label.",
@@ -294,17 +290,17 @@ export default function JobLabelAIPage() {
         return
       }
       
-      setColumns(headers)
+      const internalColumns = ["_id", "_ai_suggestion", "_ai_reasoning", "_confirmed", "_validation_status", "_corrected_value", "_ai_type", "_ai_confidence"]
+      const displayHeaders = headers.filter(h => !internalColumns.includes(h) && !h.startsWith("_"))
+      setColumns(displayHeaders)
       
-      // Auto-detect context and result columns
-      const detectedContextCol = detectContextColumn(headers)
-      const detectedResultCol = detectResultColumn(headers)
+      const detectedContextCol = detectContextColumn(displayHeaders)
+      const detectedResultCol = detectResultColumn(displayHeaders)
       
       setContextColumn(detectedContextCol)
       setResultColumn(detectedResultCol)
       setVisibleColumns([detectedContextCol, detectedResultCol])
       
-      // Transform rows to RowData format
       const transformedData: RowData[] = rows.map((row: any, index: number) => {
         const rowObj: RowData = {
           _id: `row-${index}`,
@@ -313,24 +309,33 @@ export default function JobLabelAIPage() {
           _confirmed: false,
         }
         
-        // Handle both array and object formats
         if (Array.isArray(row)) {
           headers.forEach((header, i) => {
-            rowObj[header] = row[i] ?? ""
+            if (header.startsWith("_")) {
+              rowObj[header as keyof RowData] = row[i] ?? ""
+            } else {
+              rowObj[header] = row[i] ?? ""
+            }
           })
         } else if (row && typeof row === "object") {
-          headers.forEach((header) => {
-            rowObj[header] = (row as any)[header] ?? ""
+          Object.keys(row).forEach((key) => {
+            if (key.startsWith("_")) {
+              rowObj[key as keyof RowData] = row[key] ?? ""
+            } else {
+              rowObj[key] = row[key] ?? ""
+            }
           })
+        }
+        
+        if (rowObj._ai_suggestion && rowObj._ai_suggestion.toString().trim() !== "") {
+          rowObj._confirmed = false
         }
         
         return rowObj
       })
       
-      // Set data directly (cache functionality removed)
       setData(transformedData)
       setOriginalData(transformedData)
-      
       setCurrentPage(0)
       
       toast({
@@ -361,23 +366,129 @@ export default function JobLabelAIPage() {
     }
   }
 
-  const filteredData = data.filter((row) => {
-    // First apply semantic search filter if there are results
-    if (semanticSearchResults.length > 0) {
-      const rowIndex = parseInt(row._id.replace("row-", ""))
-      const isInSemanticResults = semanticSearchResults.some(
-        (result) => result.row_index === rowIndex
-      )
-      if (!isInSemanticResults) return false
-    }
-    
-    // Then apply text search filter (using debounced query)
-    if (!debouncedSearchQuery.trim()) return true
-    const query = debouncedSearchQuery.toLowerCase()
-    return Object.values(row).some((value) => String(value).toLowerCase().includes(query))
-  })
+  const handleVersionSelect = async (datasetId: string, versionId: string) => {
+    try {
+      setLoading(true)
+      const result = await getDatasetVersionData(datasetId, versionId)
 
-  const paginatedData = filteredData.slice(currentPage * rowsPerPage, (currentPage + 1) * rowsPerPage)
+      if (result.success) {
+        const datasetData = result.data
+
+        try {
+          const files = await getVersionFiles(parseInt(versionId))
+          if (files && files.length > 0 && files[0].file_id) {
+            setCurrentFileId(files[0].file_id)
+          } else {
+            setCurrentFileId(null)
+          }
+        } catch (error) {
+          console.error("Error getting file_id:", error)
+          setCurrentFileId(null)
+        }
+
+        const datasetColumns = Object.keys(datasetData[0] || {})
+        setColumns(datasetColumns)
+
+        const detectedContextCol = detectContextColumn(datasetColumns)
+        const detectedResultCol = detectResultColumn(datasetColumns)
+
+        setContextColumn(detectedContextCol)
+        setResultColumn(detectedResultCol)
+        setVisibleColumns([detectedContextCol, detectedResultCol])
+
+        const transformedData: RowData[] = datasetData.map((row: any, index: number) => ({
+          _id: `row-${index}`,
+          _ai_suggestion: "",
+          _ai_reasoning: "",
+          _confirmed: false,
+          ...row,
+        }))
+
+        setData(transformedData)
+        setDatasetName(`${datasetId} - v${versionId}`)
+        setCurrentPage(0)
+        setSemanticSearchResults([])
+
+        toast({
+          title: "Dataset loaded",
+          description: `Successfully loaded ${transformedData.length} rows`,
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to load dataset",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error loading dataset:", error)
+      const errorMessage = error instanceof Error ? error.message : "Failed to load dataset"
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleReset = () => {
+    setData([])
+    setColumns([])
+    setDatasetName("")
+    setCurrentPage(0)
+    setContextColumn("")
+    setResultColumn("")
+    setCurrentFileId(null)
+    setSemanticSearchResults([])
+    setSearchQuery("")
+  }
+
+  const handleFileUpload = (uploadedData: any[], uploadedColumns: string[], fileName: string) => {
+    setColumns(uploadedColumns)
+
+    const detectedContextCol = detectContextColumn(uploadedColumns)
+    const detectedResultCol = detectResultColumn(uploadedColumns)
+
+    setContextColumn(detectedContextCol)
+    setResultColumn(detectedResultCol)
+    setVisibleColumns([detectedContextCol, detectedResultCol])
+
+    const transformedData: RowData[] = uploadedData.map((row: any, index: number) => ({
+      _id: `row-${index}`,
+      _ai_suggestion: "",
+      _ai_reasoning: "",
+      _confirmed: false,
+      ...row,
+    }))
+
+    setData(transformedData)
+    setDatasetName(fileName.replace(".csv", ""))
+    setCurrentPage(0)
+  }
+
+  const filteredData = useMemo(() => {
+    return data.filter((row) => {
+      if (semanticSearchResults.length > 0) {
+        const rowIndex = parseInt(row._id.replace("row-", ""))
+        const isInSemanticResults = semanticSearchResults.some(
+          (result) => result.row_index === rowIndex
+        )
+        if (!isInSemanticResults) return false
+      }
+      
+      if (!debouncedSearchQuery.trim()) return true
+      const query = debouncedSearchQuery.toLowerCase()
+      return Object.values(row).some((value) => String(value).toLowerCase().includes(query))
+    })
+  }, [data, semanticSearchResults, debouncedSearchQuery])
+
+  const paginatedData = useMemo(
+    () => filteredData.slice(currentPage * rowsPerPage, (currentPage + 1) * rowsPerPage),
+    [filteredData, currentPage, rowsPerPage]
+  )
+  
   const totalPages = Math.ceil(filteredData.length / rowsPerPage)
 
   const handleAddRow = (row: RowData) => {
@@ -396,9 +507,7 @@ export default function JobLabelAIPage() {
 
   const handleColumnsUpdate = (newColumns: string[]) => {
     setColumns(newColumns)
-    // Update visibleColumns to include new columns and remove deleted ones
     const updatedVisibleColumns = visibleColumns.filter((col) => newColumns.includes(col))
-    // Add new columns to visible columns by default
     const newCols = newColumns.filter((col) => !visibleColumns.includes(col))
     setVisibleColumns([...updatedVisibleColumns, ...newCols])
   }
@@ -407,12 +516,9 @@ export default function JobLabelAIPage() {
     setData([...data, ...newRows])
   }
 
-  // Save to cache when data changes
-  // Helper to compare rows (excluding _isModified flag)
   const isRowModified = (original: RowData | undefined, current: RowData): boolean => {
     if (!original) return true
     
-    // Create copies without _isModified for comparison
     const origCopy = { ...original }
     const currCopy = { ...current }
     delete origCopy._isModified
@@ -421,36 +527,35 @@ export default function JobLabelAIPage() {
     return JSON.stringify(origCopy) !== JSON.stringify(currCopy)
   }
 
-  // Convert data to CSV format (only modified rows merged with original)
-  // Fix: Use Map for O(1) lookup instead of O(n²) find() in map()
   const convertDataToCSV = (dataRows: RowData[], columnsList: string[], delimiter: string = ","): string => {
-    // Filter out internal columns (starting with _)
-    const exportColumns = columnsList.filter(col => !col.startsWith("_"))
-    
-    // Build CSV header
-    const header = exportColumns.join(delimiter)
-    
-    // Create Map for O(1) lookup of original data
-    const originalDataMap = new Map(originalData.map(r => [r._id, r]))
-    
-    // Merge modified rows with original data
-    const finalData = dataRows.map((row) => {
-      if (row._isModified) {
-        // Use modified row
-        return row
-      } else {
-        // Use original row from Map (O(1) lookup)
-        return originalDataMap.get(row._id) || row
-      }
+    const allColumnsFromData = new Set<string>()
+    dataRows.forEach((row) => {
+      Object.keys(row).forEach((key) => {
+        if (!key.startsWith("_")) {
+          allColumnsFromData.add(key)
+        }
+      })
     })
     
-    // Build CSV rows
+    const allColumns = new Set([...columnsList, ...Array.from(allColumnsFromData)])
+    const exportColumns = Array.from(allColumns).filter(col => !col.startsWith("_"))
+    const header = exportColumns.join(delimiter)
+    
+    const originalDataMap = new Map(originalData.map(r => [r._id, r]))
+    
+    const finalData = dataRows.map((row) => {
+      const originalRow = originalDataMap.get(row._id)
+      if (originalRow) {
+        return { ...originalRow, ...row }
+      }
+      return row
+    })
+    
     const rows = finalData.map((row) => {
       return exportColumns
         .map((col) => {
           const value = row[col] || ""
           const stringValue = String(value)
-          // Escape quotes and wrap in quotes if value contains delimiter, newline, or quote
           const needsQuotes = stringValue.includes(delimiter) || 
                              stringValue.includes("\n") || 
                              stringValue.includes("\r") || 
@@ -466,10 +571,7 @@ export default function JobLabelAIPage() {
     return [header, ...rows].join("\n")
   }
 
-  // Save file content to backend
-  // Fix: Add guard to prevent race condition (concurrent saves)
   const handleSaveFile = async () => {
-    // Prevent concurrent save operations
     if (saving) {
       toast({
         title: "Saving in progress",
@@ -497,7 +599,6 @@ export default function JobLabelAIPage() {
       return
     }
 
-    // Check if there are any modified rows
     const modifiedRows = data.filter(row => row._isModified)
     if (modifiedRows.length === 0) {
       toast({
@@ -510,13 +611,9 @@ export default function JobLabelAIPage() {
     try {
       setSaving(true)
       
-      // Use saved delimiter or default to comma
       const delimiter = fileDelimiter || ","
-      
-      // Convert data to CSV (merges modified rows with original)
       const csvContent = convertDataToCSV(data, columns, delimiter)
       
-      // Call API to save file
       const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -538,7 +635,6 @@ export default function JobLabelAIPage() {
       )
       
       if (response.data.success) {
-        // Clear modification flags and update original data
         const savedData = data.map(row => {
           const { _isModified, ...rest } = row
           return rest
@@ -581,7 +677,6 @@ export default function JobLabelAIPage() {
         title: "Job marked as completed",
         description: "This job has been moved to the Dataset column.",
       })
-      // Redirect back to annotate page
       router.push(`/${projectSlug}/annotate`)
     } catch (error: any) {
       console.error("Failed to complete batch:", error)
@@ -593,13 +688,100 @@ export default function JobLabelAIPage() {
     }
   }
 
+  const handleComplete = async () => {
+    const trimmedName = newDatasetName.trim()
+    if (!trimmedName) {
+      toast({
+        title: "Error",
+        description: "Please enter a dataset name",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (data.length === 0) {
+      toast({
+        title: "Error",
+        description: "No labeled data available to export",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const exportableColumns = columns.filter((col) => !col.startsWith("_"))
+    if (exportableColumns.length === 0) {
+      toast({
+        title: "Error",
+        description: "No exportable columns were found",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      setCompleting(true)
+
+      const datasetResult = await generateDatasetFromProject(parseInt(projectId), {
+        dataset_name: trimmedName,
+        dataset_description: newDatasetDescription.trim() || undefined,
+        export_type: "full",
+        copy_permissions: true,
+      })
+
+      if (!datasetResult?.dataset_id) {
+        throw new Error("Dataset was created but no dataset_id was returned")
+      }
+
+      const csvContent = convertDataToCSV(data, columns, fileDelimiter || ",")
+      if (!csvContent) {
+        throw new Error("Failed to build dataset CSV content")
+      }
+
+      const safeDatasetSlug = trimmedName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "") || `dataset-${datasetResult.dataset_id}`
+
+      const csvFile = new File(
+        [csvContent],
+        `${safeDatasetSlug}-labelai-export.csv`,
+        { type: "text/csv" }
+      )
+
+      await uploadFileToDataset(
+        datasetResult.dataset_id,
+        csvFile,
+        "text/csv",
+        `LabelAI completion export - ${new Date().toISOString()}`
+      )
+
+      toast({
+        title: "Success",
+        description: `Dataset and first version created (Dataset ID: ${datasetResult.dataset_id}).`,
+      })
+
+      setShowCompleteDialog(false)
+      setNewDatasetName("")
+      setNewDatasetDescription("")
+    } catch (error) {
+      console.error("Failed to complete dataset workflow:", error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create dataset version. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setCompleting(false)
+    }
+  }
+
   return (
     <ErrorBoundary>
       <div className="min-h-screen bg-background">
         <div className="container mx-auto px-6 py-4">
           <h1 className="text-3xl font-bold text-foreground">Semi-AI Labeler</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Labeling job: {datasetName}
+            {batchId ? "Labeling assigned job" : "Select dataset, review AI suggestions, and export labeled data"}
           </p>
         </div>
 
@@ -608,12 +790,18 @@ export default function JobLabelAIPage() {
             <Card className="p-12 text-center">
               <div className="flex flex-col items-center gap-4">
                 <Loader2 className="h-8 w-8 text-primary animate-spin" />
-                <p className="text-muted-foreground">Loading files...</p>
+                <p className="text-muted-foreground">Loading dataset...</p>
               </div>
             </Card>
+          ) : data.length === 0 && !batchId ? (
+            <div className="space-y-6">
+              <DatasetSelector
+                onVersionSelect={handleVersionSelect}
+                onFileUpload={handleFileUpload}
+              />
+            </div>
           ) : (
             <div className="space-y-6 relative">
-              {/* Floating Sidebar for Column Management - appears when scrolled */}
               {isScrolled && data.length > 0 && (
                 <div className="fixed right-4 top-20 z-40 w-80 space-y-3 hidden lg:block animate-in slide-in-from-right duration-200">
                   <Card className="p-4 shadow-lg border-2 bg-background/95 backdrop-blur-sm max-h-[calc(100vh-7rem)] overflow-y-auto">
@@ -623,7 +811,6 @@ export default function JobLabelAIPage() {
                         <h3 className="text-sm font-semibold">Quick Actions</h3>
                       </div>
                       
-                      {/* Manual Mode Switch */}
                       <div className="space-y-2 pb-3 border-b">
                         <Label htmlFor="sidebar-manual-mode" className="text-xs font-medium text-muted-foreground">
                           Labeling Mode
@@ -640,18 +827,17 @@ export default function JobLabelAIPage() {
                         </div>
                       </div>
 
-                      {/* Search Filters */}
                       <div className="space-y-2 pb-3 border-b">
                         <Label className="text-xs font-medium text-muted-foreground">Search</Label>
                         <div className="space-y-2">
                           <div className="relative w-full">
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
-                            <input
+                            <Input
                               type="text"
                               placeholder="Text search..."
                               value={searchQuery}
                               onChange={(e) => setSearchQuery(e.target.value)}
-                              className="w-full pl-10 pr-10 h-9 text-sm border rounded-md px-3"
+                              className="pl-10 pr-10 h-9 text-sm"
                             />
                             {searchQuery && (
                               <button
@@ -672,7 +858,6 @@ export default function JobLabelAIPage() {
                         </div>
                       </div>
 
-                      {/* Save File Button */}
                       {currentFileId && (
                         <div className="space-y-2 pb-3 border-b">
                           <Label className="text-xs font-medium text-muted-foreground">File Actions</Label>
@@ -700,19 +885,30 @@ export default function JobLabelAIPage() {
                               </>
                             )}
                           </Button>
-                          <Button
-                            onClick={handleMarkJobCompleted}
-                            className="w-full gap-2"
-                            variant="default"
-                            size="sm"
-                          >
-                            <CheckCircle2 className="h-4 w-4" />
-                            Mark Job Completed
-                          </Button>
+                          {batchId ? (
+                            <Button
+                              onClick={handleMarkJobCompleted}
+                              className="w-full gap-2"
+                              variant="default"
+                              size="sm"
+                            >
+                              <CheckCircle2 className="h-4 w-4" />
+                              Mark Job Completed
+                            </Button>
+                          ) : (
+                            <Button
+                              onClick={() => setShowCompleteDialog(true)}
+                              className="w-full gap-2"
+                              variant="default"
+                              size="sm"
+                            >
+                              <CheckCircle2 className="h-4 w-4" />
+                              Complete
+                            </Button>
+                          )}
                         </div>
                       )}
 
-                      {/* Column Management */}
                       <div className="space-y-2">
                         <Label className="text-xs font-medium text-muted-foreground">Columns</Label>
                         <div className="space-y-2">
@@ -739,62 +935,88 @@ export default function JobLabelAIPage() {
               )}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => {
-                      const params = new URLSearchParams()
-                      params.set("jobId", batchId)
-                      if (fileIdsParam) params.set("fileIds", fileIdsParam)
-                      if (jobName) params.set("jobName", jobName)
-                      router.push(`/${projectSlug}/annotate/job?${params.toString()}`)
-                    }}
-                  >
-                    <ArrowLeft className="h-4 w-4 mr-2" />
-                    Back to Job
-                  </Button>
-                  <div className="h-8 w-px bg-border" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Batch</p>
-                    <p className="font-mono text-sm font-medium">{datasetName}</p>
-                  </div>
-                  <div className="h-8 w-px bg-border" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">File</p>
-                    <p className="font-mono text-sm font-medium">
-                      {currentFileIndex + 1} / {batchFiles.length}
-                    </p>
-                  </div>
-                  {batchFiles[currentFileIndex] && (
+                  {batchId ? (
                     <>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => {
+                          const params = new URLSearchParams()
+                          params.set("jobId", batchId)
+                          if (fileIdsParam) params.set("fileIds", fileIdsParam)
+                          if (jobName) params.set("jobName", jobName)
+                          router.push(`/${projectSlug}/annotate/job?${params.toString()}`)
+                        }}
+                      >
+                        <ArrowLeft className="h-4 w-4 mr-2" />
+                        Back to Job
+                      </Button>
                       <div className="h-8 w-px bg-border" />
                       <div>
-                        <p className="text-sm text-muted-foreground">Current File</p>
+                        <p className="text-sm text-muted-foreground">Batch</p>
+                        <p className="font-mono text-sm font-medium">{datasetName}</p>
+                      </div>
+                      <div className="h-8 w-px bg-border" />
+                      <div>
+                        <p className="text-sm text-muted-foreground">File</p>
                         <p className="font-mono text-sm font-medium">
-                          {batchFiles[currentFileIndex].filename}
+                          {currentFileIndex + 1} / {batchFiles.length}
                         </p>
+                      </div>
+                      {batchFiles[currentFileIndex] && (
+                        <>
+                          <div className="h-8 w-px bg-border" />
+                          <div>
+                            <p className="text-sm text-muted-foreground">Current File</p>
+                            <p className="font-mono text-sm font-medium">
+                              {batchFiles[currentFileIndex].filename}
+                            </p>
+                          </div>
+                        </>
+                      )}
+                      <div className="h-8 w-px bg-border" />
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handlePreviousFile}
+                          disabled={currentFileIndex === 0}
+                        >
+                          Previous File
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleNextFile}
+                          disabled={currentFileIndex === batchFiles.length - 1}
+                        >
+                          Next File
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <Button variant="outline" size="sm" onClick={handleReset}>
+                        <ArrowLeft className="h-4 w-4 mr-2" />
+                        Back to Datasets
+                      </Button>
+                      <div className="h-8 w-px bg-border" />
+                      <div>
+                        <p className="text-sm text-muted-foreground">Dataset</p>
+                        <p className="font-mono text-sm font-medium">{datasetName}</p>
+                      </div>
+                      <div className="h-8 w-px bg-border" />
+                      <div>
+                        <p className="text-sm text-muted-foreground">Total rows</p>
+                        <p className="font-mono text-sm font-medium">{data.length}</p>
+                      </div>
+                      <div className="h-8 w-px bg-border" />
+                      <div>
+                        <p className="text-sm text-muted-foreground">Columns</p>
+                        <p className="font-mono text-sm font-medium">{columns.length}</p>
                       </div>
                     </>
                   )}
-                  <div className="h-8 w-px bg-border" />
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handlePreviousFile}
-                      disabled={currentFileIndex === 0}
-                    >
-                      Previous File
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleNextFile}
-                      disabled={currentFileIndex === batchFiles.length - 1}
-                    >
-                      Next File
-                    </Button>
-                  </div>
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
@@ -828,14 +1050,26 @@ export default function JobLabelAIPage() {
                           </>
                         )}
                       </Button>
-                      <Button
-                        onClick={handleMarkJobCompleted}
-                        className="gap-2"
-                        variant="default"
-                      >
-                        <CheckCircle2 className="h-4 w-4" />
-                        Mark Job Completed
-                      </Button>
+                      {batchId ? (
+                        <Button
+                          onClick={handleMarkJobCompleted}
+                          className="gap-2"
+                          variant="default"
+                        >
+                          <CheckCircle2 className="h-4 w-4" />
+                          Mark Job Completed
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={() => setShowCompleteDialog(true)}
+                          disabled={completing}
+                          className="gap-2"
+                          variant="default"
+                        >
+                          <CheckCircle2 className="h-4 w-4" />
+                          Complete
+                        </Button>
+                      )}
                     </>
                   )}
                 </div>
@@ -884,10 +1118,9 @@ export default function JobLabelAIPage() {
                     onSelectedDocumentsChange={setSelectedDocumentIds}
                   />
 
-                  {/* Only show ReferenceUploader if no documents in project (fallback) */}
                   {!hasProjectDocuments && (
                     <ReferenceUploader
-                      onReferenceUpdate={(content, files) => {
+                      onReferenceUpdate={(content) => {
                         setReferenceContext(content)
                       }}
                     />
@@ -901,10 +1134,9 @@ export default function JobLabelAIPage() {
                     columns={columns}
                     projectId={parseInt(projectId)}
                     embeddingConfig={embeddingConfig}
-                    // Pass empty array when no documents selected (user unselected all)
-                    // This allows backend to distinguish between "no selection" vs "use all"
                     documentIds={selectedDocumentIds}
                     onDataUpdate={(updatedRows) => {
+                      const preserveUserData = !manualMode
                       const newData = [...data]
                       updatedRows.forEach((updatedRow) => {
                         const index = newData.findIndex((row) => row._id === updatedRow._id)
@@ -912,18 +1144,15 @@ export default function JobLabelAIPage() {
                           const existingRow = newData[index]
                           const originalRow = originalData.find((d) => d._id === updatedRow._id)
                           
-                          // Check if row has been modified compared to original
                           const isModified = isRowModified(originalRow, updatedRow)
                           
-                          // Always preserve user-modified data columns (non-meta columns that differ from original)
                           const userData: any = {}
                           Object.keys(existingRow).forEach((k) => {
                             if (!k.startsWith("_") && existingRow[k] !== originalRow?.[k]) {
-                              userData[k] = existingRow[k] // Preserve user changes
+                              userData[k] = existingRow[k]
                             }
                           })
                           
-                          // Extract meta fields from updated row
                           const metaFields: any = {}
                           Object.keys(updatedRow).forEach((k) => {
                             if (k.startsWith("_")) {
@@ -931,11 +1160,10 @@ export default function JobLabelAIPage() {
                             }
                           })
                           
-                          // Merge: AI meta fields + user data + modification flag
                           newData[index] = {
-                            ...updatedRow, // Start with updated row (includes all columns from AI)
-                            ...userData, // Override with user-modified data columns
-                            ...metaFields, // Ensure meta fields are from updated row
+                            ...updatedRow,
+                            ...(preserveUserData ? userData : {}),
+                            ...metaFields,
                             _isModified: isModified || existingRow._isModified
                           }
                         }
@@ -976,73 +1204,82 @@ export default function JobLabelAIPage() {
                 projectId={parseInt(projectId)}
                 originalData={originalData}
                 onDataUpdate={(updatedRows) => {
-                  // If updatedRows length matches allData length, replace entire dataset
+                  const preserveUserData = !manualMode
+
+                  const newColumnsSet = new Set<string>(columns)
+                  updatedRows.forEach((row) => {
+                    Object.keys(row).forEach((k) => {
+                      if (!k.startsWith("_") && !columns.includes(k)) {
+                        newColumnsSet.add(k)
+                      }
+                    })
+                  })
+
+                  if (newColumnsSet.size > columns.length) {
+                    const newColumns = Array.from(newColumnsSet)
+                    setColumns(newColumns)
+                    const updatedVisibleColumns = [...visibleColumns]
+                    newColumns.forEach((col) => {
+                      if (!updatedVisibleColumns.includes(col)) {
+                        updatedVisibleColumns.push(col)
+                      }
+                    })
+                    setVisibleColumns(updatedVisibleColumns)
+                  }
+
+                  const mergeRows = (newRow: RowData, oldRow: RowData) => {
+                    const originalRow = originalData.find((d) => d._id === newRow._id)
+                    const isModified = isRowModified(originalRow, newRow)
+
+                    const dataColumns: Record<string, any> = {}
+                    Object.keys(newRow).forEach((k) => {
+                      if (!k.startsWith("_")) {
+                        dataColumns[k] = (newRow as any)[k]
+                      }
+                    })
+
+                    Object.keys(oldRow).forEach((k) => {
+                      if (!k.startsWith("_")) {
+                        if (dataColumns[k] === undefined || dataColumns[k] === "" || dataColumns[k] === null) {
+                          dataColumns[k] = oldRow[k]
+                        }
+                      }
+                    })
+
+                    if (preserveUserData) {
+                      Object.keys(oldRow).forEach((k) => {
+                        if (!k.startsWith("_") && oldRow[k] !== originalRow?.[k]) {
+                          dataColumns[k] = oldRow[k]
+                        }
+                      })
+                    }
+
+                    const metaFields: Record<string, any> = {}
+                    Object.keys(newRow).forEach((k) => {
+                      if (k.startsWith("_")) {
+                        metaFields[k] = (newRow as any)[k]
+                      }
+                    })
+
+                    return {
+                      _id: newRow._id || oldRow._id,
+                      ...dataColumns,
+                      ...metaFields,
+                      _isModified: isModified || oldRow._isModified,
+                    }
+                  }
+
                   if (updatedRows.length === data.length && updatedRows.length > 0) {
                     const merged = updatedRows.map((newRow) => {
                       const oldRow = data.find((d) => d._id === newRow._id) || newRow
-                      const originalRow = originalData.find((d) => d._id === newRow._id)
-                      
-                      // Check if row has been modified compared to original
-                      const isModified = isRowModified(originalRow, newRow)
-                      
-                      // Always preserve user-modified data columns (non-meta columns that differ from original)
-                      const userData: any = {}
-                      Object.keys(oldRow).forEach((k) => {
-                        if (!k.startsWith("_") && oldRow[k] !== originalRow?.[k]) {
-                          userData[k] = oldRow[k] // Preserve user changes
-                        }
-                      })
-                      
-                      // Extract meta fields from updated row
-                      const metaFields: any = {}
-                      Object.keys(newRow).forEach((k) => {
-                        if (k.startsWith("_")) {
-                          metaFields[k] = (newRow as any)[k]
-                        }
-                      })
-                      
-                      // Merge: AI meta fields + user data + modification flag
-                      return {
-                        ...newRow, // Start with updated row (includes all columns)
-                        ...userData, // Override with user-modified data columns
-                        ...metaFields, // Ensure meta fields are from updated row
-                        _isModified: isModified || oldRow._isModified
-                      }
+                      return mergeRows(newRow, oldRow)
                     })
                     setData(merged)
                   } else {
-                    // Update specific rows by matching IDs
                     const newData = data.map((row) => {
                       const updated = updatedRows.find((r) => r._id === row._id)
                       if (!updated) return row
-                      
-                      const originalRow = originalData.find((d) => d._id === row._id)
-                      // Check if row has been modified compared to original
-                      const isModified = isRowModified(originalRow, updated)
-                      
-                      // Always preserve user-modified data columns (non-meta columns that differ from original)
-                      const userData: any = {}
-                      Object.keys(row).forEach((k) => {
-                        if (!k.startsWith("_") && row[k] !== originalRow?.[k]) {
-                          userData[k] = row[k] // Preserve user changes
-                        }
-                      })
-                      
-                      // Extract meta fields from updated row
-                      const metaFields: any = {}
-                      Object.keys(updated).forEach((k) => {
-                        if (k.startsWith("_")) {
-                          metaFields[k] = (updated as any)[k]
-                        }
-                      })
-                      
-                      // Merge: AI meta fields + user data + modification flag
-                      return {
-                        ...updated, // Start with updated row (includes all columns)
-                        ...userData, // Override with user-modified data columns
-                        ...metaFields, // Ensure meta fields are from updated row
-                        _isModified: isModified || row._isModified
-                      }
+                      return mergeRows(updated, row)
                     })
                     setData(newData)
                   }
@@ -1057,6 +1294,82 @@ export default function JobLabelAIPage() {
             </div>
           )}
         </main>
+
+        <Dialog open={showCompleteDialog} onOpenChange={setShowCompleteDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Complete Project and Create Dataset</DialogTitle>
+              <DialogDescription>
+                Create a dataset from this project's labeled data. This will mark the project as completed.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="dataset-name">Dataset Name *</Label>
+                <Input
+                  id="dataset-name"
+                  placeholder="Enter dataset name"
+                  value={newDatasetName}
+                  onChange={(e) => setNewDatasetName(e.target.value)}
+                  disabled={completing}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="dataset-description">Description (Optional)</Label>
+                <Textarea
+                  id="dataset-description"
+                  placeholder="Enter dataset description"
+                  value={newDatasetDescription}
+                  onChange={(e) => setNewDatasetDescription(e.target.value)}
+                  disabled={completing}
+                  rows={3}
+                />
+              </div>
+              
+              <div className="rounded-lg bg-muted p-4 space-y-2">
+                <p className="text-sm font-medium">Export Information:</p>
+                <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                  <li>Export type: Full (all files)</li>
+                  <li>Project permissions will be copied to dataset</li>
+                  <li>Project status will be set to "completed"</li>
+                </ul>
+              </div>
+            </div>
+            
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowCompleteDialog(false)
+                  setNewDatasetName("")
+                  setNewDatasetDescription("")
+                }}
+                disabled={completing}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleComplete}
+                disabled={completing || !newDatasetName.trim()}
+                className="gap-2"
+              >
+                {completing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-4 w-4" />
+                    Create Dataset
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </ErrorBoundary>
   )

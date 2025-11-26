@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import type { RowData } from "@/app/(navigation)/[projectId]/labelai/page"
+import type { RowData } from "@/app/(navigation)/[projectId]/annotate/job/[jobId]/annotating/page"
 import { useToast } from "@/hooks/use-toast"
 import { MultiColumnConfig } from "@/components/label-ai/multi-column-config"
 import { testApiKey, labelData } from "@/app/api/labelai"
@@ -171,6 +171,9 @@ export function ModelSelector({
           description: `Successfully labeled ${labeled.length} rows with ${effectiveModel}`,
         })
       } else {
+        const documentIdsToSend = documentIds !== undefined ? (documentIds.length > 0 ? documentIds : []) : undefined
+        console.log(`[ModelSelector] Sending label request with document_ids:`, documentIdsToSend)
+        
         const result = await labelData({
           rows: data,
           model: effectiveModel,
@@ -185,7 +188,7 @@ export function ModelSelector({
           embedding_model: embeddingConfig?.model,
           // Pass empty array if no documents selected (user unselected all)
           // Pass undefined only if documentIds prop is not provided at all
-          document_ids: documentIds !== undefined ? (documentIds.length > 0 ? documentIds : []) : undefined,
+          document_ids: documentIdsToSend,
         })
 
         if (result.success) {

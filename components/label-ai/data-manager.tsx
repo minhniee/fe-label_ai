@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
-import type { RowData } from "@/app/(navigation)/[projectId]/labelai/page"
+import type { RowData } from "@/app/(navigation)/[projectId]/annotate/job/[jobId]/annotating/page"
 import { generateMoreData } from "@/app/api/labelai"
 import { getApiKeyFromStorage } from "@/lib/label-ai-utils"
 

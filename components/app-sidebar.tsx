@@ -270,13 +270,13 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
         isActive: pathname === `${projectPrefix}/schema`,
         requiresProject: true,
       },
-      {
-        title: "Classes",
-        url: `${projectPrefix}/classes`,
-        icon: ListOrdered,
-        isActive: pathname === `${projectPrefix}/classes`,
-        requiresProject: true,
-      },
+      // {
+      //   title: "Classes",
+      //   url: `${projectPrefix}/classes`,
+      //   icon: ListOrdered,
+      //   isActive: pathname === `${projectPrefix}/classes`,
+      //   requiresProject: true,
+      // },
       {
         title: "Administrator",
         url: "/admin",
