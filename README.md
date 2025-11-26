@@ -1,4 +1,5 @@
 ﻿# fe-label_ai
 
 
-# test commit
+# To get start follow step
+npm install
