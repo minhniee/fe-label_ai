@@ -22,6 +22,16 @@ import { createProjectBatch, splitProjectFile } from "@/app/api/batch";
 import { useProjectFromSlug } from "@/hooks/use-project-from-slug";
 import { projectToSlug } from "@/types/project";
 import { useUserPermissions } from "@/hooks/use-user-permissions";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // Define supported file formats
 const PDF_EXTENSIONS = [".pdf"];
@@ -37,6 +47,7 @@ export function UploadForm() {
   const { canCreate } = useUserPermissions();
   const [batchName, setBatchName] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [fileToDelete, setFileToDelete] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("all");
   const [projectFiles, setProjectFiles] = useState<any[]>([]);
@@ -542,7 +553,7 @@ export function UploadForm() {
                       {canCreate && (
                         <button
                           type="button"
-                          onClick={() => removeFile(file.name)}
+                          onClick={() => setFileToDelete(file)}
                           className="absolute top-1 right-1 z-10 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                         >
                           <X className="w-3 h-3" />
@@ -583,6 +594,41 @@ export function UploadForm() {
         className="hidden"
         {...{ webkitdirectory: "true" }}
       />
+
+      <AlertDialog
+        open={!!fileToDelete}
+        onOpenChange={(open) => {
+          if (!open) setFileToDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete File</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to delete
+            <span className="font-medium text-foreground block break-all mt-1">
+              {fileToDelete?.name} ?
+            </span>
+          </p>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (fileToDelete) {
+                  removeFile(fileToDelete.name);
+                }
+                setFileToDelete(null);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </form>
   );
 }

@@ -32,6 +32,16 @@ import { getProjectFiles, uploadFilesToProject, createInvitation, listPendingInv
 import { getMe } from "@/app/api/auth";
 import { toast } from "sonner";
 import React from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function ProjectBatchPage() {
   const params = useParams();
@@ -60,6 +70,7 @@ export default function ProjectBatchPage() {
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [filePendingDeletion, setFilePendingDeletion] = useState<any | null>(null);
 
   // Team members state
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -700,7 +711,7 @@ export default function ProjectBatchPage() {
                         <FileText className="h-8 w-8 text-muted-foreground" />
                       )}
                       <button
-                        onClick={() => handleRemoveBatchFile(file.file_id)}
+                        onClick={() => setFilePendingDeletion(file)}
                         className="absolute top-1 right-1 z-10 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
                       >
                         <X className="w-3 h-3" />
@@ -1207,6 +1218,41 @@ export default function ProjectBatchPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={!!filePendingDeletion}
+        onOpenChange={(open) => {
+          if (!open) setFilePendingDeletion(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete File</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to delete
+            <span className="font-medium text-foreground block break-all mt-1">
+              {filePendingDeletion?.filename || filePendingDeletion?.file_name} ?
+            </span>
+          </p>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (filePendingDeletion) {
+                  handleRemoveBatchFile(filePendingDeletion.file_id);
+                }
+                setFilePendingDeletion(null);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
