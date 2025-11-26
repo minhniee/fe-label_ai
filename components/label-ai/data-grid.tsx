@@ -668,46 +668,48 @@ export function DataGrid({
   return (
     <TooltipProvider>
       <div className="space-y-4">
-        {allConfirmed && (
-          <Card className="p-6 bg-success/5 border-success/20">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <CheckCheck className="h-5 w-5 text-success" />
-                  <h3 className="font-semibold text-success">All rows confirmed!</h3>
-                </div>
-                <p className="text-sm text-muted-foreground">Ready to submit your validated dataset as a new version</p>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="version-name" className="text-sm">
-                    Version Name
-                  </Label>
-                  <Input
-                    id="version-name"
-                    value={versionName}
-                    onChange={(e) => setVersionName(e.target.value)}
-                    placeholder="Enter version name"
-                    className="w-64 font-mono"
-                  />
-                </div>
-                <Button onClick={handleSubmit} disabled={isSubmitting || !versionName.trim()} className="gap-2 mt-7">
-                  {isSubmitting ? (
-                    <>
-                      <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                      Submitting...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="h-4 w-4" />
-                      Submit Version
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          </Card>
-        )}
+        {
+        // allConfirmed && (
+        //   <Card className="p-6 bg-success/5 border-success/20">
+        //     <div className="flex items-center justify-between">
+        //       <div className="space-y-1">
+        //         <div className="flex items-center gap-2">
+        //           <CheckCheck className="h-5 w-5 text-success" />
+        //           <h3 className="font-semibold text-success">All rows confirmed!</h3>
+        //         </div>
+        //         <p className="text-sm text-muted-foreground">Ready to submit your validated dataset as a new version</p>
+        //       </div>
+        //       <div className="flex items-center gap-4">
+        //         <div className="space-y-2">
+        //           <Label htmlFor="version-name" className="text-sm">
+        //             Version Name
+        //           </Label>
+        //           <Input
+        //             id="version-name"
+        //             value={versionName}
+        //             onChange={(e) => setVersionName(e.target.value)}
+        //             placeholder="Enter version name"
+        //             className="w-64 font-mono"
+        //           />
+        //         </div>
+        //         {/* <Button onClick={handleSubmit} disabled={isSubmitting || !versionName.trim()} className="gap-2 mt-7">
+        //           {isSubmitting ? (
+        //             <>
+        //               <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+        //               Submitting...
+        //             </>
+        //           ) : (
+        //             <>
+        //               <Send className="h-4 w-4" />
+        //               Submit Version
+        //             </>
+        //           )}
+        //         </Button> */}
+        //       </div>
+        //     </div>
+        //   </Card>
+        // )
+        }
 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -767,10 +769,10 @@ export function DataGrid({
                 </Button>
               </>
             )}
-            <Button onClick={handleExportClick} className="gap-2">
+            {/* <Button onClick={handleExportClick} className="gap-2">
               <Download className="h-4 w-4" />
               Export CSV
-            </Button>
+            </Button> */}
           </div>
         </div>
 

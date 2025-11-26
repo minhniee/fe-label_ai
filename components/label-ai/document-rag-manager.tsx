@@ -142,12 +142,22 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
 
   useEffect(() => {
     // Notify parent of selected documents changes
+    console.log(`[DocumentRAGManager] Selected documents changed:`, selectedDocumentIds)
     onSelectedDocumentsChangeRef.current?.(selectedDocumentIds)
     
     // Save selection to localStorage when it changes
     if (selectedDocumentIds.length > 0) {
       try {
         localStorage.setItem(`doc_selection_${projectId}`, JSON.stringify(selectedDocumentIds))
+        console.log(`[DocumentRAGManager] Saved selection to localStorage:`, selectedDocumentIds)
+      } catch (e) {
+        // Ignore localStorage errors
+      }
+    } else {
+      // Clear localStorage when no documents are selected (user unchecked all)
+      try {
+        localStorage.removeItem(`doc_selection_${projectId}`)
+        console.log(`[DocumentRAGManager] Cleared localStorage - no documents selected`)
       } catch (e) {
         // Ignore localStorage errors
       }
@@ -361,8 +371,10 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
                       checked={isSelected}
                       onCheckedChange={(checked) => {
                         if (checked) {
+                          console.log(`[DocumentRAGManager] User checked document:`, doc.document_id, doc.name)
                           setSelectedDocumentIds([...selectedDocumentIds, doc.document_id])
                         } else {
+                          console.log(`[DocumentRAGManager] User unchecked document:`, doc.document_id, doc.name)
                           setSelectedDocumentIds(selectedDocumentIds.filter(id => id !== doc.document_id))
                         }
                       }}
