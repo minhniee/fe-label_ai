@@ -32,6 +32,7 @@ import {
   type ChatbotDataset,
   type ChatHistory
 } from "@/app/api/chatbot"
+import { uploadFileToDataset } from "@/app/api/dataset"
 import { cn } from "@/lib/utils"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 
@@ -58,6 +59,7 @@ export default function ChatbotPage() {
   const [datasetsOpen, setDatasetsOpen] = useState(false)
   const [datasets, setDatasets] = useState<ChatbotDataset[]>([])
   const [isLoadingDatasets, setIsLoadingDatasets] = useState(false)
+  const [uploadingDatasetId, setUploadingDatasetId] = useState<number | null>(null)
   const [startTime, setStartTime] = useState<number | null>(null)
   const chatContainerRef = useRef<HTMLDivElement>(null)
 
@@ -264,6 +266,27 @@ export default function ChatbotPage() {
     }
   }, [datasetsOpen, loadDatasets])
 
+  const handleDatasetFileUpload = async (datasetId: number, file: File | null) => {
+    if (!file) return
+    setUploadingDatasetId(datasetId)
+    try {
+      await uploadFileToDataset(datasetId, file, "text")
+      toast({
+        title: "Upload thành công",
+        description: `Đã thêm "${file.name}" vào dataset. Chatbot sẽ sử dụng dữ liệu mới sau khi reload.`,
+      })
+      await handleSwitchDataset(datasetId)
+    } catch (error: any) {
+      toast({
+        title: "Lỗi upload",
+        description: error.message || "Không thể tải dữ liệu lên dataset",
+        variant: "destructive",
+      })
+    } finally {
+      setUploadingDatasetId(null)
+    }
+  }
+
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp)
     return date.toLocaleString("vi-VN", {
@@ -337,31 +360,66 @@ export default function ChatbotPage() {
                     </div>
                     {datasets.map((dataset) => (
                       <Card key={dataset.dataset_id} className="p-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <div className="font-semibold flex items-center gap-2">
-                              <Database className="w-4 h-4" />
-                              {dataset.name}
-                            </div>
-                            {dataset.description && (
-                              <div className="text-xs text-muted-foreground mt-1 ml-6">
-                                {dataset.description}
+                        <div className="flex flex-col gap-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="font-semibold flex items-center gap-2">
+                                <Database className="w-4 h-4" />
+                                {dataset.name}
                               </div>
-                            )}
-                            <div className="flex gap-4 text-xs text-muted-foreground mt-2 ml-6">
-                              <span>{dataset.dataset_type}</span>
-                              <span>{dataset.status}</span>
-                              <span>{new Date(dataset.created_at).toLocaleDateString("vi-VN")}</span>
+                              {dataset.description && (
+                                <div className="text-xs text-muted-foreground mt-1 ml-6">
+                                  {dataset.description}
+                                </div>
+                              )}
+                              <div className="flex gap-4 text-xs text-muted-foreground mt-2 ml-6">
+                                <span>{dataset.dataset_type}</span>
+                                <span>{dataset.status}</span>
+                                <span>{new Date(dataset.created_at).toLocaleDateString("vi-VN")}</span>
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <div>
+                                <input
+                                  id={`dataset-upload-${dataset.dataset_id}`}
+                                  type="file"
+                                  accept=".csv,.json,.txt"
+                                  className="hidden"
+                                  onChange={(event) => {
+                                    const file = event.target.files?.[0] || null
+                                    handleDatasetFileUpload(dataset.dataset_id, file)
+                                    event.target.value = ""
+                                  }}
+                                />
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={uploadingDatasetId === dataset.dataset_id}
+                                  onClick={() => document.getElementById(`dataset-upload-${dataset.dataset_id}`)?.click()}
+                                >
+                                  {uploadingDatasetId === dataset.dataset_id ? (
+                                    <>
+                                      <RefreshCw className="w-4 h-4 animate-spin mr-2" />
+                                      Đang tải...
+                                    </>
+                                  ) : (
+                                    "Upload dữ liệu"
+                                  )}
+                                </Button>
+                              </div>
+                              <Button
+                                size="sm"
+                                onClick={() => handleSwitchDataset(dataset.dataset_id)}
+                                className="gap-2"
+                              >
+                                <RefreshCw className="w-4 h-4" />
+                                Dùng
+                              </Button>
                             </div>
                           </div>
-                          <Button
-                            size="sm"
-                            onClick={() => handleSwitchDataset(dataset.dataset_id)}
-                            className="gap-2"
-                          >
-                            <RefreshCw className="w-4 h-4" />
-                            Dùng
-                          </Button>
+                          <p className="text-xs text-muted-foreground ml-6">
+                            Tải file CSV/TXT đã gắn nhãn để chatbot học thêm. Sau khi upload, bấm "Dùng" để reload dataset.
+                          </p>
                         </div>
                       </Card>
                     ))}

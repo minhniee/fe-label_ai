@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { SearchFilter } from "@/components/label-ai/search-filter"
-import { SemanticSearchFilter } from "@/components/label-ai/semantic-search-filter"
+// import { SemanticSearchFilter } from "@/components/label-ai/semantic-search-filter"
 import { ColumnVisibility } from "@/components/label-ai/column-visibility"
 import { DataManager } from "@/components/label-ai/data-manager"
 import { ColumnManager } from "@/components/label-ai/column-manager"
@@ -228,33 +228,42 @@ export default function JobLabelAIPage() {
             }
             
             const metadataColumns = Object.keys(metadataMapping)
+            // First, map CSV metadata columns to internal fields in parsed.data
             parsed.data = parsed.data.map((row: any) => {
               const restoredRow: any = { ...row }
               metadataColumns.forEach(csvCol => {
-                if (row[csvCol] !== undefined && row[csvCol] !== null && row[csvCol] !== "") {
+                // Map even if empty string to ensure _corrected_value is always set (can be empty)
+                if (row[csvCol] !== undefined && row[csvCol] !== null) {
                   const internalKey = metadataMapping[csvCol]
-                  restoredRow[internalKey] = String(row[csvCol])
+                  // Preserve empty string for _corrected_value to allow proper handling
+                  restoredRow[internalKey] = row[csvCol] === "" ? "" : String(row[csvCol])
+                } else {
+                  // Initialize with empty string if not present to ensure field exists
+                  const internalKey = metadataMapping[csvCol]
+                  if (!(internalKey in restoredRow)) {
+                    restoredRow[internalKey] = ""
+                  }
                 }
               })
               return restoredRow
             })
             
-            headers = parsed.columns.filter((h: string) => !metadataColumns.includes(h))
+            // Build headers: regular columns + internal metadata fields
+            const regularColumns = parsed.columns.filter((h: string) => !metadataColumns.includes(h))
+            const internalMetadataFields = Object.values(metadataMapping)
+            headers = [...regularColumns, ...internalMetadataFields]
+            
+            // Convert rows to array format with all headers (including metadata)
             rows = parsed.data.map((row: any) => {
-              const allHeaders = [...parsed.columns, ...Object.keys(metadataMapping).map(k => metadataMapping[k])]
-              return allHeaders.map((header: string) => {
+              return headers.map((header: string) => {
+                // For internal metadata fields, get from restoredRow directly
                 if (header.startsWith("_")) {
                   return String(row[header] || "")
                 }
-                const csvCol = Object.entries(metadataMapping).find(([_, v]) => v === header)?.[0]
-                if (csvCol && row[csvCol] !== undefined) {
-                  return String(row[csvCol] || "")
-                }
+                // For regular columns, get from row
                 return String(row[header] || "")
               })
             })
-            
-            headers = [...parsed.columns.filter((h: string) => !metadataColumns.includes(h)), ...Object.values(metadataMapping)]
           } else if (annotationContent.headers && annotationContent.rows) {
             headers = annotationContent.headers
             rows = annotationContent.rows
@@ -301,32 +310,47 @@ export default function JobLabelAIPage() {
       setResultColumn(detectedResultCol)
       setVisibleColumns([detectedContextCol, detectedResultCol])
       
+      // Transform rows to RowData format - ensure all metadata fields are preserved
       const transformedData: RowData[] = rows.map((row: any, index: number) => {
+        // Initialize with default values (same as AI Labeling Mode)
         const rowObj: RowData = {
           _id: `row-${index}`,
           _ai_suggestion: "",
           _ai_reasoning: "",
           _confirmed: false,
+          _corrected_value: "",
+          _validation_status: "",
+          _ai_type: "",
+          _ai_confidence: undefined,
         }
         
         if (Array.isArray(row)) {
+          // Map from array using headers (which now includes all metadata fields)
           headers.forEach((header, i) => {
+            const value = row[i]
             if (header.startsWith("_")) {
-              rowObj[header as keyof RowData] = row[i] ?? ""
+              // For internal metadata fields, preserve exactly as is (including empty strings)
+              rowObj[header as keyof RowData] = value !== undefined && value !== null ? String(value) : ""
             } else {
-              rowObj[header] = row[i] ?? ""
+              // For regular columns
+              rowObj[header] = value !== undefined && value !== null ? String(value) : ""
             }
           })
         } else if (row && typeof row === "object") {
+          // Map from object - ensure all fields are copied
           Object.keys(row).forEach((key) => {
+            const value = row[key]
             if (key.startsWith("_")) {
-              rowObj[key as keyof RowData] = row[key] ?? ""
+              // For internal metadata fields, preserve exactly as is
+              rowObj[key as keyof RowData] = value !== undefined && value !== null ? String(value) : ""
             } else {
-              rowObj[key] = row[key] ?? ""
+              // For regular columns
+              rowObj[key] = value !== undefined && value !== null ? String(value) : ""
             }
           })
         }
         
+        // Set _confirmed based on _ai_suggestion (same logic as AI Labeling Mode)
         if (rowObj._ai_suggestion && rowObj._ai_suggestion.toString().trim() !== "") {
           rowObj._confirmed = false
         }
@@ -848,13 +872,13 @@ export default function JobLabelAIPage() {
                               </button>
                             )}
                           </div>
-                          {currentFileId && (
+                          {/* {currentFileId && (
                             <SemanticSearchFilter 
                               fileId={currentFileId}
                               onSearchResults={setSemanticSearchResults}
                               placeholder="Semantic search..."
                             />
-                          )}
+                          )} */}
                         </div>
                       </div>
 
@@ -1077,13 +1101,13 @@ export default function JobLabelAIPage() {
 
               <div className="flex items-center gap-4 flex-wrap">
                 <SearchFilter onSearchChange={setSearchQuery} placeholder="Text search..." />
-                {currentFileId && (
+                {/* {currentFileId && (
                   <SemanticSearchFilter 
                     fileId={currentFileId}
                     onSearchResults={setSemanticSearchResults}
                     placeholder="Semantic search (e.g., thiên nhiên)..."
                   />
-                )}
+                )} */}
                 <ColumnManager
                   columns={columns}
                   data={data}

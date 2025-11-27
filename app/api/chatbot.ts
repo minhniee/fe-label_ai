@@ -30,9 +30,10 @@ export interface ChatHistory {
 /**
  * Get chatbot status
  */
-export async function getChatbotStatus(): Promise<ChatbotStatus> {
+export async function getChatbotStatus(datasetId?: number): Promise<ChatbotStatus> {
   try {
-    const response = await api.get("/api/chatbot/status")
+    const params = datasetId ? `?dataset_id=${datasetId}` : ""
+    const response = await api.get(`/api/chatbot/status${params}`)
     return response.data
   } catch (error: any) {
     const errorMessage = error?.response?.data?.detail || error.message || "Failed to get chatbot status"
@@ -43,9 +44,18 @@ export async function getChatbotStatus(): Promise<ChatbotStatus> {
 /**
  * Send message to chatbot
  */
-export async function sendChatMessage(query: string, topK: number = 2): Promise<ChatMessage> {
+export async function sendChatMessage(
+  query: string,
+  topK: number = 2,
+  options?: { datasetId?: number; projectId?: number }
+): Promise<ChatMessage> {
   try {
-    const response = await api.post("/api/chatbot/chat", {
+    const params = new URLSearchParams()
+    if (options?.datasetId) params.append("dataset_id", String(options.datasetId))
+    if (options?.projectId) params.append("project_id", String(options.projectId))
+    const queryString = params.toString()
+
+    const response = await api.post(`/api/chatbot/chat${queryString ? `?${queryString}` : ""}`, {
       query,
       top_k: topK,
     })
@@ -72,9 +82,14 @@ export async function getChatbotDatasets(): Promise<{ datasets: ChatbotDataset[]
 /**
  * Switch to a specific dataset
  */
-export async function switchChatbotDataset(datasetId: number): Promise<{ message: string; total_questions: number }> {
+export async function switchChatbotDataset(
+  datasetId: number,
+  options?: { projectId?: number }
+): Promise<{ message: string; total_questions: number }> {
   try {
-    const response = await api.post(`/api/chatbot/reload?dataset_id=${datasetId}`)
+    const params = new URLSearchParams({ dataset_id: String(datasetId) })
+    if (options?.projectId) params.append("project_id", String(options.projectId))
+    const response = await api.post(`/api/chatbot/reload?${params.toString()}`)
     return response.data
   } catch (error: any) {
     const errorMessage = error?.response?.data?.detail || error.message || "Failed to switch dataset"

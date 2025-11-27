@@ -207,13 +207,17 @@ export interface CreateProjectBatchRequest {
 }
 
 export interface CreateProjectBatchResponse {
+  success: boolean
   batch_id: number
   project_id: number
+  dataset_id: number
+  version_id: number
   name: string
   description?: string
-  status: string
+  status?: string
   total_files: number
-  created_at: string
+  file_ids?: number[]
+  created_at?: string
 }
 
 export interface AssignBatchToUsersRequest {
@@ -298,6 +302,7 @@ export interface AutoLabelBatchResponse {
   files_labeled: number
   total_files: number
   error?: string | null
+  warning?: string | null  // Warning if documents selected but no context found
 }
 
 export interface AutoLabelStatusResponse {
@@ -412,7 +417,7 @@ export async function getBatchAssignments(filters?: {
     if (filters?.page) params.append('page', filters.page.toString())
     if (filters?.page_size) params.append('page_size', filters.page_size.toString())
 
-    const url = params.toString() 
+    const url = params.toString()
       ? `/batches/assignments/?${params.toString()}`
       : `/batches/assignments/`
     const response = await api.get<BatchAssignmentListResponse>(url, {
@@ -468,11 +473,11 @@ export async function getBatchStats(filters?: {
     if (filters?.start_date) params.append('start_date', filters.start_date)
     if (filters?.end_date) params.append('end_date', filters.end_date)
     if (filters?.time_period) params.append('time_period', filters.time_period)
-    
-    const url = params.toString() 
+
+    const url = params.toString()
       ? `/batches/stats/?${params.toString()}`
       : `/batches/stats/`
-      
+
     const response = await api.get<BatchStatsResponse>(url, {
     })
     return response.data
@@ -493,11 +498,11 @@ export async function getBatchDashboard(filters?: {
     if (filters?.start_date) params.append('start_date', filters.start_date)
     if (filters?.end_date) params.append('end_date', filters.end_date)
     if (filters?.time_period) params.append('time_period', filters.time_period)
-    
-    const url = params.toString() 
+
+    const url = params.toString()
       ? `/batches/dashboard/?${params.toString()}`
       : `/batches/dashboard/`
-      
+
     const response = await api.get<BatchDashboardResponse>(url, {
     })
     return response.data
@@ -541,11 +546,11 @@ export async function getDatasetBatches(datasetId: number, filters?: Omit<BatchF
     if (filters?.search) params.append('search', filters.search)
     if (filters?.page) params.append('page', filters.page.toString())
     if (filters?.page_size) params.append('page_size', filters.page_size.toString())
-    
-    const url = params.toString() 
+
+    const url = params.toString()
       ? `/batches/datasets/${datasetId}/batches?${params.toString()}`
       : `/batches/datasets/${datasetId}/batches`
-      
+
     const response = await api.get<BatchListResponse>(url, {
     })
     return response.data
@@ -575,11 +580,11 @@ export async function getUserAssignments(userId: number, filters?: Omit<BatchAss
     if (filters?.assigned_by) params.append('assigned_by', filters.assigned_by.toString())
     if (filters?.page) params.append('page', filters.page.toString())
     if (filters?.page_size) params.append('page_size', filters.page_size.toString())
-    
-    const url = params.toString() 
+
+    const url = params.toString()
       ? `/batches/users/${userId}/assignments?${params.toString()}`
       : `/batches/users/${userId}/assignments`
-      
+
     const response = await api.get<BatchAssignmentListResponse>(url, {
     })
     return response.data
@@ -724,13 +729,13 @@ export async function getProjectBatchStats(projectId: number, filters?: {
     if (filters?.start_date) params.append('start_date', filters.start_date)
     if (filters?.end_date) params.append('end_date', filters.end_date)
     if (filters?.time_period) params.append('time_period', filters.time_period)
-    
-    const url = params.toString() 
+
+    const url = params.toString()
       ? `/batches/projects/${projectId}/stats?${params.toString()}`
       : `/batches/projects/${projectId}/stats`
-      
+
     const response = await api.get<ProjectBatchStatsResponse>(url, {
-      }
+    }
     )
     return response.data
   } catch (error: any) {
@@ -749,11 +754,11 @@ export async function getProjectBatches(projectId: number, filters?: Omit<BatchF
     if (filters?.search) params.append('search', filters.search)
     if (filters?.page) params.append('page', filters.page.toString())
     if (filters?.page_size) params.append('page_size', filters.page_size.toString())
-    
-    const url = params.toString() 
+
+    const url = params.toString()
       ? `/batches/projects/${projectId}/batches?${params.toString()}`
       : `/batches/projects/${projectId}/batches`
-      
+
     const response = await api.get<BatchListResponse>(url, {
     })
     return response.data
