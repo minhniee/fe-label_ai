@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/select";
 import { ArrowLeft, Upload, Edit, Plus, Users, FileText, X, Loader2, Zap, Database, Sparkles, User, UserPlus, ChevronRight, Send } from "lucide-react";
 import { useProjectFromSlug } from "@/hooks/use-project-from-slug";
-import { projectToSlug } from "@/types/project";
+import { projectToSlug, slugToProjectId } from "@/types/project";
 import { getBatch, updateBatch, assignBatchToUsers, distributeFileToUsers, splitProjectFile, deleteBatch } from "@/app/api/batch";
 import { getProjectFiles, uploadFilesToProject, createInvitation, listPendingInvitations, setLabelingType, getProjectCollaborators } from "@/app/api/project";
 import { getMe } from "@/app/api/auth";
@@ -50,6 +50,8 @@ export default function ProjectBatchPage() {
   const { project } = useProjectFromSlug();
   const projectSlug = params.projectId as string;
   const batchId = searchParams.get("batchId");
+  // Extract project ID from slug - this works even if project object isn't loaded yet
+  const projectId = projectSlug ? slugToProjectId(projectSlug) : null;
 
   // State
   const [batchData, setBatchData] = useState<any>(null);
@@ -83,25 +85,6 @@ export default function ProjectBatchPage() {
   const [totalRows, setTotalRows] = useState<number>(0);
   const [isRenaming, setIsRenaming] = useState(false);
 
-  // Load current user
-  useEffect(() => {
-    loadCurrentUser();
-  }, []);
-
-  // Load batch data
-  useEffect(() => {
-    if (batchId && project) {
-      loadBatchData();
-    }
-  }, [batchId, project]);
-
-  // Load team members and invitations when user selects "Label with my team"
-  useEffect(() => {
-    if (selectedOption === "team" && project) {
-      loadTeamData();
-    }
-  }, [selectedOption, project]);
-
   const loadCurrentUser = async () => {
     try {
       const user = await getMe();
@@ -132,12 +115,14 @@ export default function ProjectBatchPage() {
     }
   };
 
-  const loadBatchData = async () => {
+  const loadBatchData = useCallback(async () => {
+    if (!batchId || !projectId) return;
+    
     try {
       setIsLoading(true);
 
       // Fetch batch details
-      const batch = await getBatch(parseInt(batchId!));
+      const batch = await getBatch(parseInt(batchId));
       setBatchData(batch);
       setBatchName(batch.name);
 
@@ -187,7 +172,15 @@ export default function ProjectBatchPage() {
 
       // Fetch project files and filter by batch file IDs
       if (targetFileIds.length > 0) {
-        const files = await getProjectFiles(parseInt(project!.id));
+        // Use projectId from slug if project object isn't available yet
+        const projectIdToUse = project?.id || projectId;
+        if (!projectIdToUse) {
+          console.error("No project ID available");
+          toast.error("Project information not available");
+          setBatchFiles([]);
+          return;
+        }
+        const files = await getProjectFiles(parseInt(projectIdToUse));
         console.log("All project files:", files.length);
         const batchSpecificFiles = files.filter(f =>
           targetFileIds.includes(f.file_id)
@@ -208,7 +201,26 @@ export default function ProjectBatchPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [batchId, projectId, project?.id, searchParams]);
+
+  // Load current user
+  useEffect(() => {
+    loadCurrentUser();
+  }, []);
+
+  // Load batch data - use projectId from slug instead of waiting for project object
+  useEffect(() => {
+    if (batchId && projectId) {
+      loadBatchData();
+    }
+  }, [batchId, projectId, loadBatchData]);
+
+  // Load team members and invitations when user selects "Label with my team"
+  useEffect(() => {
+    if (selectedOption === "team" && project) {
+      loadTeamData();
+    }
+  }, [selectedOption, project]);
 
   // Function to read CSV file and count rows from URL
   // Calculate rows per member
