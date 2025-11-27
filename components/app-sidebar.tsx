@@ -14,6 +14,7 @@ import {
   ListOrdered,
   FileText,
   Upload,
+  Bot,
   FolderOpen,
   type LucideIcon,
 } from "lucide-react";
@@ -291,6 +292,13 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
         isActive: pathname === `${projectPrefix}/comparison-tool`,
         requiresProject: true,
       },
+      {
+        title: "Chatbot",
+        url: `${projectPrefix}/chatbot`,
+        icon: Bot,
+        isActive: pathname === `${projectPrefix}/chatbot`,
+        requiresProject: true,
+      },
     ];
   }, [pathname, selectedProject]);
 
@@ -334,7 +342,7 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
   const adminGroupTitles = new Set(["Administrator"]);
 
   // Group items: Tool
-  const toolGroupTitles = new Set(["Comparison Tool"]);
+  const toolGroupTitles = new Set(["Comparison Tool","Chatbot"]);
 
   const dataItems = flatItems.filter((i) => dataGroupTitles.has(i.title));
   const adminItems = flatItems.filter((i) => adminGroupTitles.has(i.title));
