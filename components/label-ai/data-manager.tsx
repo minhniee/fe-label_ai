@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useToast } from "@/hooks/use-toast"
 import type { RowData } from "@/app/(navigation)/[projectId]/annotate/job/[jobId]/annotating/page"
 import { generateMoreData } from "@/app/api/labelai"
-import { getApiKeyFromStorage } from "@/lib/label-ai-utils"
+import { getApiKeyFromStorage, saveApiKeyToStorage } from "@/lib/label-ai-utils"
 
 interface DataManagerProps {
   data: RowData[]
@@ -56,6 +56,23 @@ export function DataManager({
     setEffectiveApiKey(finalApiKey)
     setEffectiveModel(model || "gemini-2.5-flash")
   }, [apiKey, model])
+  const handleSaveApiKey = () => {
+    const trimmed = effectiveApiKey.trim()
+    if (!trimmed) {
+      toast({
+        title: "API key required",
+        description: "Enter an API key before saving.",
+        variant: "destructive",
+      })
+      return
+    }
+    saveApiKeyToStorage(trimmed)
+    toast({
+      title: "API key saved",
+      description: "We'll use this key the next time you generate data.",
+    })
+  }
+
 
   // Convert current data to CSV format for reference
   const convertDataToCSV = (): string => {
@@ -148,7 +165,7 @@ export function DataManager({
   }
 
   const handleGenerateMore = async () => {
-    const finalApiKey = effectiveApiKey || getApiKeyFromStorage()
+    const finalApiKey = (effectiveApiKey || getApiKeyFromStorage()).trim()
     
     if (!finalApiKey) {
       toast({
@@ -453,11 +470,35 @@ export function DataManager({
                 </p>
               </div>
 
+              {/* API Key capture */}
+              {!apiKey && (
+                <div className="space-y-2">
+                  <Label htmlFor="generate-api-key" className="text-sm font-medium">
+                    Provider API Key *
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="generate-api-key"
+                      type="password"
+                      placeholder="Enter your API key"
+                      value={effectiveApiKey}
+                      onChange={(e) => setEffectiveApiKey(e.target.value)}
+                    />
+                    <Button variant="outline" onClick={handleSaveApiKey} disabled={!effectiveApiKey.trim()}>
+                      Save
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    We store this key securely in your browser only. It will be used for Generate More requests.
+                  </p>
+                </div>
+              )}
+
               {/* API Key warning */}
               {!effectiveApiKey && (
                 <div className="space-y-2">
                   <div className="text-sm text-muted-foreground bg-yellow-50 dark:bg-yellow-950/20 p-3 rounded-lg border border-yellow-200 dark:border-yellow-800">
-                    ⚠ <strong>API Key required:</strong> Please enter your API key in the Model Selector section above before generating data.
+                    ⚠ <strong>API Key required:</strong> Please enter and save your API key before generating data.
                   </div>
                 </div>
               )}
