@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Check, ChevronLeft, ChevronRight, Download, X, CheckCheck, Send, Trash2, Info, CheckCircle2, GitCompare, Sparkles } from "lucide-react"
+import { useState, useEffect, useMemo } from "react"
+import { Check, ChevronLeft, ChevronRight, Download, X, CheckCheck, Send, Trash2, Info, CheckCircle2, GitCompare, Sparkles, Search, Filter } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -60,13 +60,81 @@ export function DataGrid({
   const [compareRow, setCompareRow] = useState<RowData | null>(null)
   const [showExportDialog, setShowExportDialog] = useState(false)
   const [exportDelimiter, setExportDelimiter] = useState<string>(",")
+  const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [searchQuery, setSearchQuery] = useState<string>("")
   const { toast } = useToast()
 
+  // Helper function to get status from row
+  const getRowStatus = (row: RowData): string => {
+    const aiType = (row._ai_type || "").toString().toLowerCase()
+    const validationStatus = (row._validation_status || "").toString().toLowerCase()
+    const status = aiType || validationStatus
+    
+    if (status === "correct") return "correct"
+    if (status === "incorrect" || status === "wrong") return "incorrect"
+    if (status === "ambiguous") return "ambiguous"
+    if (status === "needs_label") return "needs_label"
+    if (row._confirmed) return "confirmed"
+    if (row._ai_suggestion && !row._confirmed) return "pending"
+    return "none"
+  }
+
+  // Calculate display columns (needed for search)
+  const internalColumns = ["_id", "_ai_suggestion", "_ai_reasoning", "_confirmed", "_validation_status", "_corrected_value", "__corrected_value", "_is_new"]
+  const displayColumns = useMemo(() => {
+    return (visibleColumns.length > 0 ? visibleColumns : columns).filter(
+      (col) => !internalColumns.includes(col) && !col.startsWith("_validation_status") && !col.startsWith("_corrected_value") && !col.startsWith("__corrected_value") && col !== contextColumn && col !== resultColumn
+    )
+  }, [visibleColumns, columns, contextColumn, resultColumn])
+
+  // Filter and search logic
+  const filteredAllData = useMemo(() => {
+    let filtered = [...allData]
+
+    // Apply status filter
+    if (statusFilter !== "all") {
+      filtered = filtered.filter((row) => {
+        const status = getRowStatus(row)
+        return status === statusFilter
+      })
+    }
+
+    // Apply search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim()
+      filtered = filtered.filter((row) => {
+        // Search in all visible columns
+        const searchableColumns = [contextColumn, resultColumn, ...displayColumns].filter(Boolean)
+        return searchableColumns.some((col) => {
+          const value = String(row[col] || "").toLowerCase()
+          return value.includes(query)
+        })
+      })
+    }
+
+    return filtered
+  }, [allData, statusFilter, searchQuery, contextColumn, resultColumn, displayColumns])
+
+  // Calculate pagination based on filtered data
+  const filteredTotalPages = Math.ceil(filteredAllData.length / 50)
+  const filteredCurrentPage = Math.min(currentPage, Math.max(0, filteredTotalPages - 1))
+  const filteredData = filteredAllData.slice(
+    filteredCurrentPage * 50,
+    (filteredCurrentPage + 1) * 50
+  )
+
+  // Update page when filter changes if current page is out of bounds
+  useEffect(() => {
+    if (filteredCurrentPage !== currentPage && filteredTotalPages > 0) {
+      onPageChange(Math.min(currentPage, filteredTotalPages - 1))
+    }
+  }, [filteredTotalPages, filteredCurrentPage, currentPage, onPageChange])
+
   const confirmedCount = manualMode
-    ? allData.filter((row) => row[resultColumn] && row[resultColumn].toString().trim() !== "").length
-    : allData.filter((row) => row._confirmed).length
-  const pendingOnPage = data.filter((row) => row._ai_suggestion && !row._confirmed).length
-  const allConfirmed = confirmedCount === allData.length && allData.length > 0
+    ? filteredAllData.filter((row) => row[resultColumn] && row[resultColumn].toString().trim() !== "").length
+    : filteredAllData.filter((row) => row._confirmed).length
+  const pendingOnPage = filteredData.filter((row) => row._ai_suggestion && !row._confirmed).length
+  const allConfirmed = confirmedCount === filteredAllData.length && filteredAllData.length > 0
 
   // Detect best delimiter based on data content
   const detectBestDelimiter = (): string => {
@@ -147,7 +215,7 @@ export function DataGrid({
 
   // Handle cell edit start - initialize local editing value
   const handleCellEditStart = (rowId: string, field: string) => {
-    const row = allData.find((r) => r._id === rowId) || data.find((r) => r._id === rowId)
+    const row = allData.find((r) => r._id === rowId) || filteredData.find((r) => r._id === rowId)
     if (row) {
       setEditingValue(String(row[field] || ""))
       setEditingCell({ rowId, field })
@@ -181,7 +249,7 @@ export function DataGrid({
   }
 
   const handleConfirm = (rowId: string) => {
-    const row = allData.find((r) => r._id === rowId) || data.find((r) => r._id === rowId)
+    const row = allData.find((r) => r._id === rowId) || filteredData.find((r) => r._id === rowId)
     if (!row) return
 
     // Check _ai_type first (from auto-labeling prompt), then _validation_status
@@ -258,7 +326,6 @@ export function DataGrid({
     }
 
     const updatedAllData = allData.map(applyRowUpdate)
-    const updatedData = data.map(applyRowUpdate)
 
     onDataUpdate(updatedAllData)
     toast({
@@ -334,7 +401,7 @@ export function DataGrid({
   }
 
   const handleConfirmAll = () => {
-    const targets = data.filter((row) => row._ai_suggestion && !row._confirmed)
+    const targets = filteredData.filter((row) => row._ai_suggestion && !row._confirmed)
 
     let applied = 0
     let ambiguous = 0
@@ -399,7 +466,7 @@ export function DataGrid({
 
   const handleRejectAll = () => {
     // Get all row IDs on current page that need rejection
-    const rowIdsToReject = data
+    const rowIdsToReject = filteredData
       .filter((row) => row._ai_suggestion && !row._confirmed)
       .map((row) => row._id)
     
@@ -533,11 +600,10 @@ export function DataGrid({
     }
   }
 
-  // Show only context and result by default: exclude internal/meta and also remove context/result from generic list
-  const internalColumns = ["_id", "_ai_suggestion", "_ai_reasoning", "_confirmed", "_validation_status", "_corrected_value", "__corrected_value", "_is_new"]
-  const displayColumns = (visibleColumns.length > 0 ? visibleColumns : columns).filter(
-    (col) => !internalColumns.includes(col) && !col.startsWith("_validation_status") && !col.startsWith("_corrected_value") && !col.startsWith("__corrected_value") && col !== contextColumn && col !== resultColumn
-  )
+  // Get filter counts for each status
+  const getStatusCount = (status: string): number => {
+    return allData.filter((row) => getRowStatus(row) === status).length
+  }
 
   const getCellColor = (status: string | undefined, hasAISuggestion: boolean) => {
     // Fix: Only show highlight if there's actual AI validation status AND AI suggestion exists
@@ -711,12 +777,101 @@ export function DataGrid({
         // )
         }
 
+        {/* Filter and Search Bar */}
+        <Card className="p-4">
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+              <Search className="h-4 w-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search in all columns..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value)
+                  onPageChange(0) // Reset to first page when searching
+                }}
+                className="flex-1"
+              />
+              {searchQuery && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSearchQuery("")
+                    onPageChange(0)
+                  }}
+                  className="h-8 w-8 p-0"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <Select value={statusFilter} onValueChange={(value) => {
+                setStatusFilter(value)
+                onPageChange(0) // Reset to first page when filtering
+              }}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    All Status ({allData.length})
+                  </SelectItem>
+                  <SelectItem value="correct">
+                    Correct ({getStatusCount("correct")})
+                  </SelectItem>
+                  <SelectItem value="incorrect">
+                    Incorrect ({getStatusCount("incorrect")})
+                  </SelectItem>
+                  <SelectItem value="ambiguous">
+                    Ambiguous ({getStatusCount("ambiguous")})
+                  </SelectItem>
+                  <SelectItem value="needs_label">
+                    Needs Label ({getStatusCount("needs_label")})
+                  </SelectItem>
+                  <SelectItem value="pending">
+                    Pending Review ({getStatusCount("pending")})
+                  </SelectItem>
+                  <SelectItem value="confirmed">
+                    Confirmed ({getStatusCount("confirmed")})
+                  </SelectItem>
+                  <SelectItem value="none">
+                    No Status ({getStatusCount("none")})
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              {(statusFilter !== "all" || searchQuery) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setStatusFilter("all")
+                    setSearchQuery("")
+                    onPageChange(0)
+                  }}
+                  className="gap-2"
+                >
+                  <X className="h-4 w-4" />
+                  Clear Filters
+                </Button>
+              )}
+            </div>
+          </div>
+          {(statusFilter !== "all" || searchQuery) && (
+            <div className="mt-2 text-sm text-muted-foreground">
+              Showing {filteredAllData.length} of {allData.length} rows
+            </div>
+          )}
+        </Card>
+
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div>
               <p className="text-sm text-muted-foreground">{manualMode ? "Labeled" : "Confirmed"}</p>
               <p className="font-mono text-sm font-medium text-success">
-                {confirmedCount} / {allData.length}
+                {confirmedCount} / {filteredAllData.length}
               </p>
             </div>
             {!manualMode && (
@@ -725,7 +880,7 @@ export function DataGrid({
                 <div>
                   <p className="text-sm text-muted-foreground">Pending Review</p>
                   <p className="font-mono text-sm font-medium text-warning">
-                    {allData.filter((row) => row._ai_suggestion && !row._confirmed).length}
+                    {filteredAllData.filter((row) => row._ai_suggestion && !row._confirmed).length}
                   </p>
                 </div>
               </>
@@ -808,7 +963,7 @@ export function DataGrid({
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {data.map((row, index) => {
+                {filteredData.map((row, index) => {
                   return (
                     <tr
                       key={row._id}
@@ -820,7 +975,7 @@ export function DataGrid({
                       )}
                     >
                       <td className="px-4 py-3 text-sm text-muted-foreground font-mono">
-                        {currentPage * 50 + index + 1}
+                        {filteredCurrentPage * 50 + index + 1}
                       </td>
                       {contextColumn && (
                         <td 
@@ -1152,22 +1307,25 @@ export function DataGrid({
 
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            Showing {currentPage * 50 + 1} to {Math.min((currentPage + 1) * 50, allData.length)} of {allData.length}{" "}
+            Showing {filteredCurrentPage * 50 + 1} to {Math.min((filteredCurrentPage + 1) * 50, filteredAllData.length)} of {filteredAllData.length}{" "}
             rows
+            {(statusFilter !== "all" || searchQuery) && (
+              <span className="ml-2">(filtered from {allData.length} total)</span>
+            )}
           </p>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => onPageChange(currentPage - 1)}
-              disabled={currentPage === 0}
+              onClick={() => onPageChange(filteredCurrentPage - 1)}
+              disabled={filteredCurrentPage === 0}
             >
               <ChevronLeft className="h-4 w-4" />
               Previous
             </Button>
             <div className="flex items-center gap-1">
-              {Array.from({ length: Math.min(totalPages, 10) }, (_, i) => {
-                const shouldShow = i < 3 || i >= totalPages - 3 || (i >= currentPage - 1 && i <= currentPage + 1)
+              {Array.from({ length: Math.min(filteredTotalPages, 10) }, (_, i) => {
+                const shouldShow = i < 3 || i >= filteredTotalPages - 3 || (i >= filteredCurrentPage - 1 && i <= filteredCurrentPage + 1)
 
                 if (!shouldShow && i === 3) {
                   return (
@@ -1182,7 +1340,7 @@ export function DataGrid({
                 return (
                   <Button
                     key={i}
-                    variant={currentPage === i ? "default" : "outline"}
+                    variant={filteredCurrentPage === i ? "default" : "outline"}
                     size="sm"
                     onClick={() => onPageChange(i)}
                     className="w-8 h-8 p-0"
@@ -1195,8 +1353,8 @@ export function DataGrid({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => onPageChange(currentPage + 1)}
-              disabled={currentPage === totalPages - 1}
+              onClick={() => onPageChange(filteredCurrentPage + 1)}
+              disabled={filteredCurrentPage === filteredTotalPages - 1}
             >
               Next
               <ChevronRight className="h-4 w-4" />
