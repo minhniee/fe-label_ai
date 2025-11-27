@@ -9,14 +9,14 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2, Settings2, Sparkles, FileText } from "lucide-react"
-import type { AutoLabelingConfig } from "@/app/api/batch"
+import type { AutoLabelingConfig, AutoLabelBatchResponse } from "@/app/api/batch"
 import { DocumentRAGManager } from "@/components/label-ai/document-rag-manager"
 import { Separator } from "@/components/ui/separator"
 
 interface AutoLabelingConfigProps {
   batchId: number
   projectId?: number
-  onConfigSubmit: (config: AutoLabelingConfig) => Promise<void>
+  onConfigSubmit: (config: AutoLabelingConfig) => Promise<AutoLabelBatchResponse | void>
   initialConfig?: Partial<AutoLabelingConfig>
   disabled?: boolean
 }
@@ -101,12 +101,21 @@ export function AutoLabelingConfig({
         prompt_type: promptType || "auto_labeling",
       }
 
-      await onConfigSubmit(config)
+      const result = await onConfigSubmit(config)
       
-      toast({
-        title: "Auto-Labeling Started",
-        description: "The batch is now being labeled automatically. Check the status below.",
-      })
+      // Show warning if documents were selected but no context found
+      if (result && typeof result === 'object' && 'warning' in result && result.warning) {
+        toast({
+          title: "Lưu ý về Documents",
+          description: String(result.warning),
+          variant: "default",
+        })
+      } else {
+        toast({
+          title: "Auto-Labeling Started",
+          description: "The batch is now being labeled automatically. Check the status below.",
+        })
+      }
     } catch (error: any) {
       toast({
         title: "Failed to Start Auto-Labeling",

@@ -25,12 +25,13 @@ export function AutoLabelingManager({
 
   const handleConfigSubmit = async (config: AutoLabelingConfigType) => {
     try {
-      await autoLabelBatch({
+      const result = await autoLabelBatch({
         batch_id: batchId,
         config,
       })
       setConfig(config)
       setHasStarted(true)
+      return result // Return result to allow warning handling
     } catch (error) {
       throw error // Let the form handle the error
     }

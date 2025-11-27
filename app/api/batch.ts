@@ -302,6 +302,7 @@ export interface AutoLabelBatchResponse {
   files_labeled: number
   total_files: number
   error?: string | null
+  warning?: string | null  // Warning if documents selected but no context found
 }
 
 export interface AutoLabelStatusResponse {
