@@ -56,6 +56,7 @@ export interface AuditLogsQuery {
   from_time?: string // ISO datetime string
   to_time?: string // ISO datetime string
   limit?: number // default 100, max 1000
+  offset?: number
 }
 
 // =============================================
@@ -104,6 +105,7 @@ export async function getAuditLogs(query?: AuditLogsQuery): Promise<AuditLogsLis
       from_time: query?.from_time,
       to_time: query?.to_time,
       limit: query?.limit || 100,
+      offset: query?.offset ?? 0,
     })
     const url = qs ? `/admin/audit-logs?${qs}` : `/admin/audit-logs`
     const response = await api.get<AuditLogsListResponse>(url)

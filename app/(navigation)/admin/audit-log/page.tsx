@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Card,
   CardContent,
@@ -82,6 +82,7 @@ export default function AuditLogPage() {
   const [logs, setLogs] = useState<AuditEventResponse[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [filters, setFilters] = useState({
     userId: "",
@@ -121,6 +122,7 @@ export default function AuditLogPage() {
     try {
       const query: AuditLogsQuery = {
         limit: PAGE_SIZE,
+        offset: (currentPage - 1) * PAGE_SIZE,
         user_id: activeTab === "user" && numericUserId ? numericUserId : filters.userId ? Number(filters.userId) : undefined,
         project_id: filters.projectId ? Number(filters.projectId) : undefined,
         action: filters.action || undefined,
@@ -140,11 +142,15 @@ export default function AuditLogPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, numericUserId, filters]);
+  }, [activeTab, numericUserId, filters, currentPage]);
 
   useEffect(() => {
     loadLogs();
   }, [loadLogs]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, numericUserId, filters]);
 
   const loadEventChanges = useCallback(async (eventId: number) => {
     if (eventChanges[eventId]) {
@@ -214,6 +220,49 @@ export default function AuditLogPage() {
       toTime: "",
     });
   };
+
+  const totalPages = total > 0 ? Math.ceil(total / PAGE_SIZE) : 1;
+  const startIndex = total === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
+  const endIndex = total === 0 ? 0 : Math.min(total, startIndex + logs.length - 1);
+  const canGoPrev = currentPage > 1;
+  const canGoNext = total > 0 && currentPage < totalPages;
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage === currentPage) return;
+    setExpandedEventId(null);
+    setCurrentPage(newPage);
+  };
+
+  const renderPaginationFooter = () => (
+    <div className="flex flex-col gap-2 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
+      <span>
+        {total === 0
+          ? "Showing 0 of 0 events"
+          : `Showing ${startIndex}-${endIndex} of ${total} events`}
+      </span>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => handlePageChange(currentPage - 1)}
+          disabled={!canGoPrev || loading}
+        >
+          Previous
+        </Button>
+        <span className="text-xs text-muted-foreground">
+          {total === 0 ? "Page 0 of 0" : `Page ${currentPage} of ${totalPages}`}
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => handlePageChange(currentPage + 1)}
+          disabled={!canGoNext || loading}
+        >
+          Next
+        </Button>
+      </div>
+    </div>
+  );
 
 
   return (
@@ -404,7 +453,7 @@ export default function AuditLogPage() {
                       </TableRow>
                     ) : (
                       logs.map((event) => (
-                        <>
+                        <Fragment key={event.event_id}>
                           <TableRow key={event.event_id} className="cursor-pointer hover:bg-muted/50">
                             <TableCell>
                               <Button
@@ -540,23 +589,14 @@ export default function AuditLogPage() {
                               </TableCell>
                             </TableRow>
                           )}
-                        </>
+                        </Fragment>
                       ))
                     )}
                   </TableBody>
                 </Table>
               </div>
 
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>
-                  Showing {logs.length} of {total} events
-                  {total > PAGE_SIZE && (
-                    <span className="ml-2 text-xs">
-                      (Limited to first {PAGE_SIZE} results)
-                    </span>
-                  )}
-                </span>
-              </div>
+              {renderPaginationFooter()}
             </TabsContent>
 
             <TabsContent value="user" className="mt-6 space-y-4">
@@ -659,7 +699,7 @@ export default function AuditLogPage() {
                       </TableRow>
                     ) : (
                       logs.map((event) => (
-                        <>
+                        <Fragment key={event.event_id}>
                           <TableRow key={event.event_id} className="cursor-pointer hover:bg-muted/50">
                             <TableCell>
                               <Button
@@ -784,23 +824,14 @@ export default function AuditLogPage() {
                               </TableCell>
                             </TableRow>
                           )}
-                        </>
+                        </Fragment>
                       ))
                     )}
                   </TableBody>
                 </Table>
               </div>
 
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>
-                  Showing {logs.length} of {total} events
-                  {total > PAGE_SIZE && (
-                    <span className="ml-2 text-xs">
-                      (Limited to first {PAGE_SIZE} results)
-                    </span>
-                  )}
-                </span>
-              </div>
+              {renderPaginationFooter()}
             </TabsContent>
           </Tabs>
         </CardContent>
