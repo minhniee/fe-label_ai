@@ -19,7 +19,6 @@ export default function ProjectAnnotatePage() {
         <div className="flex flex-col h-full">
           <AnnotatingSection />
         </div>
-
         {/* Dataset Column */}
         <div className="flex flex-col h-full">
           <DatasetSection />
