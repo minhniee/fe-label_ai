@@ -465,3 +465,13 @@ export async function deleteProject(projectId: number): Promise<{ message: strin
   }
 }
 
+export async function deleteProjectFile(projectId: number, fileId: number): Promise<{ message: string; file_id: number }> {
+  try {
+    const response = await api.delete<{ message: string; file_id: number }>(`/projects/${projectId}/files/${fileId}`);
+    return response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to delete project file';
+    throw new Error(errorMessage);
+  }
+}
+

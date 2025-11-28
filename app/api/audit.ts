@@ -48,6 +48,16 @@ export interface DeleteAuditResponse {
   deleted_changes: number
 }
 
+export interface AuditActionStat {
+  action: string
+  count: number
+}
+
+export interface AuditActionStatsQuery {
+  time_period?: "7d" | "30d" | "3m"
+  limit?: number
+}
+
 export interface AuditLogsQuery {
   user_id?: number
   project_id?: number
@@ -191,5 +201,25 @@ export async function exportAllAuditLogs(query?: AuditLogsQuery): Promise<AuditE
     return allEvents
   } catch (error: any) {
     handleApiError("Failed to export audit logs", error)
+  }
+}
+
+/**
+ * Get aggregated audit action stats
+ * GET /admin/audit-logs/stats/actions
+ */
+export async function getAuditActionStats(
+  params?: AuditActionStatsQuery
+): Promise<AuditActionStat[]> {
+  try {
+    const qs = buildQuery({
+      time_period: params?.time_period,
+      limit: params?.limit,
+    })
+    const url = qs ? `/admin/audit-logs/stats/actions?${qs}` : `/admin/audit-logs/stats/actions`
+    const response = await api.get<AuditActionStat[]>(url)
+    return response.data
+  } catch (error: any) {
+    handleApiError("Failed to load audit action statistics", error)
   }
 }
