@@ -13,7 +13,10 @@ export default function ProjectUploadPage() {
   const projectSlug = params.projectId as string;
 
   const handleGenerateNewData = () => {
-    router.push(`/generate?projectId=${projectSlug}`);
+    if (!projectSlug) {
+      return;
+    }
+    router.push(`/${projectSlug}/generate`);
   };
 
   return (
