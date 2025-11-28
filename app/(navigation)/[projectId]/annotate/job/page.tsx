@@ -387,9 +387,9 @@ export default function ProjectJobPage() {
         metadataBase.assignment_logs = logsToPersist;
       }
 
-      await updateBatch(parseInt(batchId!), {
+        await updateBatch(parseInt(batchId!), {
         batch_metadata: metadataBase,
-      });
+        });
 
       if (metadataBase.assignment_logs) {
         setAssignmentLogs(metadataBase.assignment_logs);
@@ -619,22 +619,22 @@ export default function ProjectJobPage() {
                         : isSelected
                         ? "border-primary bg-primary/5"
                         : "hover:bg-muted";
-
-                      return (
-                        <div
-                          key={user.user_id || user.email || index}
+                        
+                        return (
+                          <div
+                            key={user.user_id || user.email || index}
                           className={`p-3 border rounded-lg cursor-pointer transition-colors ${cardClass}`}
-                          onClick={() => {
+                            onClick={() => {
                             if (user.disabled) return;
-                            if (user.user_id) {
-                              setSelectedReassignUserId(user.user_id);
-                              setSelectedReassignEmail(null);
-                            } else if (user.email) {
-                              setSelectedReassignEmail(user.email);
-                              setSelectedReassignUserId(null);
-                            }
-                          }}
-                        >
+                              if (user.user_id) {
+                                setSelectedReassignUserId(user.user_id);
+                                setSelectedReassignEmail(null);
+                              } else if (user.email) {
+                                setSelectedReassignEmail(user.email);
+                                setSelectedReassignUserId(null);
+                              }
+                            }}
+                          >
                             <div className="flex items-center justify-between">
                               <div className="flex-1">
                                 <p className="font-medium text-sm">
