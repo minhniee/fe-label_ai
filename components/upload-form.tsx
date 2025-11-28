@@ -509,7 +509,7 @@ export function UploadForm() {
                     <span>{ALL_SUPPORTED_EXTENSIONS.join(", ")}</span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-2">
-                    *Max size of 20MB and 16,400 × 10,900 pixels.
+                    *Max size of 20MB
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

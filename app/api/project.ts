@@ -1,4 +1,5 @@
 import api from './client';
+import type { SplitFileResponse, CreateProjectBatchResponse } from './batch';
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -119,6 +120,39 @@ export interface UploadFilesResponse {
   }>;
 }
 
+export interface GeneratedDataImportRequest {
+  csv_content: string;
+  file_name?: string;
+  dataset_name?: string;
+  batch_name?: string;
+  batch_description?: string;
+  chunk_size?: number;
+  columns?: string[];
+  row_count?: number;
+}
+
+export interface UploadedGeneratedFileInfo {
+  file_id: number;
+  file_name: string;
+  file_size: number;
+  storage_key: string;
+  annotation_status: string;
+  presigned_url?: string;
+}
+
+export interface GeneratedDataUploadResult {
+  success: boolean;
+  project_id: number;
+  uploaded_count: number;
+  files: UploadedGeneratedFileInfo[];
+}
+
+export interface GeneratedDataImportResponse {
+  upload: GeneratedDataUploadResult;
+  split: SplitFileResponse;
+  batch: CreateProjectBatchResponse;
+}
+
 export interface GenerateDatasetRequest {
   dataset_name: string;
   dataset_description?: string;
@@ -132,6 +166,11 @@ export interface GenerateDatasetResponse {
   project_id: number;
   files_exported: number;
   permissions_copied?: number;
+}
+
+export interface ProjectUpdateRequest {
+  name?: string;
+  description?: string;
 }
 
 // ============================================================================
@@ -348,6 +387,26 @@ export async function uploadFilesToProject(
 }
 
 /**
+ * Import generated CSV data into a project.
+ * Backend will store the file, split it into chunks, and create batches automatically.
+ */
+export async function importGeneratedData(
+  projectId: number,
+  payload: GeneratedDataImportRequest
+): Promise<GeneratedDataImportResponse> {
+  try {
+    const response = await api.post<GeneratedDataImportResponse>(
+      `/projects/${projectId}/generated-data/import`,
+      payload
+    );
+    return response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to import generated data';
+    throw new Error(errorMessage);
+  }
+}
+
+/**
  * Generate a dataset from completed project annotations
  * 
  * Workflow:
@@ -367,12 +426,51 @@ export async function generateDatasetFromProject(
 ): Promise<GenerateDatasetResponse> {
   try {
     const response = await api.post<GenerateDatasetResponse>(
-      `/projects/${projectId}/generate-dataset`,
+      `/projects/${projectId}/generate/dataset`,
       payload
     );
     return response.data;
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to generate dataset';
+    throw new Error(errorMessage);
+  }
+}
+
+/**
+ * Update project information (name and/or description)
+ */
+export async function updateProject(
+  projectId: number,
+  payload: ProjectUpdateRequest
+): Promise<ProjectResponse> {
+  try {
+    const response = await api.put<ProjectResponse>(`/projects/${projectId}`, payload);
+    return response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to update project';
+    throw new Error(errorMessage);
+  }
+}
+
+/**
+ * Delete a project
+ */
+export async function deleteProject(projectId: number): Promise<{ message: string }> {
+  try {
+    const response = await api.delete<{ message: string }>(`/projects/${projectId}`);
+    return response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to delete project';
+    throw new Error(errorMessage);
+  }
+}
+
+export async function deleteProjectFile(projectId: number, fileId: number): Promise<{ message: string; file_id: number }> {
+  try {
+    const response = await api.delete<{ message: string; file_id: number }>(`/projects/${projectId}/files/${fileId}`);
+    return response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to delete project file';
     throw new Error(errorMessage);
   }
 }

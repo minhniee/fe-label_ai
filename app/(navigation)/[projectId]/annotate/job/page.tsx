@@ -13,7 +13,6 @@ import { useProjectFromSlug } from "@/hooks/use-project-from-slug";
 import { getBatch, updateBatch, getBatchAssignments, getUserBatchProgress, createBatchAssignment, deleteBatchAssignment } from "@/app/api/batch";
 import { getProjectFiles, listPendingInvitations, getProjectCollaborators } from "@/app/api/project";
 import { getMe } from "@/app/api/auth";
-import { listAuditEvents } from "@/app/api/audit";
 import { toast } from "sonner";
 import { Mail } from "lucide-react";
 import {
@@ -57,9 +56,9 @@ export default function ProjectJobPage() {
   const [isReassigning, setIsReassigning] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [userProgress, setUserProgress] = useState<any>(null);
-  const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [batchAssignments, setBatchAssignments] = useState<any[]>([]);
   const [assignmentHistory, setAssignmentHistory] = useState<any[]>([]);
+  const [assignmentLogs, setAssignmentLogs] = useState<any[]>([]);
   const [csvRowCounts, setCsvRowCounts] = useState<{ [fileId: number]: number }>({});
 
   useEffect(() => {
@@ -184,12 +183,8 @@ export default function ProjectJobPage() {
         const history = Array.isArray(batch.batch_metadata.assignment_history) 
           ? batch.batch_metadata.assignment_history 
           : [];
-        console.log("Loaded assignment history:", history);
-        console.log("Assignment history length:", history.length);
         setAssignmentHistory(history);
       } else {
-        console.log("No assignment history found in batch_metadata");
-        console.log("Batch metadata:", batch.batch_metadata);
         setAssignmentHistory([]);
       }
 
@@ -202,6 +197,25 @@ export default function ProjectJobPage() {
       );
       setBatchAssignments(sortedAssignments);
       console.log("Sorted assignments:", sortedAssignments);
+
+      const logsFromMetadata = Array.isArray(batch.batch_metadata?.assignment_logs)
+        ? [...batch.batch_metadata.assignment_logs]
+        : [];
+      if (!logsFromMetadata.length && batch.created_at) {
+        const earliestAssignment = sortedAssignments.length
+          ? sortedAssignments[sortedAssignments.length - 1]
+          : null;
+        const initialEmail = earliestAssignment?.user_username || "";
+        logsFromMetadata.push({
+          type: "creation",
+          timestamp: batch.created_at,
+          message: initialEmail
+            ? `Job created via API and assigned it to ${initialEmail}`
+            : "Job created via API",
+          color: "bg-orange-500",
+        });
+      }
+      setAssignmentLogs(logsFromMetadata);
 
       // Fetch project files
       const projectFiles = await getProjectFiles(parseInt(project!.id));
@@ -224,8 +238,6 @@ export default function ProjectJobPage() {
       setAnnotatedFiles(annotated);
 
       // Load audit logs for this batch
-      await loadAuditLogs(parseInt(batchId!));
-
     } catch (error: any) {
       console.error("Failed to load job data:", error);
       toast.error("Failed to load job data");
@@ -240,21 +252,6 @@ export default function ProjectJobPage() {
       setUserProgress(progress);
     } catch (error: any) {
       console.error("Failed to load user progress:", error);
-      // Don't show error toast, just log it
-    }
-  };
-
-  const loadAuditLogs = async (batchId: number) => {
-    try {
-      const response = await listAuditEvents({
-        resource_type: "batch",
-        resource_id: batchId,
-        page: 1,
-        page_size: 50
-      });
-      setAuditLogs(response.items || []);
-    } catch (error: any) {
-      console.error("Failed to load audit logs:", error);
       // Don't show error toast, just log it
     }
   };
@@ -292,40 +289,30 @@ export default function ProjectJobPage() {
 
     setIsReassigning(true);
     try {
-      // Get current batch and assignments
       const currentBatch = await getBatch(parseInt(batchId!));
-      const currentAssignments = await getBatchAssignments({ batch_id: parseInt(batchId!), page: 1, page_size: 10 });
-      
-      console.log("Current assignments before reassign:", currentAssignments.assignments);
-      
-      // Save assignment history to batch_metadata before deleting
       const currentMetadata = currentBatch.batch_metadata || {};
-      const existingHistory = currentMetadata.assignment_history || [];
-      
-      console.log("Existing assignment history:", existingHistory);
-      
-      // Add current assignments to history before deleting (only if there are assignments to save)
-      const historyEntries = currentAssignments.assignments.length > 0 
-        ? currentAssignments.assignments.map(assignment => ({
+      const currentAssignments = await getBatchAssignments({
+        batch_id: parseInt(batchId!),
+        page: 1,
+        page_size: 10,
+      });
+
+      const existingHistory = Array.isArray(currentMetadata.assignment_history)
+        ? [...currentMetadata.assignment_history]
+        : [];
+      const historyEntries = currentAssignments.assignments.length
+        ? currentAssignments.assignments.map((assignment) => ({
             assignment_id: assignment.assignment_id,
             user_id: assignment.user_id,
             user_username: assignment.user_username,
             assigned_by: assignment.assigned_by,
             assigner_username: assignment.assigner_username,
             assigned_at: assignment.assigned_at,
-            deleted_at: new Date().toISOString()
+            deleted_at: new Date().toISOString(),
           }))
         : [];
-      
       const updatedHistory = [...existingHistory, ...historyEntries];
-      console.log("Saving assignment history:", {
-        existingHistoryCount: existingHistory.length,
-        historyEntriesCount: historyEntries.length,
-        updatedHistoryCount: updatedHistory.length,
-        updatedHistory
-      });
-      
-      // Delete existing assignments (replace old with new)
+
       for (const assignment of currentAssignments.assignments) {
         try {
           await deleteBatchAssignment(assignment.assignment_id);
@@ -334,50 +321,78 @@ export default function ProjectJobPage() {
         }
       }
 
-      // Update batch metadata with assignment history first (before creating new assignment)
-      // IMPORTANT: Send complete metadata to preserve all fields (file_ids, instructions, etc.)
-      const mergedMetadata = {
-        ...currentMetadata, // Preserve all existing metadata fields
-        assignment_history: updatedHistory // Update assignment_history
+      const logsToPersist = Array.isArray(currentMetadata.assignment_logs)
+        ? [...currentMetadata.assignment_logs]
+        : [];
+      const ensureCreationLog = () => {
+        if (logsToPersist.length === 0) {
+          const initialEmail =
+            assignedUser?.email ||
+            currentAssignments.assignments[currentAssignments.assignments.length - 1]?.user_username ||
+            "";
+          logsToPersist.push({
+            type: "creation",
+            timestamp: currentBatch.created_at || new Date().toISOString(),
+            message: initialEmail
+              ? `Job created via API and assigned it to ${initialEmail}`
+              : "Job created via API",
+            color: "bg-orange-500",
+          });
+        }
       };
-      console.log("Updating batch metadata with:", mergedMetadata);
-      console.log("Assignment history to save:", updatedHistory);
-      console.log("Current metadata keys:", Object.keys(currentMetadata));
-      console.log("Merged metadata keys:", Object.keys(mergedMetadata));
-      
-      const updateResponse = await updateBatch(parseInt(batchId!), {
-        batch_metadata: mergedMetadata
-      });
-      console.log("Batch updated, response:", updateResponse);
-      
-      // Verify the update by fetching the batch again
-      const verifyBatch = await getBatch(parseInt(batchId!));
-      console.log("Verified batch metadata after update:", verifyBatch.batch_metadata);
-      console.log("Verified assignment history:", verifyBatch.batch_metadata?.assignment_history);
-      console.log("Verified assignment history length:", verifyBatch.batch_metadata?.assignment_history?.length || 0);
 
-      // Create new assignment if user_id is selected (not pending email)
-      // This creates a new log entry in timeline
+      const metadataBase: any = {
+        ...currentMetadata,
+        assignment_history: updatedHistory,
+      };
+
       if (selectedReassignUserId) {
-        await createBatchAssignment({
+        const newAssignment = await createBatchAssignment({
           batch_id: parseInt(batchId!),
           user_id: selectedReassignUserId,
-          notes: "Reassigned job"
+          notes: "Reassigned job",
         });
-      } else if (selectedReassignEmail) {
-        // For pending emails, save to batch metadata
-        // Use the already-updated metadata that includes assignment_history
-        const updatedMetadata = {
-          ...mergedMetadata, // Use mergedMetadata which already has assignment_history
-          assigned_pending_emails: [selectedReassignEmail]
+
+        const collaborator = collaborators.find(c => c.user_id === selectedReassignUserId);
+        const newHistoryEntry = {
+          assignment_id: `reassign-${Date.now()}`,
+          user_id: selectedReassignUserId,
+          user_username: collaborator?.user_email || collaborator?.user_username || "",
+          assigned_at: newAssignment?.assigned_at || new Date().toISOString(),
+          assigner_username: currentUser?.username || currentUser?.email || "Someone",
         };
-        console.log("Updating batch metadata for pending email with:", updatedMetadata);
+
+        metadataBase.assignment_history = [
+          ...updatedHistory,
+          newHistoryEntry,
+        ];
+
+        ensureCreationLog();
+        const newAssigneeEmail =
+          collaborator?.user_email || collaborator?.user_username || newAssignment?.user_username || "";
+        if (newAssigneeEmail) {
+          logsToPersist.push({
+            type: "assignment",
+            timestamp: newAssignment?.assigned_at || new Date().toISOString(),
+            message: `${currentUser?.username || currentUser?.email || "Someone"} assigned ${newAssigneeEmail} as labeler`,
+            color: "bg-blue-500",
+          });
+        }
+        metadataBase.assignment_logs = logsToPersist;
+      } else if (selectedReassignEmail) {
+        metadataBase.assigned_pending_emails = [selectedReassignEmail];
+      }
+
+      if (!metadataBase.assignment_logs && logsToPersist.length) {
+        metadataBase.assignment_logs = logsToPersist;
+      }
+
         await updateBatch(parseInt(batchId!), {
-          batch_metadata: updatedMetadata,
+        batch_metadata: metadataBase,
         });
-        // Verify the update
-        const verifyBatch2 = await getBatch(parseInt(batchId!));
-        console.log("Verified batch metadata after pending email update:", verifyBatch2.batch_metadata);
+
+      if (metadataBase.assignment_logs) {
+        setAssignmentLogs(metadataBase.assignment_logs);
       }
 
       toast.success("Job reassigned successfully");
@@ -389,12 +404,9 @@ export default function ProjectJobPage() {
       // Add a small delay to ensure database commit is complete
       await new Promise(resolve => setTimeout(resolve, 100));
       await loadJobData();
-      await loadAuditLogs(parseInt(batchId!));
       
-      // Double-check assignment history after reload
       const finalBatch = await getBatch(parseInt(batchId!));
-      console.log("Final check - assignment history after reload:", finalBatch.batch_metadata?.assignment_history);
-      console.log("Final check - assignment history length:", finalBatch.batch_metadata?.assignment_history?.length || 0);
+      console.log("Final check - assignment logs after reload:", finalBatch.batch_metadata?.assignment_logs);
     } catch (error: any) {
       console.error("Failed to reassign job:", error);
       toast.error(error.message || "Failed to reassign job");
@@ -421,13 +433,18 @@ export default function ProjectJobPage() {
     
     // Add collaborators
     collaborators.forEach(collab => {
+      const disabled = batchAssignments.some(
+        assignment => assignment.user_id === collab.user_id
+      );
+
       allUsers.push({
         type: 'collaborator',
         user_id: collab.user_id,
         email: collab.user_email || collab.user_username,
         username: collab.user_username || collab.user_email,
         role_id: collab.role_id,
-        role_name: collab.role_name
+        role_name: collab.role_name,
+        disabled
       });
     });
 
@@ -437,7 +454,8 @@ export default function ProjectJobPage() {
         type: 'pending',
         email: invite.email,
         role_id: invite.role_id,
-        invitation_id: invite.invitation_id
+            invitation_id: invite.invitation_id,
+            disabled: false
       });
     });
 
@@ -596,10 +614,18 @@ export default function ProjectJobPage() {
                         const isSelected = (user.user_id && selectedReassignUserId === user.user_id) ||
                           (user.email && selectedReassignEmail === user.email);
                         
+                      const cardClass = user.disabled
+                        ? "opacity-50 cursor-not-allowed"
+                        : isSelected
+                        ? "border-primary bg-primary/5"
+                        : "hover:bg-muted";
+                        
                         return (
                           <div
                             key={user.user_id || user.email || index}
+                          className={`p-3 border rounded-lg cursor-pointer transition-colors ${cardClass}`}
                             onClick={() => {
+                            if (user.disabled) return;
                               if (user.user_id) {
                                 setSelectedReassignUserId(user.user_id);
                                 setSelectedReassignEmail(null);
@@ -608,9 +634,6 @@ export default function ProjectJobPage() {
                                 setSelectedReassignUserId(null);
                               }
                             }}
-                            className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                              isSelected ? 'border-primary bg-primary/5' : 'hover:bg-muted'
-                            }`}
                           >
                             <div className="flex items-center justify-between">
                               <div className="flex-1">
@@ -672,129 +695,14 @@ export default function ProjectJobPage() {
         <div className="p-6">
           <h3 className="font-semibold mb-4">Timeline</h3>
           <div className="space-y-3">
-            {/* Combine all events and sort by time */}
-            {(() => {
-              const allEvents: any[] = [];
-
-              // Helper function to get user email from user_id
-              const getUserEmail = (userId: number) => {
-                const collaborator = collaborators.find(c => c.user_id === userId);
-                return collaborator?.user_email || collaborator?.user_username || '';
-              };
-
-              // Helper function to get user initials for avatar
-              const getUserInitials = (email: string) => {
-                if (!email) return '?';
-                const parts = email.split('@')[0];
-                if (parts.length >= 2) {
-                  return parts.substring(0, 2).toUpperCase();
-                }
-                return parts.charAt(0).toUpperCase();
-              };
-
-              // Add job creation with assignment (if there's an assignment)
-              if (batchData?.created_at) {
-                // Find the first assignment (oldest) to show who it was assigned to
-                const firstAssignment = batchAssignments.length > 0 
-                  ? batchAssignments[batchAssignments.length - 1] // Get oldest (last in sorted array)
-                  : assignmentHistory && assignmentHistory.length > 0
-                  ? assignmentHistory[0] // Or first in history
-                  : null;
-
-                if (firstAssignment) {
-                  const assignedEmail = firstAssignment.user_id 
-                    ? getUserEmail(firstAssignment.user_id)
-                    : firstAssignment.user_username || '';
-                  
-                allEvents.push({
-                  type: 'creation',
-                  timestamp: batchData.created_at,
-                    message: `Job created via API and assigned it to ${assignedEmail}`,
-                    color: 'bg-orange-500',
-                    user_email: assignedEmail,
-                    user_id: firstAssignment.user_id
-                  });
-                } else {
-                  // No assignment found, just show creation
-                  allEvents.push({
-                    type: 'creation',
-                    timestamp: batchData.created_at,
-                    message: `Job created via API`,
-                  color: 'bg-orange-500'
-                });
-                }
-              }
-
-              // Add assignment history (deleted assignments) - each is a separate log entry
-              console.log("Assignment history for timeline:", assignmentHistory);
-              console.log("Assignment history type:", typeof assignmentHistory);
-              console.log("Assignment history is array:", Array.isArray(assignmentHistory));
-              if (assignmentHistory && Array.isArray(assignmentHistory) && assignmentHistory.length > 0) {
-                assignmentHistory.forEach((historyEntry, idx) => {
-                  console.log(`Adding history entry ${idx}:`, historyEntry);
-                  const assignedEmail = historyEntry.user_id 
-                    ? getUserEmail(historyEntry.user_id)
-                    : historyEntry.user_username || '';
-                  
-                  allEvents.push({
-                    type: 'assignment_history',
-                    timestamp: historyEntry.assigned_at,
-                    message: `${historyEntry.assigner_username || 'Someone'} assigned ${assignedEmail} as labeler`,
-                    color: 'bg-blue-500',
-                    assignment_id: historyEntry.assignment_id,
-                    is_deleted: true,
-                    user_email: assignedEmail,
-                    user_id: historyEntry.user_id
-                  });
-                });
-              } else {
-                console.log("Assignment history is empty or not an array");
-              }
-
-              // Add current batch assignments (active ones) - each is a separate log entry
-              batchAssignments.forEach(assignment => {
-                const assignedEmail = assignment.user_id 
-                  ? getUserEmail(assignment.user_id)
-                  : assignment.user_username || '';
-                
-                allEvents.push({
-                  type: 'assignment',
-                  timestamp: assignment.assigned_at,
-                  message: `${assignment.assigner_username || 'Someone'} assigned ${assignedEmail} as labeler`,
-                  color: 'bg-blue-500',
-                  assignment_id: assignment.assignment_id,
-                  user_email: assignedEmail,
-                  user_id: assignment.user_id
-                });
-              });
-
-              // Add all audit logs (includes assignment deletion and other changes)
-              // Filter out assignment creation logs to avoid duplicates with batchAssignments above
-              auditLogs
-                .filter(log => {
-                  const action = log.action?.toLowerCase() || '';
-                  // Include deletion and other non-creation assignment logs
-                  return !(action.includes('create') && action.includes('assign'));
-                })
-                .forEach(log => {
-                  allEvents.push({
-                    type: 'audit',
-                    timestamp: log.timestamp,
-                    message: `${log.action || 'Action'}${log.username ? ` by ${log.username}` : ''}`,
-                    color: log.action?.toLowerCase().includes('assign') || log.action?.toLowerCase().includes('delete') ? 'bg-blue-500' : 'bg-gray-500',
-                    event_id: log.event_id
-                  });
-                });
-
-              // Sort by timestamp (newest first)
-              allEvents.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
-              console.log("All events for timeline (after sort):", allEvents);
-              console.log("Total events:", allEvents.length);
-
-              return allEvents.map((event, index) => (
-                <div key={event.assignment_id || event.event_id || `event-${index}`} className="flex items-start gap-3">
-                  <div className={`w-2 h-2 rounded-full ${event.color} mt-2`} />
+            {assignmentLogs
+              .slice()
+              .sort(
+                (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+              )
+              .map((event, index) => (
+                <div key={`event-${index}`} className="flex items-start gap-3">
+                  <div className={`w-2 h-2 rounded-full ${event.color || "bg-blue-500"} mt-2`} />
                   <div className="flex-1">
                     <p className="text-sm font-medium">{event.message}</p>
                     <p className="text-xs text-muted-foreground">
@@ -802,8 +710,7 @@ export default function ProjectJobPage() {
                     </p>
                   </div>
                 </div>
-              ));
-            })()}
+              ))}
           </div>
         </div>
       </div>

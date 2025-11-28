@@ -32,8 +32,15 @@ import {
   sendChatMessage,
   switchChatbotDataset,
 } from "@/app/api/chatbot";
-import { getDataset, uploadFileToDataset, type Dataset } from "@/app/api/dataset";
+import { getDataset, getDatasets, uploadFileToDataset, type Dataset } from "@/app/api/dataset";
 import type { ChatHistory } from "@/app/api/chatbot";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Message {
   id: string;
@@ -51,6 +58,8 @@ export default function ProjectChatbotPage() {
   const projectId = project?.id ? Number(project.id) : null;
   const [datasetId, setDatasetId] = useState<number | null>(project?.dataset_id ?? null);
   const [datasetInfo, setDatasetInfo] = useState<Dataset | null>(null);
+  const [datasets, setDatasets] = useState<Dataset[]>([]);
+  const [isLoadingDatasets, setIsLoadingDatasets] = useState(false);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
@@ -71,6 +80,27 @@ export default function ProjectChatbotPage() {
       setDatasetId(project.dataset_id);
     }
   }, [project?.dataset_id]);
+
+  const loadDatasets = useCallback(async () => {
+    setIsLoadingDatasets(true);
+    try {
+      const datasetsList = await getDatasets();
+      setDatasets(datasetsList);
+    } catch (error) {
+      console.error("Failed to load datasets:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load datasets",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingDatasets(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    loadDatasets();
+  }, [loadDatasets]);
 
   const loadDatasetInfo = useCallback(async () => {
     if (!datasetId) {
@@ -161,6 +191,28 @@ export default function ProjectChatbotPage() {
     }
   };
 
+  const handleDatasetChange = async (newDatasetId: string) => {
+    const id = newDatasetId === "none" ? null : Number(newDatasetId);
+    setDatasetId(id);
+    if (id) {
+      try {
+        const data = await getDataset(id);
+        setDatasetInfo(data);
+        await loadStats();
+      } catch (error) {
+        console.error("Failed to load dataset info", error);
+        setDatasetInfo(null);
+      }
+    } else {
+      setDatasetInfo(null);
+      setStats({
+        totalQuestions: "-",
+        status: "No dataset selected",
+        responseTime: "-",
+      });
+    }
+  };
+
   const handleDatasetFileUpload = async (file: File | null) => {
     if (!file || !datasetId) return;
     setIsUploading(true);
@@ -170,6 +222,7 @@ export default function ProjectChatbotPage() {
         title: "Upload successful",
         description: `Added "${file.name}". Click Reload for the chatbot to refresh.`,
       });
+      await loadDatasetInfo();
     } catch (error: any) {
       toast({
         title: "Upload failed",
@@ -313,7 +366,6 @@ export default function ProjectChatbotPage() {
   return (
     <div className="flex flex-col gap-6 p-6">
       <div className="space-y-2">
-        <p className="text-sm text-muted-foreground">Project {project?.name || "Loading..."}</p>
         <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
           <Bot className="w-7 h-7" />
           RAG Chatbot
@@ -350,22 +402,39 @@ export default function ProjectChatbotPage() {
 
         <div className="p-4 border-b bg-muted/20">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-sm font-semibold flex items-center gap-2">
+            <div className="flex-1">
+              <p className="text-sm font-semibold flex items-center gap-2 mb-2">
                 <Database className="w-4 h-4" />
-                Linked dataset
+                Select Dataset
               </p>
-              {datasetInfo ? (
-                <div className="text-sm text-muted-foreground mt-1">
-                  <span className="font-medium text-foreground">{datasetInfo.name}</span>
-                  {datasetInfo.description && ` · ${datasetInfo.description}`}
-                </div>
-              ) : projectId ? (
-                <p className="text-sm text-muted-foreground mt-1">
-                  {datasetId ? "Loading dataset information..." : "This project has no linked dataset."}
+              <Select
+                value={datasetId?.toString() || "none"}
+                onValueChange={handleDatasetChange}
+                disabled={isLoadingDatasets}
+              >
+                <SelectTrigger className="w-full max-w-md">
+                  <SelectValue placeholder="Select a dataset">
+                    {isLoadingDatasets
+                      ? "Loading datasets..."
+                      : datasetInfo
+                      ? `${datasetInfo.name}${datasetInfo.description ? ` - ${datasetInfo.description}` : ""}`
+                      : "No dataset selected"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No dataset</SelectItem>
+                  {datasets.map((dataset) => (
+                    <SelectItem key={dataset.dataset_id} value={dataset.dataset_id.toString()}>
+                      {dataset.name}
+                      {dataset.description && ` - ${dataset.description}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {datasetInfo && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Created: {new Date(datasetInfo.created_at).toLocaleDateString()} by {datasetInfo.created_by_username}
                 </p>
-              ) : (
-                <p className="text-sm text-muted-foreground mt-1">Loading project...</p>
               )}
             </div>
             <div className="flex gap-2 flex-wrap">

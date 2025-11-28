@@ -43,9 +43,12 @@ export default function DashboardPage() {
   }
 
   // Calculate statistics from API data
+  const labelingProgressRaw = batchStats?.overall_progress || batchDashboard?.stats?.overall_progress || 0
+  const labelingProgressRounded = Number(labelingProgressRaw.toFixed(2))
+
   const stats = {
     totalDatasets: projects.length || 0,
-    labelingProgress: batchStats?.overall_progress || batchDashboard?.stats?.overall_progress || 0,
+    labelingProgress: labelingProgressRounded,
     activeLabelers: batchDashboard?.user_assignments?.length || 0,
     latestVersion: projects.length > 0 ? `v${projects.length}` : "v1.0",
     completedBatches: batchStats?.completed_batches || batchDashboard?.stats?.completed_batches || 0,

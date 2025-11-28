@@ -28,7 +28,7 @@ import { ArrowLeft, Upload, Edit, Plus, Users, FileText, X, Loader2, Zap, Databa
 import { useProjectFromSlug } from "@/hooks/use-project-from-slug";
 import { projectToSlug, slugToProjectId } from "@/types/project";
 import { getBatch, updateBatch, assignBatchToUsers, distributeFileToUsers, splitProjectFile, deleteBatch } from "@/app/api/batch";
-import { getProjectFiles, uploadFilesToProject, createInvitation, listPendingInvitations, setLabelingType, getProjectCollaborators } from "@/app/api/project";
+import { getProjectFiles, uploadFilesToProject, createInvitation, listPendingInvitations, setLabelingType, getProjectCollaborators, deleteProjectFile } from "@/app/api/project";
 import { getMe } from "@/app/api/auth";
 import { toast } from "sonner";
 import React from "react";
@@ -245,6 +245,49 @@ export default function ProjectBatchPage() {
     return roleNames[roleId] || "Unknown";
   };
 
+  const ensureRowCount = useCallback(
+    async (fileId: number, filename?: string) => {
+      const projectIdToUse = project?.id || projectId;
+      if (!projectIdToUse) return 0;
+      try {
+        const splitResponse = await splitProjectFile({
+          project_id: parseInt(projectIdToUse),
+          file_id: fileId,
+          auto_create_batches: false,
+        });
+        const fetchedRows = splitResponse?.total_rows || 0;
+
+        if (fetchedRows > 0) {
+          setCsvRowCounts((prev) => {
+            const updated = { ...prev, [fileId]: fetchedRows };
+            const newTotal = Object.values(updated).reduce(
+              (sum: number, count: any) => sum + (count || 0),
+              0
+            );
+            setTotalRows(newTotal);
+            return updated;
+          });
+        }
+
+        console.log(
+          `Fetched row count for ${filename || `file ${fileId}`}:`,
+          fetchedRows
+        );
+        return fetchedRows;
+      } catch (error: any) {
+        console.error(
+          `Failed to fetch row count for ${filename || `file ${fileId}`}:`,
+          error
+        );
+        toast.error(
+          `Failed to get row count for ${filename || "file"}. Using backend defaults.`
+        );
+        return 0;
+      }
+    },
+    [project?.id, projectId]
+  );
+
   const handleStartLabeling = async () => {
     if (!batchId) return;
 
@@ -297,15 +340,24 @@ export default function ProjectBatchPage() {
           .map(inv => inv.email);
 
         // Check if batch has CSV files that need to be distributed
+        // We detect CSVs either by filename/type OR because we've already
+        // computed row counts for them (in csvRowCounts), which also covers
+        // files uploaded later via "Upload More".
         const csvFiles = batchFiles.filter((f) => {
           const rawName = f.filename || f.file_name || "";
-          const loweredName = typeof rawName === "string" ? rawName.toLowerCase() : "";
+          const loweredName =
+            rawName && typeof rawName === "string" ? rawName.toLowerCase() : "";
           const loweredType =
-            f.file_type && typeof f.file_type === "string" ? f.file_type.toLowerCase() : "";
-          return (
+            f.file_type && typeof f.file_type === "string"
+              ? f.file_type.toLowerCase()
+              : "";
+          const looksLikeCsv =
             (loweredName && loweredName.endsWith(".csv")) ||
-            (loweredType && loweredType.includes("csv"))
-          );
+            (loweredType && loweredType.includes("csv"));
+
+          const hasRowCount = typeof csvRowCounts[f.file_id] === "number";
+
+          return looksLikeCsv || hasRowCount;
         });
 
         console.log("[Assign team] batchFiles:", batchFiles);
@@ -320,44 +372,6 @@ export default function ProjectBatchPage() {
         // For a single assignee we keep the original batch so the file stays attached.
         if (csvFiles.length > 0 && actualUserIds.length > 1) {
           hasDistributedFiles = true;
-          const ensureRowCount = async (fileId: number, filename?: string) => {
-            if (!project) return 0;
-            try {
-              const splitResponse = await splitProjectFile({
-                project_id: parseInt(project.id),
-                file_id: fileId,
-                auto_create_batches: false,
-              });
-              const fetchedRows = splitResponse?.total_rows || 0;
-
-              if (fetchedRows > 0) {
-                setCsvRowCounts((prev) => {
-                  const updated = { ...prev, [fileId]: fetchedRows };
-                  const newTotal = Object.values(updated).reduce(
-                    (sum, count) => sum + (count || 0),
-                    0
-                  );
-                  setTotalRows(newTotal);
-                  return updated;
-                });
-              }
-
-              console.log(
-                `Fetched row count for ${filename || `file ${fileId}`}:`,
-                fetchedRows
-              );
-              return fetchedRows;
-            } catch (error: any) {
-              console.error(
-                `Failed to fetch row count for ${filename || `file ${fileId}`}:`,
-                error
-              );
-              toast.error(
-                `Failed to get row count for ${filename || "file"}. Using backend defaults.`
-              );
-              return 0;
-            }
-          };
 
           for (const csvFile of csvFiles) {
             let rowsForFile = csvRowCounts[csvFile.file_id] || 0;
@@ -567,14 +581,33 @@ export default function ProjectBatchPage() {
   };
 
   const handleRemoveBatchFile = async (fileId: number) => {
+    if (!project) {
+      toast.error("Project not found");
+      return;
+    }
     try {
-      // TODO: Call API to remove file from batch
-      // For now, just remove from local state
+      await deleteProjectFile(parseInt(project.id), fileId);
       setBatchFiles(prev => prev.filter(f => f.file_id !== fileId));
+      setBatchFileIds(prev => prev.filter(id => id !== fileId));
+      setCsvRowCounts((prev) => {
+        const updated = { ...prev };
+        if (updated[fileId]) {
+          delete updated[fileId];
+        }
+        if (updated[String(fileId)]) {
+          delete updated[String(fileId)];
+        }
+        const newTotal = Object.values(updated).reduce(
+          (sum, count) => sum + (count || 0),
+          0
+        );
+        setTotalRows(newTotal);
+        return updated;
+      });
       toast.success("File removed from batch");
     } catch (error: any) {
       console.error("Failed to remove file:", error);
-      toast.error("Failed to remove file");
+      toast.error(error.message || "Failed to remove file");
     }
   };
 
@@ -594,7 +627,7 @@ export default function ProjectBatchPage() {
 
     try {
       // Step 1: Upload files to project
-      const uploadResponse = await uploadFilesToProject(parseInt(project.id), uploadFiles);
+        const uploadResponse = await uploadFilesToProject(parseInt(project.id), uploadFiles);
 
       toast.success("Files uploaded successfully!", { id: loadingToast });
 
@@ -615,6 +648,22 @@ export default function ProjectBatchPage() {
 
         // Step 5: Update batchFileIds to include new file IDs
         setBatchFileIds(prev => [...prev, ...fileIds]);
+
+        // Automatically split newly uploaded CSV files to capture row counts
+        const newlyUploadedCsvFiles = newFiles.filter((file) => {
+          const rawName = file.filename || file.file_name || "";
+          const loweredName = typeof rawName === "string" ? rawName.toLowerCase() : "";
+          const loweredType =
+            file.file_type && typeof file.file_type === "string" ? file.file_type.toLowerCase() : "";
+          return (
+            (loweredName && loweredName.endsWith(".csv")) ||
+            (loweredType && loweredType.includes("csv"))
+          );
+        });
+
+        for (const csvFile of newlyUploadedCsvFiles) {
+          await ensureRowCount(csvFile.file_id, csvFile.filename || csvFile.file_name);
+        }
 
         toast.success(`${newFiles.length} files added to batch!`);
       }
@@ -1132,7 +1181,7 @@ export default function ProjectBatchPage() {
 
       {/* Upload Dialog */}
       <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="w-full max-w-3xl sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Upload More Files</DialogTitle>
             <DialogDescription>Add more files to this batch</DialogDescription>

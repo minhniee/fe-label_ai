@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Card,
   CardContent,
@@ -57,6 +57,7 @@ import {
   Trash2,
   ChevronDown,
   ChevronUp,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -65,6 +66,7 @@ import {
   getEventChanges,
   deleteAuditByProject,
   deleteAuditByUser,
+  exportAllAuditLogs,
   type AuditEventResponse,
   type AuditChangeResponse,
   type AuditLogsQuery,
@@ -82,6 +84,7 @@ export default function AuditLogPage() {
   const [logs, setLogs] = useState<AuditEventResponse[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [filters, setFilters] = useState({
     userId: "",
@@ -96,6 +99,7 @@ export default function AuditLogPage() {
   const [expandedEventId, setExpandedEventId] = useState<number | null>(null);
   const [eventChanges, setEventChanges] = useState<Record<number, AuditChangeResponse[]>>({});
   const [loadingChanges, setLoadingChanges] = useState<Record<number, boolean>>({});
+  const [isExporting, setIsExporting] = useState(false);
 
   const numericUserId = useMemo(() => {
     if (selectedUserId === "all") return undefined;
@@ -121,6 +125,7 @@ export default function AuditLogPage() {
     try {
       const query: AuditLogsQuery = {
         limit: PAGE_SIZE,
+        offset: (currentPage - 1) * PAGE_SIZE,
         user_id: activeTab === "user" && numericUserId ? numericUserId : filters.userId ? Number(filters.userId) : undefined,
         project_id: filters.projectId ? Number(filters.projectId) : undefined,
         action: filters.action || undefined,
@@ -140,11 +145,15 @@ export default function AuditLogPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, numericUserId, filters]);
+  }, [activeTab, numericUserId, filters, currentPage]);
 
   useEffect(() => {
     loadLogs();
   }, [loadLogs]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, numericUserId, filters]);
 
   const loadEventChanges = useCallback(async (eventId: number) => {
     if (eventChanges[eventId]) {
@@ -204,6 +213,136 @@ export default function AuditLogPage() {
     }
   };
 
+  const convertToCSV = (events: AuditEventResponse[]): string => {
+    const headers = [
+      "Event ID",
+      "Timestamp",
+      "User ID",
+      "Action",
+      "Resource Type",
+      "Resource ID",
+      "HTTP Method",
+      "Path",
+      "Status Code",
+      "IP Address",
+      "Request ID",
+      "Extra",
+    ];
+
+    const rows = events.map((event) => {
+      return [
+        event.event_id.toString(),
+        formatTimestamp(event.occurred_at),
+        event.user_id?.toString() || "",
+        event.action,
+        event.resource_type || "",
+        event.resource_id?.toString() || "",
+        event.http_method || "",
+        event.path || "",
+        event.status_code?.toString() || "",
+        event.ip_address || "",
+        event.request_id || "",
+        event.extra ? JSON.stringify(event.extra) : "",
+      ];
+    });
+
+    // Escape CSV values (handle commas, quotes, newlines)
+    const escapeCSV = (value: string): string => {
+      if (value.includes(",") || value.includes('"') || value.includes("\n")) {
+        return `"${value.replace(/"/g, '""')}"`;
+      }
+      return value;
+    };
+
+    const csvRows = [
+      headers.map(escapeCSV).join(","),
+      ...rows.map((row) => row.map(escapeCSV).join(",")),
+    ];
+
+    return csvRows.join("\n");
+  };
+
+  const downloadCSV = (csvContent: string, filename: string) => {
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", filename);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportWorkspace = async () => {
+    setIsExporting(true);
+    try {
+      const query: AuditLogsQuery = {
+        user_id: filters.userId ? Number(filters.userId) : undefined,
+        project_id: filters.projectId ? Number(filters.projectId) : undefined,
+        action: filters.action || undefined,
+        resource_type: filters.resourceType || undefined,
+        from_time: filters.fromTime ? new Date(filters.fromTime).toISOString() : undefined,
+        to_time: filters.toTime ? new Date(filters.toTime + "T23:59:59").toISOString() : undefined,
+      };
+
+      toast.info("Exporting audit logs... This may take a moment.");
+      const allEvents = await exportAllAuditLogs(query);
+      
+      if (allEvents.length === 0) {
+        toast.warning("No audit logs to export");
+        return;
+      }
+
+      const csv = convertToCSV(allEvents);
+      const timestamp = format(new Date(), "yyyy-MM-dd_HH-mm-ss");
+      const filename = `audit-logs-workspace_${timestamp}.csv`;
+      downloadCSV(csv, filename);
+      
+      toast.success(`Exported ${allEvents.length} audit log(s) successfully!`);
+    } catch (error: any) {
+      console.error("Failed to export audit logs:", error);
+      toast.error(error.message || "Failed to export audit logs");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportUser = async () => {
+    if (!numericUserId) {
+      toast.error("Please select a user first");
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const query: AuditLogsQuery = {
+        user_id: numericUserId,
+      };
+
+      toast.info("Exporting audit logs... This may take a moment.");
+      const allEvents = await exportAllAuditLogs(query);
+      
+      if (allEvents.length === 0) {
+        toast.warning("No audit logs to export for this user");
+        return;
+      }
+
+      const csv = convertToCSV(allEvents);
+      const timestamp = format(new Date(), "yyyy-MM-dd_HH-mm-ss");
+      const filename = `audit-logs-user-${numericUserId}_${timestamp}.csv`;
+      downloadCSV(csv, filename);
+      
+      toast.success(`Exported ${allEvents.length} audit log(s) for user ${numericUserId} successfully!`);
+    } catch (error: any) {
+      console.error("Failed to export audit logs:", error);
+      toast.error(error.message || "Failed to export audit logs");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const handleResetFilters = () => {
     setFilters({
       userId: "",
@@ -214,6 +353,49 @@ export default function AuditLogPage() {
       toTime: "",
     });
   };
+
+  const totalPages = total > 0 ? Math.ceil(total / PAGE_SIZE) : 1;
+  const startIndex = total === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
+  const endIndex = total === 0 ? 0 : Math.min(total, startIndex + logs.length - 1);
+  const canGoPrev = currentPage > 1;
+  const canGoNext = total > 0 && currentPage < totalPages;
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage === currentPage) return;
+    setExpandedEventId(null);
+    setCurrentPage(newPage);
+  };
+
+  const renderPaginationFooter = () => (
+    <div className="flex flex-col gap-2 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
+      <span>
+        {total === 0
+          ? "Showing 0 of 0 events"
+          : `Showing ${startIndex}-${endIndex} of ${total} events`}
+      </span>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => handlePageChange(currentPage - 1)}
+          disabled={!canGoPrev || loading}
+        >
+          Previous
+        </Button>
+        <span className="text-xs text-muted-foreground">
+          {total === 0 ? "Page 0 of 0" : `Page ${currentPage} of ${totalPages}`}
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => handlePageChange(currentPage + 1)}
+          disabled={!canGoNext || loading}
+        >
+          Next
+        </Button>
+      </div>
+    </div>
+  );
 
 
   return (
@@ -336,6 +518,19 @@ export default function AuditLogPage() {
                     >
                       Apply Filters
                     </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleExportWorkspace}
+                      disabled={loading || isExporting}
+                    >
+                      {isExporting ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Download className="mr-2 h-4 w-4" />
+                      )}
+                      {isExporting ? "Exporting..." : "Export All"}
+                    </Button>
                     {filters.projectId && (
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
@@ -404,7 +599,7 @@ export default function AuditLogPage() {
                       </TableRow>
                     ) : (
                       logs.map((event) => (
-                        <>
+                        <Fragment key={event.event_id}>
                           <TableRow key={event.event_id} className="cursor-pointer hover:bg-muted/50">
                             <TableCell>
                               <Button
@@ -540,23 +735,14 @@ export default function AuditLogPage() {
                               </TableCell>
                             </TableRow>
                           )}
-                        </>
+                        </Fragment>
                       ))
                     )}
                   </TableBody>
                 </Table>
               </div>
 
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>
-                  Showing {logs.length} of {total} events
-                  {total > PAGE_SIZE && (
-                    <span className="ml-2 text-xs">
-                      (Limited to first {PAGE_SIZE} results)
-                    </span>
-                  )}
-                </span>
-              </div>
+              {renderPaginationFooter()}
             </TabsContent>
 
             <TabsContent value="user" className="mt-6 space-y-4">
@@ -599,6 +785,18 @@ export default function AuditLogPage() {
                       onClick={() => setSelectedUserId("all")}
                     >
                       Clear
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleExportUser}
+                      disabled={!numericUserId || loading || isExporting}
+                    >
+                      {isExporting ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Download className="mr-2 h-4 w-4" />
+                      )}
+                      {isExporting ? "Exporting..." : "Export User Logs"}
                     </Button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
@@ -659,7 +857,7 @@ export default function AuditLogPage() {
                       </TableRow>
                     ) : (
                       logs.map((event) => (
-                        <>
+                        <Fragment key={event.event_id}>
                           <TableRow key={event.event_id} className="cursor-pointer hover:bg-muted/50">
                             <TableCell>
                               <Button
@@ -784,23 +982,14 @@ export default function AuditLogPage() {
                               </TableCell>
                             </TableRow>
                           )}
-                        </>
+                        </Fragment>
                       ))
                     )}
                   </TableBody>
                 </Table>
               </div>
 
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>
-                  Showing {logs.length} of {total} events
-                  {total > PAGE_SIZE && (
-                    <span className="ml-2 text-xs">
-                      (Limited to first {PAGE_SIZE} results)
-                    </span>
-                  )}
-                </span>
-              </div>
+              {renderPaginationFooter()}
             </TabsContent>
           </Tabs>
         </CardContent>

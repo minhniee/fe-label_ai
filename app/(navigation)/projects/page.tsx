@@ -4,7 +4,14 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Search, SlidersHorizontal, FolderPlus, Plus, MoreVertical, FileText } from "lucide-react";
 import { setSelectedProject, projectToSlug, type Project } from "@/types/project";
-import { createProject, viewAllProjects, getProjectFiles, type ProjectCreateRequest } from "@/app/api/project";
+import { 
+  createProject, 
+  viewAllProjects, 
+  getProjectFiles, 
+  updateProject,
+  deleteProject,
+  type ProjectCreateRequest 
+} from "@/app/api/project";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +25,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,6 +70,19 @@ export default function ProjectsPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectDescription, setNewProjectDescription] = useState("");
+  
+  // Edit dialog state
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [editProjectName, setEditProjectName] = useState("");
+  const [editProjectDescription, setEditProjectDescription] = useState("");
+  const [isUpdating, setIsUpdating] = useState(false);
+  
+  // Delete dialog state
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deletingProject, setDeletingProject] = useState<Project | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  
 
   useEffect(() => {
     loadProjects();
@@ -162,6 +192,71 @@ export default function ProjectsPage() {
       toast.error(error.message || "Failed to create project");
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  const handleEditClick = (project: Project) => {
+    setEditingProject(project);
+    setEditProjectName(project.name);
+    setEditProjectDescription(project.description || "");
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateProject = async () => {
+    if (!editingProject || !editProjectName.trim()) {
+      toast.error("Project name is required");
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      const updatedProject = await updateProject(parseInt(editingProject.id), {
+        name: editProjectName.trim(),
+        description: editProjectDescription.trim() || undefined,
+      });
+      
+      toast.success(`Project "${updatedProject.name}" updated successfully!`);
+      
+      // Reload projects
+      await loadProjects();
+      
+      // Reset and close dialog
+      setIsEditDialogOpen(false);
+      setEditingProject(null);
+      setEditProjectName("");
+      setEditProjectDescription("");
+    } catch (error: any) {
+      console.error("Failed to update project:", error);
+      toast.error(error.message || "Failed to update project");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleDeleteClick = (project: Project) => {
+    setDeletingProject(project);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingProject) return;
+
+    setIsDeleting(true);
+    try {
+      await deleteProject(parseInt(deletingProject.id));
+      toast.success(`Project "${deletingProject.name}" deleted successfully!`);
+      
+      // Reload projects
+      await loadProjects();
+      
+      // Close dialog
+      setIsDeleteDialogOpen(false);
+      setDeletingProject(null);
+    } catch (error: any) {
+      console.error("Failed to delete project:", error);
+      toast.error(error.message || "Failed to delete project");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -301,10 +396,21 @@ export default function ProjectsPage() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>Edit Project</DropdownMenuItem>
-                      <DropdownMenuItem>Duplicate</DropdownMenuItem>
-                      <DropdownMenuItem>Export</DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
+                      <DropdownMenuItem onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditClick(project);
+                      }}>
+                        Edit Project
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        className="text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteClick(project);
+                        }}
+                      >
+                        Delete
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -357,6 +463,85 @@ export default function ProjectsPage() {
           </div>
         </>
       )}
+
+      {/* Edit Project Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Project</DialogTitle>
+            <DialogDescription>
+              Update the project name and description.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-project-name">Project Name *</Label>
+              <Input
+                id="edit-project-name"
+                placeholder="Enter project name"
+                value={editProjectName}
+                onChange={(e) => setEditProjectName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleUpdateProject();
+                  }
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-project-description">Description (Optional)</Label>
+              <Textarea
+                id="edit-project-description"
+                placeholder="Enter project description"
+                value={editProjectDescription}
+                onChange={(e) => setEditProjectDescription(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsEditDialogOpen(false);
+                setEditingProject(null);
+                setEditProjectName("");
+                setEditProjectDescription("");
+              }}
+              disabled={isUpdating}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateProject} disabled={isUpdating || !editProjectName.trim()}>
+              {isUpdating ? "Updating..." : "Update Project"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the project
+              <span className="font-semibold"> "{deletingProject?.name}"</span> and all of its data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

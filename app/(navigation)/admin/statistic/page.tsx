@@ -63,14 +63,12 @@ import {
   type BatchStatsResponse,
   type BatchDashboardResponse,
 } from "@/app/api/batch";
-import {
-  getLabelStatistics,
-  type LabelStatsResponse,
-} from "@/app/api/label";
-import {
-  getSchemaStatistics,
-} from "@/app/api/schema";
+import { getSchemaStatistics } from "@/app/api/schema";
 import { viewAllProjects } from "@/app/api/project";
+import {
+  getAuditActionStats,
+  type AuditActionStat,
+} from "@/app/api/audit";
 
 type TimePeriod = "7d" | "30d" | "3m";
 
@@ -79,11 +77,11 @@ export default function StatisticPage() {
   const [timePeriod, setTimePeriod] = useState<TimePeriod>("30d");
   const [batchStats, setBatchStats] = useState<BatchStatsResponse | null>(null);
   const [batchDashboard, setBatchDashboard] = useState<BatchDashboardResponse | null>(null);
-  const [labelStats, setLabelStats] = useState<LabelStatsResponse[]>([]);
   const [schemaStats, setSchemaStats] = useState<any>(null);
   const [projects, setProjects] = useState<any[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [projectBatchStats, setProjectBatchStats] = useState<any>(null);
+  const [auditActionStats, setAuditActionStats] = useState<AuditActionStat[]>([]);
 
   useEffect(() => {
     loadAllStatistics();
@@ -115,7 +113,7 @@ export default function StatisticPage() {
       ]);
       // Load optional stats (don't fail if these fail)
       await Promise.allSettled([
-        loadLabelStats(),
+        loadAuditActionStats(),
         loadSchemaStats(),
       ]);
     } catch (error: any) {
@@ -148,16 +146,16 @@ export default function StatisticPage() {
     }
   };
 
-  const loadLabelStats = async () => {
+  const loadAuditActionStats = async () => {
     try {
-      // Note: getLabelStatistics requires a dataset_id
-      // Since projects don't have dataset_id, we'll skip label stats for now
-      // or you can implement a way to get dataset_id from projects if needed
-      // For now, we'll leave it empty
-      setLabelStats([]);
+      const stats = await getAuditActionStats({
+        time_period: timePeriod,
+        limit: 10,
+      });
+      setAuditActionStats(stats);
     } catch (error: any) {
-      console.error("Failed to load label stats:", error);
-      setLabelStats([]);
+      console.error("Failed to load audit action stats:", error);
+      setAuditActionStats([]);
     }
   };
 
@@ -210,14 +208,26 @@ export default function StatisticPage() {
       ]
     : [];
 
-  const labelUsageData = labelStats.map((stat, index) => {
-    const labelKey = `label_${index}`;
-    return {
-      label: stat.label_name || `Label ${stat.label_id}`,
-      usage: stat.total_annotations || 0,
-      fill: `var(--color-${labelKey})`,
-    };
-  });
+  const formatActionLabel = (value: string) => {
+    if (!value) return "Unknown";
+    const cleaned = value
+      .replace(/^HTTP[_-]/i, "")
+      .replace(/[_-]+/g, " ")
+      .trim();
+    return cleaned
+      .split(" ")
+      .filter(Boolean)
+      .map((word, index) =>
+        index === 0 ? word.toUpperCase() : word.toLowerCase()
+      )
+      .join(" ");
+  };
+
+  const auditActionChartData = auditActionStats.map((stat) => ({
+    action: formatActionLabel(stat.action || "Unknown"),
+    rawAction: stat.action || "Unknown",
+    events: stat.count || 0,
+  }));
 
   // Transform recent_batches to batch progress data (already filtered by API)
   const batchProgressData = (batchDashboard?.recent_batches || []).map((batch) => ({
@@ -284,17 +294,10 @@ export default function StatisticPage() {
       label: "Progress",
       color: "var(--chart-1)",
     },
-    usage: {
-      label: "Usage",
+    events: {
+      label: "Events",
       color: "var(--chart-1)",
     },
-    ...labelUsageData.slice(0, 10).reduce((acc, item, index) => {
-      acc[`label_${index}`] = {
-        label: item.label,
-        color: `var(--chart-${(index % 5) + 1})`,
-      };
-      return acc;
-    }, {} as Record<string, { label: string; color: string }>),
   } satisfies ChartConfig;
 
   if (isLoading) {
@@ -494,48 +497,59 @@ export default function StatisticPage() {
           </CardFooter>
         </Card>
 
-        {/* Label Usage Bar Chart */}
+        {/* Audit Actions Bar Chart */}
         <Card className="flex flex-col">
           <CardHeader className="items-center pb-0">
-            <CardTitle>Label Usage Statistics</CardTitle>
-            <CardDescription>Most used labels across datasets</CardDescription>
+            <CardTitle>Audit Activity (Top Actions)</CardTitle>
+            <CardDescription>Most common admin actions within the selected period</CardDescription>
           </CardHeader>
           <CardContent className="flex-1 pb-0">
-            {labelUsageData.length > 0 ? (
-              <ChartContainer id="label-usage" config={chartConfig} className="aspect-auto h-[300px] w-full">
+            {auditActionChartData.length > 0 ? (
+              <ChartContainer
+                id="audit-actions"
+                config={chartConfig}
+                className="h-[320px] w-full"
+              >
                 <BarChart
                   accessibilityLayer
-                  data={labelUsageData.slice(0, 10)}
+                  data={auditActionChartData}
                   margin={{
                     left: 12,
                     right: 12,
+                    bottom: 16,
                   }}
                 >
                   <CartesianGrid vertical={false} />
                   <XAxis
-                    dataKey="label"
+                    dataKey="action"
                     tickLine={false}
                     axisLine={false}
-                    tickMargin={8}
-                    minTickGap={32}
-                    angle={-45}
-                    textAnchor="end"
-                    height={80}
+                    tickFormatter={() => ""}
+                    height={12}
                   />
-                  <YAxis />
+                  <YAxis allowDecimals={false} />
                   <ChartTooltip
                     content={
                       <ChartTooltipContent
-                        nameKey="usage"
+                        nameKey="events"
+                        labelFormatter={(value, payload) => {
+                          const raw = payload?.[0]?.payload?.rawAction;
+                          return raw || value;
+                        }}
                       />
                     }
                   />
-                  <Bar dataKey="usage" fill="var(--color-usage)" radius={[4, 4, 0, 0]} />
+                  <Bar
+                    dataKey="events"
+                    fill="var(--color-events)"
+                    radius={[6, 6, 0, 0]}
+                    maxBarSize={32}
+                  />
                 </BarChart>
               </ChartContainer>
             ) : (
-              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                No label data available
+              <div className="h-[320px] flex items-center justify-center text-muted-foreground">
+                No audit activity data available
               </div>
             )}
           </CardContent>
@@ -616,20 +630,25 @@ export default function StatisticPage() {
         </Card>
 
         {/* Batch Progress Line Chart */}
-        <Card className="flex flex-col py-4 sm:py-0">
+        <Card className="flex flex-col">
           <CardHeader className="items-center pb-0">
             <CardTitle>Batch Progress Over Time</CardTitle>
             <CardDescription>Progress percentage by batch</CardDescription>
           </CardHeader>
-          <CardContent className="flex-1 pb-0 px-2 sm:p-6">
+          <CardContent className="flex-1 pb-0 sm:px-6">
             {batchProgressData.length > 0 ? (
-              <ChartContainer id="batch-progress" config={chartConfig} className="aspect-auto h-[250px] w-full">
+              <ChartContainer
+                id="batch-progress"
+                config={chartConfig}
+                className="h-[320px] w-full"
+              >
                 <LineChart
                   accessibilityLayer
                   data={batchProgressData}
                   margin={{
                     left: 12,
                     right: 12,
+                    bottom: 16,
                   }}
                 >
                   <CartesianGrid vertical={false} />
@@ -637,8 +656,8 @@ export default function StatisticPage() {
                     dataKey="date"
                     tickLine={false}
                     axisLine={false}
-                    tickMargin={8}
-                    minTickGap={32}
+                    tickMargin={12}
+                    minTickGap={24}
                     tickFormatter={(value) => {
                       const date = new Date(value);
                       return date.toLocaleDateString("en-US", {
@@ -673,7 +692,7 @@ export default function StatisticPage() {
                 </LineChart>
               </ChartContainer>
             ) : (
-              <div className="h-[250px] flex items-center justify-center text-muted-foreground">
+              <div className="h-[320px] flex items-center justify-center text-muted-foreground">
                 No batch progress data available
               </div>
             )}

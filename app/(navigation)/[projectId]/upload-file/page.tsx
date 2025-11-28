@@ -13,7 +13,10 @@ export default function ProjectUploadPage() {
   const projectSlug = params.projectId as string;
 
   const handleGenerateNewData = () => {
-    router.push(`/generate?projectId=${projectSlug}`);
+    if (!projectSlug) {
+      return;
+    }
+    router.push(`/${projectSlug}/generate`);
   };
 
   return (
@@ -27,7 +30,7 @@ export default function ProjectUploadPage() {
         </div>
         <Button
           onClick={handleGenerateNewData}
-          className="gap-2"
+          className="gap-2 cursor-pointer"
         >
           <Sparkles className="h-4 w-4" />
           Generate new Data

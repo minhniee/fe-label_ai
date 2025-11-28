@@ -6,17 +6,18 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Sparkles, Loader2 } from "lucide-react"
+import { Sparkles, Loader2, ArrowLeft } from "lucide-react"
 import { ReferenceUploader } from "@/components/label-ai/reference-uploader"
 import { useToast } from "@/hooks/use-toast"
 import { generateData } from "@/app/api/labelai"
 import { parseCSVFromText } from "@/lib/label-ai-utils"
 
-interface DataGeneratorProps {
+export interface DataGeneratorProps {
   onDataGenerated: (data: any[], columns: string[], datasetName: string) => void
+  onBack?: () => void
 }
 
-export function DataGenerator({ onDataGenerated }: DataGeneratorProps) {
+export function DataGenerator({ onDataGenerated, onBack }: DataGeneratorProps) {
   const [topic, setTopic] = useState("")
   const [rowCount, setRowCount] = useState("20")
   const [columns, setColumns] = useState("context, category")
@@ -90,19 +91,31 @@ export function DataGenerator({ onDataGenerated }: DataGeneratorProps) {
   }
 
   return (
-    <Card className="p-6">
-      <div className="space-y-6">
+    <div className="p-6 space-y-6">
+      <div className="flex flex-wrap items-center gap-4">
+        {onBack && (
+          <Button
+            variant="ghost"
+            onClick={onBack}
+            className="gap-2 px-2 text-sm"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        )}
         <div className="flex items-center gap-3">
           <div className="rounded-full bg-primary/10 p-2">
             <Sparkles className="h-5 w-5 text-primary" />
           </div>
           <div>
             <h2 className="text-xl font-semibold">Generate New Data</h2>
-            <p className="text-sm text-muted-foreground">Use AI to generate sample data based on your requirements</p>
+            <p className="text-sm text-muted-foreground">
+              Use AI to generate sample data based on your requirements
+            </p>
           </div>
         </div>
+      </div>
 
-        <div className="space-y-4">
+      <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="topic">Topic / Description *</Label>
             <Input
@@ -179,8 +192,7 @@ export function DataGenerator({ onDataGenerated }: DataGeneratorProps) {
               </>
             )}
           </Button>
-        </div>
       </div>
-    </Card>
+    </div>
   )
 }

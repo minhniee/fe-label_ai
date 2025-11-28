@@ -252,10 +252,12 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
       },
       {
         title: "Generate Data",
-        url: `/generate`,
+        url: selectedProject ? `${projectPrefix}/generate` : "/projects",
         icon: Sparkles,
-        isActive: pathname === `/generate`,
-        requiresProject: false,
+        isActive: selectedProject
+          ? pathname === `${projectPrefix}/generate`
+          : pathname === "/generate",
+        requiresProject: true,
       },
       {
         title: "Dataset",
