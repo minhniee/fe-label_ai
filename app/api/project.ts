@@ -134,6 +134,11 @@ export interface GenerateDatasetResponse {
   permissions_copied?: number;
 }
 
+export interface ProjectUpdateRequest {
+  name?: string;
+  description?: string;
+}
+
 // ============================================================================
 // API FUNCTIONS
 // ============================================================================
@@ -373,6 +378,35 @@ export async function generateDatasetFromProject(
     return response.data;
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to generate dataset';
+    throw new Error(errorMessage);
+  }
+}
+
+/**
+ * Update project information (name and/or description)
+ */
+export async function updateProject(
+  projectId: number,
+  payload: ProjectUpdateRequest
+): Promise<ProjectResponse> {
+  try {
+    const response = await api.put<ProjectResponse>(`/projects/${projectId}`, payload);
+    return response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to update project';
+    throw new Error(errorMessage);
+  }
+}
+
+/**
+ * Delete a project
+ */
+export async function deleteProject(projectId: number): Promise<{ message: string }> {
+  try {
+    const response = await api.delete<{ message: string }>(`/projects/${projectId}`);
+    return response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to delete project';
     throw new Error(errorMessage);
   }
 }
