@@ -153,3 +153,43 @@ export async function deleteAuditByUser(userId: number): Promise<DeleteAuditResp
     handleApiError(`Failed to delete audit logs for user ${userId}`, error)
   }
 }
+
+/**
+ * Export all audit logs with filters (no pagination limit)
+ * GET /admin/audit-logs (with limit=10000 to get all)
+ */
+export async function exportAllAuditLogs(query?: AuditLogsQuery): Promise<AuditEventResponse[]> {
+  try {
+    const allEvents: AuditEventResponse[] = []
+    let offset = 0
+    const limit = 1000 // Max per request
+    let hasMore = true
+
+    while (hasMore) {
+      const qs = buildQuery({
+        user_id: query?.user_id,
+        project_id: query?.project_id,
+        action: query?.action,
+        resource_type: query?.resource_type,
+        from_time: query?.from_time,
+        to_time: query?.to_time,
+        limit: limit,
+        offset: offset,
+      })
+      const url = qs ? `/admin/audit-logs?${qs}` : `/admin/audit-logs`
+      const response = await api.get<AuditLogsListResponse>(url)
+      
+      if (response.data.events && response.data.events.length > 0) {
+        allEvents.push(...response.data.events)
+        hasMore = response.data.has_more
+        offset += response.data.events.length
+      } else {
+        hasMore = false
+      }
+    }
+
+    return allEvents
+  } catch (error: any) {
+    handleApiError("Failed to export audit logs", error)
+  }
+}
