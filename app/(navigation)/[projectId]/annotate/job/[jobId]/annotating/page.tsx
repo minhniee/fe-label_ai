@@ -15,6 +15,11 @@ import { useDebounce } from "@/hooks/use-debounce"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { SearchFilter } from "@/components/label-ai/search-filter"
@@ -109,32 +114,7 @@ export default function JobLabelAIPage() {
   const [saving, setSaving] = useState(false)
   const [fileDelimiter, setFileDelimiter] = useState<string>(",")
   const [originalData, setOriginalData] = useState<RowData[]>([])
-  const [isScrolled, setIsScrolled] = useState(false)
-
-  // Track scroll to show/hide floating sidebar with proper cleanup
-  useEffect(() => {
-    let timeoutId: NodeJS.Timeout | null = null
-    
-    const handleScroll = () => {
-      if (timeoutId !== null) {
-        clearTimeout(timeoutId)
-      }
-      
-      timeoutId = setTimeout(() => {
-        setIsScrolled(window.scrollY > 200)
-        timeoutId = null
-      }, 100)
-    }
-    
-    window.addEventListener("scroll", handleScroll, { passive: true })
-    
-    return () => {
-      window.removeEventListener("scroll", handleScroll)
-      if (timeoutId !== null) {
-        clearTimeout(timeoutId)
-      }
-    }
-  }, [])
+  const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(false)
 
   // Sync originalData when data changes significantly
   useEffect(() => {
@@ -826,11 +806,21 @@ export default function JobLabelAIPage() {
             </div>
           ) : (
             <div className="space-y-6 relative">
-              {isScrolled && data.length > 0 && (
-                <div className="fixed right-4 top-20 z-40 w-80 space-y-3 hidden lg:block animate-in slide-in-from-right duration-200">
-                  <Card className="p-4 shadow-lg border-2 bg-background/95 backdrop-blur-sm max-h-[calc(100vh-7rem)] overflow-y-auto">
+              {/* Quick Actions Button - Fixed at top right */}
+              {data.length > 0 && (
+                <Popover open={isQuickActionsOpen} onOpenChange={setIsQuickActionsOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="fixed right-4 top-20 z-40 shadow-lg"
+                    >
+                      <Settings2 className="h-5 w-5" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80 p-4" align="end" side="left">
                     <div className="space-y-4">
-                      <div className="flex items-center gap-2 pb-2 border-b sticky top-0 bg-background/95 backdrop-blur-sm z-10">
+                      <div className="flex items-center gap-2 pb-2 border-b">
                         <Settings2 className="h-4 w-4" />
                         <h3 className="text-sm font-semibold">Quick Actions</h3>
                       </div>
@@ -872,64 +862,62 @@ export default function JobLabelAIPage() {
                               </button>
                             )}
                           </div>
-                          {/* {currentFileId && (
-                            <SemanticSearchFilter 
-                              fileId={currentFileId}
-                              onSearchResults={setSemanticSearchResults}
-                              placeholder="Semantic search..."
-                            />
-                          )} */}
                         </div>
                       </div>
 
                       {currentFileId && (
                         <div className="space-y-2 pb-3 border-b">
                           <Label className="text-xs font-medium text-muted-foreground">File Actions</Label>
-                          <Button
-                            onClick={handleSaveFile}
-                            disabled={saving || data.length === 0}
-                            className="w-full gap-2"
-                            variant={data.filter(row => row._isModified).length > 0 ? "default" : "outline"}
-                            size="sm"
-                          >
-                            {saving ? (
-                              <>
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                Saving...
-                              </>
+                          <div className="space-y-2">
+                            <Button
+                              onClick={handleSaveFile}
+                              disabled={saving || data.length === 0}
+                              className="w-full gap-2"
+                              variant={data.filter(row => row._isModified).length > 0 ? "default" : "outline"}
+                              size="sm"
+                            >
+                              {saving ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  Saving...
+                                </>
+                              ) : (
+                                <>
+                                  <Save className="h-4 w-4" />
+                                  Save File
+                                  {data.filter(row => row._isModified).length > 0 && (
+                                    <span className="ml-1 px-1.5 py-0.5 text-xs bg-primary/20 rounded">
+                                      {data.filter(row => row._isModified).length}
+                                    </span>
+                                  )}
+                                </>
+                              )}
+                            </Button>
+                            {batchId ? (
+                              <Button
+                                onClick={handleMarkJobCompleted}
+                                className="w-full gap-2"
+                                variant="default"
+                                size="sm"
+                              >
+                                <CheckCircle2 className="h-4 w-4" />
+                                Mark Job Completed
+                              </Button>
                             ) : (
-                              <>
-                                <Save className="h-4 w-4" />
-                                Save File
-                                {data.filter(row => row._isModified).length > 0 && (
-                                  <span className="ml-1 px-1.5 py-0.5 text-xs bg-primary/20 rounded">
-                                    {data.filter(row => row._isModified).length}
-                                  </span>
-                                )}
-                              </>
+                              <Button
+                                onClick={() => {
+                                  setShowCompleteDialog(true)
+                                  setIsQuickActionsOpen(false)
+                                }}
+                                className="w-full gap-2"
+                                variant="default"
+                                size="sm"
+                              >
+                                <CheckCircle2 className="h-4 w-4" />
+                                Complete
+                              </Button>
                             )}
-                          </Button>
-                          {batchId ? (
-                            <Button
-                              onClick={handleMarkJobCompleted}
-                              className="w-full gap-2"
-                              variant="default"
-                              size="sm"
-                            >
-                              <CheckCircle2 className="h-4 w-4" />
-                              Mark Job Completed
-                            </Button>
-                          ) : (
-                            <Button
-                              onClick={() => setShowCompleteDialog(true)}
-                              className="w-full gap-2"
-                              variant="default"
-                              size="sm"
-                            >
-                              <CheckCircle2 className="h-4 w-4" />
-                              Complete
-                            </Button>
-                          )}
+                          </div>
                         </div>
                       )}
 
@@ -954,8 +942,8 @@ export default function JobLabelAIPage() {
                         </div>
                       </div>
                     </div>
-                  </Card>
-                </div>
+                  </PopoverContent>
+                </Popover>
               )}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">

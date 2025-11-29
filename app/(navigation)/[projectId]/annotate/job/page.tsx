@@ -535,11 +535,17 @@ export default function ProjectJobPage() {
   const userCompletedFiles = userProgress?.completed_batches || 0;
   const userAssignedFiles = userProgress?.assigned_batches || 0;
 
+  // Check if job is completed (all files annotated or batch status is completed)
+  const isJobCompleted = 
+    progress === 100 || 
+    unannotatedFiles.length === 0 || 
+    batchData?.status === 'completed';
+
   // Check if current user is Owner (3) or Co-Owner (4) in this project
   const currentUserProjectRole = currentUser?.user_id 
     ? collaborators.find(c => c.user_id === currentUser.user_id)?.role_id 
     : null;
-  const canReassign = currentUserProjectRole === 3 || currentUserProjectRole === 4; // Owner or Co-Owner
+  const canReassign = (currentUserProjectRole === 3 || currentUserProjectRole === 4) && !isJobCompleted; // Owner or Co-Owner and job not completed
 
   if (isLoading) {
     return (
@@ -569,24 +575,26 @@ export default function ProjectJobPage() {
               </p>
             </div>
           </div>
-          <div className="flex items-center justify-between gap-2 mt-4">
-            <Button 
-              className="flex-1 cursor-pointer" 
-              onClick={() => {
-                // Navigate to labelai page with jobId in path
-                const fileIds = unannotatedFiles.map(f => f.file_id);
-                const params = new URLSearchParams({
-                  fileIds: JSON.stringify(fileIds),
-                  jobName: batchName
-                });
-                  router.push(`/${projectSlug}/annotate/job/${batchId}/annotating?${params.toString()}`);
-              }}
-              disabled={unannotatedFiles.length === 0}
-            >
-              <Play className="mr-2 h-4 w-4" />
-              Start Annotating
-            </Button>
-          </div>
+          {!isJobCompleted && (
+            <div className="flex items-center justify-between gap-2 mt-4">
+              <Button 
+                className="flex-1 cursor-pointer" 
+                onClick={() => {
+                  // Navigate to labelai page with jobId in path
+                  const fileIds = unannotatedFiles.map(f => f.file_id);
+                  const params = new URLSearchParams({
+                    fileIds: JSON.stringify(fileIds),
+                    jobName: batchName
+                  });
+                    router.push(`/${projectSlug}/annotate/job/${batchId}/annotating?${params.toString()}`);
+                }}
+                disabled={unannotatedFiles.length === 0}
+              >
+                <Play className="mr-2 h-4 w-4" />
+                Start Annotating
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Progress Section */}
