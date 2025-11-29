@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Search, SlidersHorizontal, FolderPlus, Plus, MoreVertical, FileText } from "lucide-react";
+import { Search, SlidersHorizontal, FolderPlus, Plus, MoreVertical, FileText, Pencil, UserPlus, Trash2 } from "lucide-react";
 import { setSelectedProject, projectToSlug, type Project } from "@/types/project";
 import { 
   createProject, 
@@ -10,7 +10,9 @@ import {
   getProjectFiles, 
   updateProject,
   deleteProject,
-  type ProjectCreateRequest 
+  createInvitation,
+  type ProjectCreateRequest,
+  type AddCollaboratorRequest
 } from "@/app/api/project";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,6 +85,12 @@ export default function ProjectsPage() {
   const [deletingProject, setDeletingProject] = useState<Project | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   
+  // Invite dialog state
+  const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
+  const [invitingProject, setInvitingProject] = useState<Project | null>(null);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRoleId, setInviteRoleId] = useState<number>(5); // Default to Labeler
+  const [isInviting, setIsInviting] = useState(false);
 
   useEffect(() => {
     loadProjects();
@@ -236,6 +244,46 @@ export default function ProjectsPage() {
   const handleDeleteClick = (project: Project) => {
     setDeletingProject(project);
     setIsDeleteDialogOpen(true);
+  };
+
+  const handleInviteClick = (project: Project) => {
+    setInvitingProject(project);
+    setInviteEmail("");
+    setInviteRoleId(5); // Reset to Labeler
+    setIsInviteDialogOpen(true);
+  };
+
+  const handleSendInvitation = async () => {
+    if (!invitingProject) return;
+
+    // Validate email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!inviteEmail.trim() || !emailRegex.test(inviteEmail.trim())) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+
+    setIsInviting(true);
+    try {
+      const payload: AddCollaboratorRequest = {
+        email: inviteEmail.trim(),
+        role_id: inviteRoleId,
+      };
+
+      await createInvitation(parseInt(invitingProject.id), payload);
+      toast.success(`Invitation sent to ${inviteEmail.trim()} successfully!`);
+      
+      // Close dialog and reset
+      setIsInviteDialogOpen(false);
+      setInvitingProject(null);
+      setInviteEmail("");
+      setInviteRoleId(5);
+    } catch (error: any) {
+      console.error("Failed to send invitation:", error);
+      toast.error(error.message || "Failed to send invitation");
+    } finally {
+      setIsInviting(false);
+    }
   };
 
   const handleConfirmDelete = async () => {
@@ -400,7 +448,15 @@ export default function ProjectsPage() {
                         e.stopPropagation();
                         handleEditClick(project);
                       }}>
+                        <Pencil className="mr-2 h-4 w-4" />
                         Edit Project
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={(e) => {
+                        e.stopPropagation();
+                        handleInviteClick(project);
+                      }}>
+                        <UserPlus className="mr-2 h-4 w-4" />
+                        Invite team member
                       </DropdownMenuItem>
                       <DropdownMenuItem 
                         className="text-destructive"
@@ -409,6 +465,7 @@ export default function ProjectsPage() {
                           handleDeleteClick(project);
                         }}
                       >
+                        <Trash2 className="mr-2 h-4 w-4" />
                         Delete
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -542,6 +599,78 @@ export default function ProjectsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Invite Team Member Dialog */}
+      <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Invite Team Member</DialogTitle>
+            <DialogDescription>
+              Send an invitation to join the project{" "}
+              <span className="font-semibold">"{invitingProject?.name}"</span> as a collaborator.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="invite-email">Email Address *</Label>
+              <Input
+                id="invite-email"
+                type="email"
+                placeholder="user@example.com"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendInvitation();
+                  }
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="invite-role">Role *</Label>
+              <Select
+                value={inviteRoleId.toString()}
+                onValueChange={(value) => setInviteRoleId(parseInt(value))}
+              >
+                <SelectTrigger id="invite-role">
+                  <SelectValue placeholder="Select a role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="4">Co-Owner</SelectItem>
+                  <SelectItem value="5">Labeler</SelectItem>
+                  <SelectItem value="6">Viewer</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {inviteRoleId === 4 && "Co-Owner can manage the project and invite members."}
+                {inviteRoleId === 5 && "Labeler can label and annotate project data."}
+                {inviteRoleId === 6 && "Viewer can only view project data."}
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsInviteDialogOpen(false);
+                setInvitingProject(null);
+                setInviteEmail("");
+                setInviteRoleId(5);
+              }}
+              disabled={isInviting}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSendInvitation}
+              disabled={isInviting || !inviteEmail.trim()}
+            >
+              {isInviting ? "Sending..." : "Send Invitation"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
