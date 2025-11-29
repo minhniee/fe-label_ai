@@ -8,10 +8,18 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft, Play, FileText, Search, X, Zap } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ArrowLeft, Play, FileText, Search, X, Zap, UserPlus, Send, Loader2 } from "lucide-react";
 import { useProjectFromSlug } from "@/hooks/use-project-from-slug";
 import { getBatch, updateBatch, getBatchAssignments, getUserBatchProgress, createBatchAssignment, deleteBatchAssignment } from "@/app/api/batch";
-import { getProjectFiles, listPendingInvitations, getProjectCollaborators } from "@/app/api/project";
+import { getProjectFiles, listPendingInvitations, getProjectCollaborators, createInvitation } from "@/app/api/project";
 import { getMe } from "@/app/api/auth";
 import { toast } from "sonner";
 import { Mail } from "lucide-react";
@@ -60,6 +68,10 @@ export default function ProjectJobPage() {
   const [assignmentHistory, setAssignmentHistory] = useState<any[]>([]);
   const [assignmentLogs, setAssignmentLogs] = useState<any[]>([]);
   const [csvRowCounts, setCsvRowCounts] = useState<{ [fileId: number]: number }>({});
+  const [showInviteForm, setShowInviteForm] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"Co-Owner" | "Labeler" | "Viewer">("Labeler");
+  const [isSendingInvite, setIsSendingInvite] = useState(false);
 
   useEffect(() => {
     const tabParam = searchParams.get("tab");
@@ -273,6 +285,50 @@ export default function ProjectJobPage() {
       setCollaborators(collabs);
     } catch (error: any) {
       console.error("Failed to load collaborators:", error);
+    }
+  };
+
+  const handleSendInvitation = async () => {
+    if (!inviteEmail.trim()) {
+      toast.error("Please enter an email address");
+      return;
+    }
+
+    if (!project) {
+      toast.error("Project not found");
+      return;
+    }
+
+    setIsSendingInvite(true);
+    try {
+      // Map role names to role_ids
+      const roleMap: Record<string, number> = {
+        "Co-Owner": 4,
+        "Labeler": 5,
+        "Viewer": 6,
+      };
+
+      await createInvitation(parseInt(project.id), {
+        email: inviteEmail,
+        role_id: roleMap[inviteRole] || 5,
+      });
+
+      toast.success(`Invitation sent to ${inviteEmail}`);
+
+      // Reload team data
+      await loadPendingInvitations();
+      await loadCollaborators();
+
+      // Clear form
+      setInviteEmail("");
+      setInviteRole("Labeler");
+      setShowInviteForm(false);
+
+    } catch (error: any) {
+      console.error("Failed to send invitation:", error);
+      toast.error(error.message || "Failed to send invitation");
+    } finally {
+      setIsSendingInvite(false);
     }
   };
 
@@ -592,16 +648,96 @@ export default function ProjectJobPage() {
                   </DrawerDescription>
                 </DrawerHeader>
                 <div className="px-4 pb-4 flex-1 overflow-hidden flex flex-col">
-                  {/* Search */}
-                  <div className="relative mb-4">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search for team members..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-9"
-                    />
+                  {/* Buttons */}
+                  <div className="flex gap-2 mb-4">
+                    <Button
+                      variant={showInviteForm ? "default" : "outline"}
+                      className="flex-1"
+                      onClick={() => setShowInviteForm(!showInviteForm)}
+                    >
+                      <UserPlus className="mr-2 h-4 w-4" />
+                      Invite team member
+                    </Button>
                   </div>
+
+                  {/* Invite Form */}
+                  {showInviteForm && (
+                    <Card className="p-4 mb-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <UserPlus className="h-5 w-5 text-muted-foreground" />
+                          <h4 className="font-semibold">Invite Team Member</h4>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setShowInviteForm(false)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="invite-email">Email Address</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              id="invite-email"
+                              placeholder="Email address"
+                              value={inviteEmail}
+                              onChange={(e) => setInviteEmail(e.target.value)}
+                              disabled={isSendingInvite}
+                              className="flex-1"
+                            />
+                            <Select
+                              value={inviteRole}
+                              onValueChange={(v: any) => setInviteRole(v)}
+                              disabled={isSendingInvite}
+                            >
+                              <SelectTrigger className="w-32">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Co-Owner">Co-Owner</SelectItem>
+                                <SelectItem value="Labeler">Labeler</SelectItem>
+                                <SelectItem value="Viewer">Viewer</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <Button
+                          onClick={handleSendInvitation}
+                          disabled={isSendingInvite || !inviteEmail.trim()}
+                          className="w-full"
+                        >
+                          {isSendingInvite ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Sending...
+                            </>
+                          ) : (
+                            <>
+                              <Send className="mr-2 h-4 w-4" />
+                              Send Invite
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </Card>
+                  )}
+
+                  {/* Search */}
+                  {!showInviteForm && (
+                    <div className="relative mb-4">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search for team members..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-9"
+                      />
+                    </div>
+                  )}
 
                   {/* User List */}
                   <div className="space-y-2 flex-1 overflow-y-auto">

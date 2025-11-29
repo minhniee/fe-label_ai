@@ -4,7 +4,6 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -62,9 +61,7 @@ export default function ProjectBatchPage() {
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [selectedOption, setSelectedOption] = useState<"myself" | "team" | null>(null);
-  const [showInstructions, setShowInstructions] = useState(false);
   const [showTeamMembers, setShowTeamMembers] = useState(false);
-  const [instructions, setInstructions] = useState("");
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"Co-Owner" | "Labeler" | "Viewer">("Labeler");
@@ -307,7 +304,6 @@ export default function ProjectBatchPage() {
         await assignBatchToUsers({
           batch_id: parseInt(batchId),
           user_ids: [currentUser.user_id],
-          notes: instructions || undefined,
         });
 
         toast.success("Batch assigned to you!");
@@ -411,7 +407,6 @@ export default function ProjectBatchPage() {
                 // Use first_takes_remainder to ensure each user gets consecutive chunks
                 // This ensures each user gets 1 job with their chunk when numChunks = numUsers
                 distribution_method: 'first_takes_remainder',
-                notes: instructions || undefined,
               });
 
               console.log(`Distribution response for ${csvFile.filename}:`, distributeResponse);
@@ -453,7 +448,6 @@ export default function ProjectBatchPage() {
             await assignBatchToUsers({
               batch_id: parseInt(batchId),
               user_ids: actualUserIds,
-              notes: instructions || undefined,
             });
             toast.success(`Batch assigned to ${actualUserIds.length} team member(s)`);
           } catch (error: any) {
@@ -951,39 +945,15 @@ export default function ProjectBatchPage() {
             <div className="space-y-4 flex-1 flex flex-col min-h-0">
               <div className="flex gap-2">
                 <Button
-                  variant={showInstructions ? "default" : "outline"}
-                  className={showTeamMembers ? "opacity-50" : ""}
-                  onClick={() => {
-                    setShowInstructions(!showInstructions);
-                    setShowTeamMembers(false);
-                  }}
-                >
-                  <FileText className="mr-2 h-4 w-4" />
-                  Add Instructions
-                </Button>
-                <Button
                   variant={showTeamMembers ? "default" : "outline"}
-                  className={showInstructions ? "opacity-50" : ""}
                   onClick={() => {
                     setShowTeamMembers(!showTeamMembers);
-                    setShowInstructions(false);
                   }}
                 >
                   <Users className="mr-2 h-4 w-4" />
                   Add Team Members
                 </Button>
               </div>
-
-              {showInstructions && (
-                <div className="space-y-2">
-                  <Textarea
-                    placeholder="Enter labeling instructions..."
-                    value={instructions}
-                    onChange={(e) => setInstructions(e.target.value)}
-                    rows={6}
-                  />
-                </div>
-              )}
 
               {showTeamMembers && (
                 <Card className="p-4">
@@ -1050,7 +1020,7 @@ export default function ProjectBatchPage() {
                 </Card>
               )}
 
-              {!showInstructions && !showTeamMembers && (
+              {!showTeamMembers && (
                 <div className="space-y-3 flex-1 overflow-y-auto">
                   <p className="text-sm font-medium">
                     Selected Team Members
