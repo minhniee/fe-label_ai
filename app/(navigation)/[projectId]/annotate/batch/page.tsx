@@ -591,11 +591,8 @@ export default function ProjectBatchPage() {
       setBatchFileIds(prev => prev.filter(id => id !== fileId));
       setCsvRowCounts((prev) => {
         const updated = { ...prev };
-        if (updated[fileId]) {
+        if (fileId in updated) {
           delete updated[fileId];
-        }
-        if (updated[String(fileId)]) {
-          delete updated[String(fileId)];
         }
         const newTotal = Object.values(updated).reduce(
           (sum, count) => sum + (count || 0),
@@ -650,19 +647,39 @@ export default function ProjectBatchPage() {
         setBatchFileIds(prev => [...prev, ...fileIds]);
 
         // Automatically split newly uploaded CSV files to capture row counts
+        // Use same logic as handleStartLabeling to ensure consistency
         const newlyUploadedCsvFiles = newFiles.filter((file) => {
-          const rawName = file.filename || file.file_name || "";
-          const loweredName = typeof rawName === "string" ? rawName.toLowerCase() : "";
+          const rawName = file.filename || (file as any).file_name || "";
+          const loweredName =
+            rawName && typeof rawName === "string" ? rawName.toLowerCase() : "";
           const loweredType =
-            file.file_type && typeof file.file_type === "string" ? file.file_type.toLowerCase() : "";
-          return (
+            file.file_type && typeof file.file_type === "string"
+              ? file.file_type.toLowerCase()
+              : "";
+          const looksLikeCsv =
             (loweredName && loweredName.endsWith(".csv")) ||
-            (loweredType && loweredType.includes("csv"))
-          );
+            (loweredType && loweredType.includes("csv"));
+
+          // Also check if file already has row count (from previous upload or batch metadata)
+          const hasRowCount = typeof csvRowCounts[file.file_id] === "number";
+
+          return looksLikeCsv || hasRowCount;
         });
 
+        console.log("[Upload More] New files:", newFiles);
+        console.log("[Upload More] CSV files detected:", newlyUploadedCsvFiles);
+
+        // Ensure row counts for all CSV files
         for (const csvFile of newlyUploadedCsvFiles) {
-          await ensureRowCount(csvFile.file_id, csvFile.filename || csvFile.file_name);
+          try {
+            const fileName = csvFile.filename || (csvFile as any).file_name;
+            console.log(`[Upload More] Getting row count for file ${csvFile.file_id} (${fileName})`);
+            const rowCount = await ensureRowCount(csvFile.file_id, fileName);
+            console.log(`[Upload More] Row count for file ${csvFile.file_id}:`, rowCount);
+          } catch (error: any) {
+            console.error(`[Upload More] Failed to get row count for file ${csvFile.file_id}:`, error);
+            // Continue with other files even if one fails
+          }
         }
 
         toast.success(`${newFiles.length} files added to batch!`);

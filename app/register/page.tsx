@@ -421,8 +421,8 @@ export default function RegisterPage() {
 
         {/* Footer */}
         <div className="mt-8 text-center text-xs text-muted-foreground">
-          <p>© 2024 Label-AI Platform. All rights reserved.</p>
-          <p className="mt-1">Internal Use Only - Label-AI Platform v1.0</p>
+          <p>© 2025 Label-AI Platform. All rights reserved.</p>
+          <p className="mt-1">Internal Use Only - Label-AI Platform</p>
         </div>
       </div>
     </div>

@@ -220,7 +220,7 @@ export function LoginForm({
                 <GoogleLoginButton />
                 
                 <FieldDescription className="text-center">
-                  Don&apos;t have an account? <Link href="/register">Sign up</Link>
+                  Don&apos;t have an account? <Link href="/register">Register</Link>
                 </FieldDescription>
               </Field>
             </FieldGroup>
