@@ -96,6 +96,9 @@ export default function ProjectChatbotPage() {
   const [startTime, setStartTime] = useState<number | null>(null);
   const [isDatasetReloading, setIsDatasetReloading] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollViewportRef = useRef<HTMLDivElement>(null);
+  const [isUserNearBottom, setIsUserNearBottom] = useState(true);
   const [editingConversationId, setEditingConversationId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [deletingConversationId, setDeletingConversationId] = useState<string | null>(null);
@@ -413,6 +416,9 @@ export default function ProjectChatbotPage() {
 
     const conversationId = currentConversationId || `conv-${Date.now()}`;
     setInputValue("");
+    
+    // Force scroll to bottom when user sends a message
+    setIsUserNearBottom(true);
 
     const userMessage: Message = {
       id: `user-${Date.now()}`,
@@ -523,12 +529,6 @@ export default function ProjectChatbotPage() {
     setInputValue(question);
   };
 
-  useEffect(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-    }
-  }, [conversations, currentConversationId]);
-
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
     return date.toLocaleString("vi-VN", {
@@ -561,10 +561,59 @@ export default function ProjectChatbotPage() {
   const currentConversation = conversations.find((c) => c.id === currentConversationId);
   const currentMessages = currentConversation?.messages || [];
 
+  // Check if user is near bottom of scroll container
+  const checkIfNearBottom = useCallback(() => {
+    if (!scrollViewportRef.current) return true;
+    const { scrollTop, scrollHeight, clientHeight } = scrollViewportRef.current;
+    const threshold = 200; // 200px from bottom
+    const isNearBottom = scrollHeight - scrollTop - clientHeight < threshold;
+    setIsUserNearBottom(isNearBottom);
+    return isNearBottom;
+  }, []);
+
+  // Handle scroll events to track user position
+  useEffect(() => {
+    const viewport = scrollViewportRef.current;
+    if (!viewport) return;
+
+    const handleScroll = () => {
+      checkIfNearBottom();
+    };
+
+    viewport.addEventListener("scroll", handleScroll);
+    return () => {
+      viewport.removeEventListener("scroll", handleScroll);
+    };
+  }, [checkIfNearBottom]);
+
+  // Auto-scroll to bottom when conversation changes (always scroll to bottom when switching conversations)
+  useEffect(() => {
+    if (messagesEndRef.current && currentConversationId) {
+      setTimeout(() => {
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: "auto" });
+          setIsUserNearBottom(true);
+        }
+      }, 100);
+    }
+  }, [currentConversationId]);
+
+  // Auto-scroll to bottom only if user is near bottom or when loading (new message being sent)
+  useEffect(() => {
+    if (messagesEndRef.current && (isUserNearBottom || isLoading)) {
+      // Use setTimeout to ensure DOM is updated
+      setTimeout(() => {
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+        }
+      }, 100);
+    }
+  }, [currentMessages.length, isLoading, isUserNearBottom]);
+
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-[calc(100vh-4rem-1rem)] overflow-hidden bg-background -m-4">
       {/* Sidebar - Conversations List */}
-      <div className="w-64 border-r bg-muted/40 flex flex-col">
+      <div className="w-64 border-r bg-muted/40 flex flex-col flex-shrink-0">
         <div className="p-4 border-b">
           <Button
             onClick={createNewConversation}
@@ -641,13 +690,17 @@ export default function ProjectChatbotPage() {
                   ) : (
                     <>
                       <MessageCircle className="h-4 w-4 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{conversation.title}</p>
+                      <div className="flex-1 min-w-0 overflow-hidden">
+                        <p className="text-sm font-medium truncate" title={conversation.title}>
+                          {conversation.title.length > 30 
+                            ? `${conversation.title.slice(0, 30)}...` 
+                            : conversation.title}
+                        </p>
                         <p className="text-xs opacity-70 truncate">
                           {formatDate(conversation.updatedAt)}
                         </p>
                       </div>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                         <Button
                           size="icon"
                           variant="ghost"
@@ -762,41 +815,13 @@ export default function ProjectChatbotPage() {
               </div>
             </div>
           </div>
-
-          {/* Example Questions */}
-          <div className="flex gap-2 flex-wrap">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleExampleQuestion("What is the overview of this project?")}
-              className="gap-2 text-xs"
-            >
-              <BookOpen className="w-3 h-3" />
-              Overview
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleExampleQuestion("Which items have already been completed?")}
-              className="gap-2 text-xs"
-            >
-              <Clock className="w-3 h-3" />
-              Progress
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleExampleQuestion("Are there any notes for labeling this dataset?")}
-              className="gap-2 text-xs"
-            >
-              <DollarSign className="w-3 h-3" />
-              Labeling notes
-            </Button>
-          </div>
         </div>
 
         {/* Messages Area */}
-        <ScrollArea className="flex-1" ref={chatContainerRef}>
+        <div 
+          ref={scrollViewportRef}
+          className="flex-1 overflow-y-auto"
+        >
           <div className="max-w-3xl mx-auto p-6 space-y-6">
             {currentMessages.length === 0 ? (
               <div className="text-center text-muted-foreground py-20">
@@ -805,88 +830,91 @@ export default function ProjectChatbotPage() {
                 <p className="text-sm">Ask a question about this project or select an example above.</p>
               </div>
             ) : (
-              currentMessages.map((message, index) => {
-                const showDate =
-                  index === 0 ||
-                  new Date(message.timestamp).toDateString() !==
-                    new Date(currentMessages[index - 1].timestamp).toDateString();
+              <>
+                {currentMessages.map((message, index) => {
+                  const showDate =
+                    index === 0 ||
+                    new Date(message.timestamp).toDateString() !==
+                      new Date(currentMessages[index - 1].timestamp).toDateString();
 
-                return (
-                  <div key={message.id}>
-                    {showDate && (
-                      <div className="flex items-center justify-center my-6">
-                        <div className="text-xs text-muted-foreground bg-muted px-3 py-1 rounded-full">
-                          {formatDate(message.timestamp)}
+                  return (
+                    <div key={message.id}>
+                      {showDate && (
+                        <div className="flex items-center justify-center my-6">
+                          <div className="text-xs text-muted-foreground bg-muted px-3 py-1 rounded-full">
+                            {formatDate(message.timestamp)}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                    <div
-                      className={cn(
-                        "flex animate-in fade-in slide-in-from-bottom-2",
-                        message.type === "user" ? "justify-end" : "justify-start"
                       )}
-                    >
-                      <div className="flex flex-col max-w-[80%]">
-                        <div
-                          className={cn(
-                            "rounded-2xl px-4 py-3",
-                            message.type === "user"
-                              ? "bg-primary text-primary-foreground rounded-br-sm"
-                              : "bg-muted text-foreground rounded-bl-sm"
-                          )}
-                        >
-                          {message.id.startsWith("loading") ? (
-                            <div className="flex gap-1">
-                              <span className="w-2 h-2 bg-current rounded-full animate-pulse" />
-                              <span className="w-2 h-2 bg-current rounded-full animate-pulse delay-75" />
-                              <span className="w-2 h-2 bg-current rounded-full animate-pulse delay-150" />
-                            </div>
-                          ) : (
-                            <div className="whitespace-pre-wrap break-words">{message.text}</div>
-                          )}
-                          {message.context && message.context.length > 0 && (
-                            <div
-                              className={cn(
-                                "text-xs opacity-75 mt-2 pt-2 border-t flex items-center gap-1",
-                                message.type === "user"
-                                  ? "border-white/20"
-                                  : "border-border"
-                              )}
-                            >
-                              <BookMarked className="w-3 h-3" />
-                              Referencing {message.context.length} source
-                              {message.context.length === 1 ? "" : "s"}
-                            </div>
-                          )}
-                        </div>
-                        {message.timestamp && !message.id.startsWith("loading") && (
+                      <div
+                        className={cn(
+                          "flex animate-in fade-in slide-in-from-bottom-2",
+                          message.type === "user" ? "justify-end" : "justify-start"
+                        )}
+                      >
+                        <div className="flex flex-col max-w-[80%]">
                           <div
                             className={cn(
-                              "text-xs text-muted-foreground mt-1 flex items-center gap-2",
-                              message.type === "user" ? "justify-end" : "justify-start"
+                              "rounded-2xl px-4 py-3",
+                              message.type === "user"
+                                ? "bg-primary text-primary-foreground rounded-br-sm"
+                                : "bg-muted text-foreground rounded-bl-sm"
                             )}
                           >
-                            <span>{formatTime(message.timestamp)}</span>
-                            {message.chatId && message.type === "bot" && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-5 px-2 text-muted-foreground hover:text-destructive"
-                                onClick={() => handleDeleteChat(message.chatId!)}
+                            {message.id.startsWith("loading") ? (
+                              <div className="flex gap-1">
+                                <span className="w-2 h-2 bg-current rounded-full animate-pulse" />
+                                <span className="w-2 h-2 bg-current rounded-full animate-pulse delay-75" />
+                                <span className="w-2 h-2 bg-current rounded-full animate-pulse delay-150" />
+                              </div>
+                            ) : (
+                              <div className="whitespace-pre-wrap break-words">{message.text}</div>
+                            )}
+                            {message.context && message.context.length > 0 && (
+                              <div
+                                className={cn(
+                                  "text-xs opacity-75 mt-2 pt-2 border-t flex items-center gap-1",
+                                  message.type === "user"
+                                    ? "border-white/20"
+                                    : "border-border"
+                                )}
                               >
-                                <Trash2 className="w-3 h-3" />
-                              </Button>
+                                <BookMarked className="w-3 h-3" />
+                                Referencing {message.context.length} source
+                                {message.context.length === 1 ? "" : "s"}
+                              </div>
                             )}
                           </div>
-                        )}
+                          {message.timestamp && !message.id.startsWith("loading") && (
+                            <div
+                              className={cn(
+                                "text-xs text-muted-foreground mt-1 flex items-center gap-2",
+                                message.type === "user" ? "justify-end" : "justify-start"
+                              )}
+                            >
+                              <span>{formatTime(message.timestamp)}</span>
+                              {message.chatId && message.type === "bot" && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-5 px-2 text-muted-foreground hover:text-destructive"
+                                  onClick={() => handleDeleteChat(message.chatId!)}
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })
+                  );
+                })}
+                <div ref={messagesEndRef} />
+              </>
             )}
           </div>
-        </ScrollArea>
+        </div>
 
         {/* Input Area */}
         <div className="border-t bg-background p-4">
