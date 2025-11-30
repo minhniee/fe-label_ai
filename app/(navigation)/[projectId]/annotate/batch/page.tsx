@@ -23,12 +23,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Upload, Edit, Plus, Users, FileText, X, Loader2, Zap, Database, Sparkles, User, UserPlus, ChevronRight, Send } from "lucide-react";
+import { ArrowLeft, Upload, Edit, Plus, Users, FileText, X, Loader2, Zap, Database, Sparkles, User, UserPlus, ChevronRight, Send, Columns } from "lucide-react";
 import { useProjectFromSlug } from "@/hooks/use-project-from-slug";
 import { projectToSlug, slugToProjectId } from "@/types/project";
 import { getBatch, updateBatch, assignBatchToUsers, distributeFileToUsers, splitProjectFile, deleteBatch } from "@/app/api/batch";
 import { getProjectFiles, uploadFilesToProject, createInvitation, listPendingInvitations, setLabelingType, getProjectCollaborators, deleteProjectFile } from "@/app/api/project";
 import { getMe } from "@/app/api/auth";
+import api from "@/app/api/client";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import React from "react";
 import {
@@ -81,6 +88,8 @@ export default function ProjectBatchPage() {
   const [csvRowCounts, setCsvRowCounts] = useState<{ [fileId: number]: number }>({});
   const [totalRows, setTotalRows] = useState<number>(0);
   const [isRenaming, setIsRenaming] = useState(false);
+  const [fileColumns, setFileColumns] = useState<Record<number, string[]>>({});
+  const [columnsLoading, setColumnsLoading] = useState<Record<number, boolean>>({});
 
   const loadCurrentUser = async () => {
     try {
@@ -185,6 +194,11 @@ export default function ProjectBatchPage() {
         console.log("Batch specific files:", batchSpecificFiles.length);
         setBatchFiles(batchSpecificFiles);
 
+        // Fetch columns from CSV files (async, don't await)
+        fetchCsvColumns(batchSpecificFiles).catch((err: any) => {
+          console.error('Failed to fetch CSV columns:', err);
+        });
+
       } else {
         // No file IDs found - this shouldn't happen
         console.error("No file_ids found for batch!");
@@ -240,6 +254,106 @@ export default function ProjectBatchPage() {
       6: "Viewer",
     };
     return roleNames[roleId] || "Unknown";
+  };
+
+  // Parse CSV content to extract column names
+  const parseCSVColumns = (content: string): string[] => {
+    try {
+      if (!content || content.trim().length === 0) {
+        return [];
+      }
+      
+      const lines = content.split(/\r?\n/).filter(line => line.trim());
+      if (lines.length === 0) {
+        return [];
+      }
+      
+      // Parse first line as headers
+      const firstLine = lines[0].trim();
+      
+      // Improved CSV parsing to handle quoted values and commas inside quotes
+      const columns: string[] = [];
+      let currentColumn = '';
+      let insideQuotes = false;
+      
+      for (let i = 0; i < firstLine.length; i++) {
+        const char = firstLine[i];
+        
+        if (char === '"') {
+          insideQuotes = !insideQuotes;
+        } else if (char === ',' && !insideQuotes) {
+          columns.push(currentColumn.trim());
+          currentColumn = '';
+        } else {
+          currentColumn += char;
+        }
+      }
+      
+      // Add the last column
+      if (currentColumn.trim() || columns.length > 0) {
+        columns.push(currentColumn.trim());
+      }
+      
+      // Clean up columns (remove surrounding quotes)
+      const cleanedColumns = columns
+        .map(col => col.replace(/^"|"$/g, '').trim())
+        .filter(col => col.length > 0);
+      
+      return cleanedColumns;
+    } catch (error) {
+      console.error('Error parsing CSV columns:', error);
+      return [];
+    }
+  };
+
+  // Fetch CSV columns from files
+  const fetchCsvColumns = async (files: any[]) => {
+    for (const file of files) {
+      const fileName = (file as any).file_name || file.filename || '';
+      if (!fileName.toLowerCase().endsWith('.csv')) {
+        continue;
+      }
+
+      // Skip if already loaded or loading
+      if (fileColumns[file.file_id] || columnsLoading[file.file_id]) {
+        continue;
+      }
+
+      try {
+        setColumnsLoading((prev) => ({ ...prev, [file.file_id]: true }));
+        
+        // Try to get file content from annotations API using API client (with auth)
+        try {
+          const response = await api.get(`/annotations/files/${file.file_id}/content`);
+          const data = response.data;
+          
+          const content = data.content || '';
+          
+          if (!content || typeof content !== 'string') {
+            setFileColumns((prev) => ({ ...prev, [file.file_id]: [] }));
+            continue;
+          }
+
+          const columns = parseCSVColumns(content);
+          if (columns.length > 0) {
+            setFileColumns((prev) => ({ ...prev, [file.file_id]: columns }));
+          }
+        } catch (apiError: any) {
+          // If annotations API fails (e.g., file not in dataset), skip
+          console.log(`[fetchCsvColumns] Could not fetch columns for file ${file.file_id}:`, apiError.message);
+          setFileColumns((prev) => ({ ...prev, [file.file_id]: [] }));
+        }
+      } catch (error) {
+        console.error(`Failed to fetch columns for file ${file.file_id}:`, error);
+        setFileColumns((prev) => ({ ...prev, [file.file_id]: [] }));
+      } finally {
+        setColumnsLoading((prev) => {
+          const updated = { ...prev };
+          delete updated[file.file_id];
+          return updated;
+        });
+      }
+    }
   };
 
   const ensureRowCount = useCallback(
@@ -372,7 +486,8 @@ export default function ProjectBatchPage() {
           for (const csvFile of csvFiles) {
             let rowsForFile = csvRowCounts[csvFile.file_id] || 0;
             if (rowsForFile === 0) {
-              rowsForFile = await ensureRowCount(csvFile.file_id, csvFile.filename);
+              const fileName = (csvFile as any).file_name || csvFile.filename || '';
+              rowsForFile = await ensureRowCount(csvFile.file_id, fileName);
             }
 
             // Calculate chunk size so each user gets exactly 1 chunk (1 job per user)
@@ -392,9 +507,10 @@ export default function ProjectBatchPage() {
                 ? Math.ceil(rowsForFile / finalChunkSize)
                 : "backend";
 
+            const csvFileName = (csvFile as any).file_name || csvFile.filename || 'unknown file';
             console.log(
               `Distributing ${rowsForFile || "unknown"
-              } rows from ${csvFile.filename} to ${numUsers} users, chunk_size: ${finalChunkSize ?? "auto"
+              } rows from ${csvFileName} to ${numUsers} users, chunk_size: ${finalChunkSize ?? "auto"
               }, expected_chunks: ${expectedChunks} (target ${numUsers})`
             );
 
@@ -409,7 +525,8 @@ export default function ProjectBatchPage() {
                 distribution_method: 'first_takes_remainder',
               });
 
-              console.log(`Distribution response for ${csvFile.filename}:`, distributeResponse);
+              const csvFileName = (csvFile as any).file_name || csvFile.filename || 'unknown file';
+              console.log(`Distribution response for ${csvFileName}:`, distributeResponse);
 
               // Each user should get 1 batch (1 job), so total jobs = number of users
               const jobsCreated = distributeResponse.batches_created || actualUserIds.length;
@@ -417,11 +534,12 @@ export default function ProjectBatchPage() {
 
               const actualRowsPerMember = Math.ceil(rowsForFile / numUsers);
               toast.success(
-                `File ${csvFile.filename}: ${actualRowsPerMember} rows per member • ${jobsCreated} job(s) created (1 job per member)`
+                `File ${csvFileName}: ${actualRowsPerMember} rows per member • ${jobsCreated} job(s) created (1 job per member)`
               );
             } catch (error: any) {
-              console.error(`Failed to distribute CSV file ${csvFile.filename}:`, error);
-              toast.error(`Failed to distribute ${csvFile.filename}: ${error.message}`);
+              const csvFileName = (csvFile as any).file_name || csvFile.filename || 'unknown file';
+              console.error(`Failed to distribute CSV file ${csvFileName}:`, error);
+              toast.error(`Failed to distribute ${csvFileName}: ${error.message}`);
             }
           }
 
@@ -595,6 +713,14 @@ export default function ProjectBatchPage() {
         setTotalRows(newTotal);
         return updated;
       });
+      // Clear file columns
+      setFileColumns((prev) => {
+        const updated = { ...prev };
+        if (fileId in updated) {
+          delete updated[fileId];
+        }
+        return updated;
+      });
       toast.success("File removed from batch");
     } catch (error: any) {
       console.error("Failed to remove file:", error);
@@ -663,13 +789,18 @@ export default function ProjectBatchPage() {
         console.log("[Upload More] New files:", newFiles);
         console.log("[Upload More] CSV files detected:", newlyUploadedCsvFiles);
 
-        // Ensure row counts for all CSV files
+        // Ensure row counts and fetch columns for all CSV files
         for (const csvFile of newlyUploadedCsvFiles) {
           try {
             const fileName = csvFile.filename || (csvFile as any).file_name;
             console.log(`[Upload More] Getting row count for file ${csvFile.file_id} (${fileName})`);
             const rowCount = await ensureRowCount(csvFile.file_id, fileName);
             console.log(`[Upload More] Row count for file ${csvFile.file_id}:`, rowCount);
+            
+            // Also fetch columns
+            fetchCsvColumns([csvFile]).catch(err => {
+              console.error(`[Upload More] Failed to fetch columns for file ${csvFile.file_id}:`, err);
+            });
           } catch (error: any) {
             console.error(`[Upload More] Failed to get row count for file ${csvFile.file_id}:`, error);
             // Continue with other files even if one fails
@@ -753,11 +884,15 @@ export default function ProjectBatchPage() {
           {batchFiles.length > 0 ? (
             <div className="grid grid-cols-3 gap-4">
               {batchFiles.map((file) => {
+                const fileName = (file as any).file_name || file.filename || '';
                 const isImage = file.file_type?.startsWith('image/') ||
-                  file.filename?.match(/\.(jpg|jpeg|png|gif|webp|bmp|avif)$/i);
+                  fileName?.match(/\.(jpg|jpeg|png|gif|webp|bmp|avif)$/i);
                 const imageUrl = file.file_path
                   ? (file.file_path.startsWith('http') ? file.file_path : `/api/files/${file.file_id}`)
                   : null;
+                const isCsvFile = fileName.toLowerCase().endsWith('.csv');
+                const columns = fileColumns[file.file_id] || [];
+                const isLoadingFileColumns = columnsLoading[file.file_id] || false;
 
                 return (
                   <div key={file.file_id} className="relative group space-y-2">
@@ -766,7 +901,7 @@ export default function ProjectBatchPage() {
                         <>
                           <img
                             src={imageUrl}
-                            alt={file.filename}
+                            alt={fileName || `File ${file.file_id}`}
                             className="w-full h-full object-cover"
                             onError={(e) => {
                               const target = e.currentTarget;
@@ -782,6 +917,48 @@ export default function ProjectBatchPage() {
                       ) : (
                         <FileText className="h-8 w-8 text-muted-foreground" />
                       )}
+                      {isCsvFile && (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button
+                              type="button"
+                              className="absolute top-1 left-1 z-10 p-1.5 bg-primary text-primary-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary/90"
+                              title="View columns"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Columns className="w-3 h-3" />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent align="start" side="right" className="w-auto p-4">
+                            <div className="flex items-center gap-2 pb-2 border-b mb-3">
+                              <FileText className="h-4 w-4" />
+                              <h4 className="text-sm font-semibold truncate max-w-[300px]">{fileName}</h4>
+                            </div>
+                            <div className="space-y-3">
+                              {isLoadingFileColumns ? (
+                                <div className="text-xs text-muted-foreground">Loading columns...</div>
+                              ) : columns.length > 0 ? (
+                                <>
+                                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                    <span>{columns.length} column{columns.length !== 1 ? 's' : ''} found</span>
+                                  </div>
+                                  <ScrollArea className="max-h-[200px] w-full rounded-md border p-3">
+                                    <div className="flex flex-wrap gap-2">
+                                      {columns.map((column, index) => (
+                                        <Badge key={index} variant="secondary" className="text-xs">
+                                          {column}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  </ScrollArea>
+                                </>
+                              ) : (
+                                <div className="text-xs text-muted-foreground">No columns available</div>
+                              )}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      )}
                       <button
                         onClick={() => setFilePendingDeletion(file)}
                         className="absolute top-1 right-1 z-10 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
@@ -789,8 +966,8 @@ export default function ProjectBatchPage() {
                         <X className="w-3 h-3" />
                       </button>
                     </div>
-                    <p className="text-xs truncate" title={file.filename}>
-                      {file.filename || `File ${file.file_id}`}
+                    <p className="text-xs truncate" title={fileName || `File ${file.file_id}`}>
+                      {fileName || `File ${file.file_id}`}
                     </p>
                   </div>
                 );

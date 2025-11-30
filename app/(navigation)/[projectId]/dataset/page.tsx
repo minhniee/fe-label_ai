@@ -35,6 +35,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Search,
   Download,
@@ -47,6 +48,7 @@ import {
   FileText,
   Upload,
   Layers,
+  Columns,
 } from "lucide-react";
 import { useProjectFromSlug } from "@/hooks/use-project-from-slug";
 import {
@@ -108,6 +110,12 @@ export default function ProjectDatasetPage() {
   const [expandedDatasetId, setExpandedDatasetId] = useState<number | null>(
     null
   );
+  const [datasetColumns, setDatasetColumns] = useState<
+    Record<string, string[]>
+  >({}); // key: `${datasetId}_${versionId}`
+  const [columnsLoading, setColumnsLoading] = useState<
+    Record<string, boolean>
+  >({});
 
   useEffect(() => {
     loadDatasets();
@@ -388,8 +396,106 @@ export default function ProjectDatasetPage() {
     openLabelingDialog(dataset, version);
   };
 
+  // Parse CSV content to extract column names
+  const parseCSVColumns = (content: string): string[] => {
+    try {
+      if (!content || content.trim().length === 0) {
+        return [];
+      }
+      
+      const lines = content.split(/\r?\n/).filter(line => line.trim());
+      if (lines.length === 0) {
+        return [];
+      }
+      
+      // Parse first line as headers
+      const firstLine = lines[0].trim();
+      
+      // Improved CSV parsing to handle quoted values and commas inside quotes
+      const columns: string[] = [];
+      let currentColumn = '';
+      let insideQuotes = false;
+      
+      for (let i = 0; i < firstLine.length; i++) {
+        const char = firstLine[i];
+        
+        if (char === '"') {
+          insideQuotes = !insideQuotes;
+        } else if (char === ',' && !insideQuotes) {
+          columns.push(currentColumn.trim());
+          currentColumn = '';
+        } else {
+          currentColumn += char;
+        }
+      }
+      
+      // Add the last column
+      if (currentColumn.trim() || columns.length > 0) {
+        columns.push(currentColumn.trim());
+      }
+      
+      // Clean up columns (remove surrounding quotes)
+      const cleanedColumns = columns
+        .map(col => col.replace(/^"|"$/g, '').trim())
+        .filter(col => col.length > 0);
+      
+      return cleanedColumns;
+    } catch (error) {
+      console.error('Error parsing CSV columns:', error);
+      return [];
+    }
+  };
+
+  // Fetch dataset version content and parse columns
+  const fetchDatasetColumns = async (datasetId: number, versionId: number) => {
+    const key = `${datasetId}_${versionId}`;
+    
+    // Skip if already loaded or loading
+    if (datasetColumns[key] || columnsLoading[key]) {
+      return;
+    }
+
+    try {
+      setColumnsLoading((prev) => ({ ...prev, [key]: true }));
+      
+      // Download dataset version file as CSV
+      const exportResult = await downloadDatasetVersionFile(
+        datasetId,
+        versionId,
+        "csv",
+        "temp.csv"
+      );
+
+      if (!exportResult?.blob) {
+        return;
+      }
+
+      // Read blob as text
+      const text = await exportResult.blob.text();
+      const columns = parseCSVColumns(text);
+      
+      if (columns.length > 0) {
+        setDatasetColumns((prev) => ({ ...prev, [key]: columns }));
+      }
+    } catch (error) {
+      console.error(`Failed to fetch columns for dataset ${datasetId} version ${versionId}:`, error);
+    } finally {
+      setColumnsLoading((prev) => ({ ...prev, [key]: false }));
+    }
+  };
+
   const toggleDatasetDetails = (datasetId: number) => {
+    const isExpanding = expandedDatasetId !== datasetId;
     setExpandedDatasetId((prev) => (prev === datasetId ? null : datasetId));
+    
+    // Fetch columns when expanding
+    if (isExpanding) {
+      const versions = datasetVersions[datasetId] || [];
+      const selectedVersionId = selectedVersionMap[datasetId] ?? versions[0]?.version_id;
+      if (selectedVersionId) {
+        fetchDatasetColumns(datasetId, selectedVersionId);
+      }
+    }
   };
 
   // Pagination
@@ -562,6 +668,13 @@ export default function ProjectDatasetPage() {
                         labelingContext.version.version_id === selectedVersionId
                     );
                     const isExpanded = expandedDatasetId === dataset.dataset_id;
+                    
+                    // Calculate columns for expanded view
+                    const selectedVersionIdForColumns = selectedVersionId ?? versions[0]?.version_id;
+                    const columnsKey = selectedVersionIdForColumns ? `${dataset.dataset_id}_${selectedVersionIdForColumns}` : null;
+                    const columns = columnsKey ? datasetColumns[columnsKey] || [] : [];
+                    const isLoadingColumns = columnsKey ? columnsLoading[columnsKey] : false;
+                    
                     return (
                         <Fragment key={dataset.dataset_id}>
                          <TableRow className="align-middle">
@@ -616,12 +729,17 @@ export default function ProjectDatasetPage() {
                                 </Label>
                                 <Select
                                   value={selectedVersionId?.toString()}
-                                  onValueChange={(value) =>
+                                  onValueChange={(value) => {
+                                    const newVersionId = Number(value);
                                     setSelectedVersionMap((prev) => ({
                                       ...prev,
-                                      [dataset.dataset_id]: Number(value),
-                                    }))
-                                  }
+                                      [dataset.dataset_id]: newVersionId,
+                                    }));
+                                    // Fetch columns for the newly selected version
+                                    if (expandedDatasetId === dataset.dataset_id) {
+                                      fetchDatasetColumns(dataset.dataset_id, newVersionId);
+                                    }
+                                  }}
                                 >
                                   <SelectTrigger>
                                     <SelectValue placeholder="Choose version" />
@@ -746,41 +864,77 @@ export default function ProjectDatasetPage() {
                           </TableCell>
                         </TableRow>
                         {isExpanded && (
-                          <TableRow className="bg-muted/40">
-                            <TableCell colSpan={7}>
-                              <div className="space-y-4">
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                  <div>
-                                    <p className="text-xs text-muted-foreground">
-                                      Dataset ID
-                                    </p>
-                                    <p className="font-medium">
-                                      {dataset.dataset_id}
-                                    </p>
+                          <TableRow key={`expanded-${dataset.dataset_id}`} className="bg-muted/40">
+                              <TableCell colSpan={7}>
+                                <div className="space-y-4">
+                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    <div>
+                                      <p className="text-xs text-muted-foreground mb-2">
+                                        Columns
+                                      </p>
+                                      {isLoadingColumns ? (
+                                        <p className="text-sm text-muted-foreground">Loading columns...</p>
+                                      ) : columns.length > 0 ? (
+                                        <Popover>
+                                          <PopoverTrigger asChild>
+                                            <Button variant="outline" size="sm" className="w-full justify-start">
+                                              <Columns className="h-4 w-4 mr-2" />
+                                              {columns.length} column{columns.length !== 1 ? 's' : ''}
+                                            </Button>
+                                          </PopoverTrigger>
+                                          <PopoverContent className="w-auto p-4" align="start">
+                                            <div className="space-y-3">
+                                              <div className="space-y-1">
+                                                <div className="flex items-center gap-2 font-semibold text-sm">
+                                                  <FileText className="w-4 h-4" />
+                                                  Dataset Columns
+                                                </div>
+                                                <p className="text-xs text-muted-foreground">
+                                                  {selectedVersion ? `v${selectedVersion.version_number}` : 'Current version'}
+                                                </p>
+                                              </div>
+                                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                                <span>{columns.length} column{columns.length !== 1 ? 's' : ''} found</span>
+                                              </div>
+                                              <ScrollArea className="max-h-[200px] w-full rounded-md border p-3">
+                                                <div className="flex flex-wrap gap-2">
+                                                  {columns.map((column, index) => (
+                                                    <Badge key={index} variant="secondary" className="text-xs">
+                                                      {column}
+                                                    </Badge>
+                                                  ))}
+                                                </div>
+                                              </ScrollArea>
+                                            </div>
+                                          </PopoverContent>
+                                        </Popover>
+                                      ) : (
+                                        <p className="text-sm text-muted-foreground">No columns available</p>
+                                      )}
+                                    </div>
+                                    <div>
+                                      <p className="text-xs text-muted-foreground">
+                                        Total Versions
+                                      </p>
+                                      <p className="font-medium">
+                                        {versions.length}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <p className="text-xs text-muted-foreground">
+                                        Last Updated
+                                      </p>
+                                      <p className="font-medium">
+                                        {versions[0]
+                                          ? new Date(
+                                              versions[0].created_at
+                                            ).toLocaleString()
+                                          : new Date(
+                                              dataset.created_at
+                                            ).toLocaleString()}
+                                      </p>
+                                    </div>
                                   </div>
-                                  <div>
-                                    <p className="text-xs text-muted-foreground">
-                                      Total Versions
-                                    </p>
-                                    <p className="font-medium">
-                                      {versions.length}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <p className="text-xs text-muted-foreground">
-                                      Last Updated
-                                    </p>
-                                    <p className="font-medium">
-                                      {versions[0]
-                                        ? new Date(
-                                            versions[0].created_at
-                                          ).toLocaleString()
-                                        : new Date(
-                                            dataset.created_at
-                                          ).toLocaleString()}
-                                    </p>
-                                  </div>
-                                </div>
                                 {versions.length > 0 && (
                                   <div>
                                     <p className="text-xs text-muted-foreground mb-2">

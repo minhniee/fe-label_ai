@@ -16,11 +16,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Play, FileText, Search, X, Zap, UserPlus, Send, Loader2 } from "lucide-react";
+import { ArrowLeft, Play, FileText, Search, X, Zap, UserPlus, Send, Loader2, Columns } from "lucide-react";
 import { useProjectFromSlug } from "@/hooks/use-project-from-slug";
 import { getBatch, updateBatch, getBatchAssignments, getUserBatchProgress, createBatchAssignment, deleteBatchAssignment } from "@/app/api/batch";
 import { getProjectFiles, listPendingInvitations, getProjectCollaborators, createInvitation } from "@/app/api/project";
 import { getMe } from "@/app/api/auth";
+import api from "@/app/api/client";
 import { toast } from "sonner";
 import { Mail } from "lucide-react";
 import {
@@ -33,6 +34,12 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 
 export default function ProjectJobPage() {
@@ -72,6 +79,8 @@ export default function ProjectJobPage() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"Co-Owner" | "Labeler" | "Viewer">("Labeler");
   const [isSendingInvite, setIsSendingInvite] = useState(false);
+  const [csvColumns, setCsvColumns] = useState<string[]>([]);
+  const [isLoadingColumns, setIsLoadingColumns] = useState(false);
 
   useEffect(() => {
     const tabParam = searchParams.get("tab");
@@ -249,6 +258,11 @@ export default function ProjectJobPage() {
       setUnannotatedFiles(unannotated);
       setAnnotatedFiles(annotated);
 
+      // Fetch columns from CSV files (async, don't await)
+      fetchCsvColumns(batchFiles).catch(err => {
+        console.error('Failed to fetch CSV columns:', err);
+      });
+
       // Load audit logs for this batch
     } catch (error: any) {
       console.error("Failed to load job data:", error);
@@ -336,6 +350,21 @@ export default function ProjectJobPage() {
     (sum, count) => sum + (count || 0),
     0
   );
+
+  // Check if there are any CSV files in the batch
+  const hasCsvFiles = [...unannotatedFiles, ...annotatedFiles].some((f) => {
+    const filename = (f as any).file_name || f.filename || '';
+    return filename.toLowerCase().endsWith('.csv');
+  });
+
+  // Debug: log CSV files detection
+  console.log('CSV Files Detection:', {
+    totalCsvRows,
+    hasCsvFiles,
+    unannotatedFiles: unannotatedFiles.length,
+    annotatedFiles: annotatedFiles.length,
+    csvColumns: csvColumns.length,
+  });
 
   const handleReassign = async () => {
     if (!selectedReassignUserId && !selectedReassignEmail) {
@@ -468,6 +497,114 @@ export default function ProjectJobPage() {
       toast.error(error.message || "Failed to reassign job");
     } finally {
       setIsReassigning(false);
+    }
+  };
+
+  // Parse CSV content to extract column names
+  const parseCSVColumns = (content: string): string[] => {
+    try {
+      if (!content || content.trim().length === 0) {
+        return [];
+      }
+      
+      const lines = content.split(/\r?\n/).filter(line => line.trim());
+      if (lines.length === 0) {
+        return [];
+      }
+      
+      // Parse first line as headers
+      const firstLine = lines[0].trim();
+      
+      // Improved CSV parsing to handle quoted values and commas inside quotes
+      const columns: string[] = [];
+      let currentColumn = '';
+      let insideQuotes = false;
+      
+      for (let i = 0; i < firstLine.length; i++) {
+        const char = firstLine[i];
+        
+        if (char === '"') {
+          insideQuotes = !insideQuotes;
+        } else if (char === ',' && !insideQuotes) {
+          columns.push(currentColumn.trim());
+          currentColumn = '';
+        } else {
+          currentColumn += char;
+        }
+      }
+      
+      // Add the last column
+      if (currentColumn.trim() || columns.length > 0) {
+        columns.push(currentColumn.trim());
+      }
+      
+      // Clean up columns (remove surrounding quotes)
+      const cleanedColumns = columns
+        .map(col => col.replace(/^"|"$/g, '').trim())
+        .filter(col => col.length > 0);
+      
+      return cleanedColumns;
+    } catch (error) {
+      console.error('Error parsing CSV columns:', error);
+      return [];
+    }
+  };
+
+  // Fetch CSV columns from files
+  const fetchCsvColumns = async (files: any[]) => {
+    // Find first CSV file
+    const csvFile = files.find((f) => {
+      const filename = (f as any).file_name || f.filename || '';
+      return filename.toLowerCase().endsWith('.csv');
+    });
+
+    if (!csvFile) {
+      console.log('[fetchCsvColumns] No CSV file found');
+      setCsvColumns([]);
+      return;
+    }
+
+    try {
+      setIsLoadingColumns(true);
+      console.log(`[fetchCsvColumns] Attempting to fetch columns for file ${csvFile.file_id}`);
+      
+      // Try to get file content from annotations API using API client (with auth)
+      try {
+        const response = await api.get(`/annotations/files/${csvFile.file_id}/content`);
+        const data = response.data;
+        
+        console.log(`[fetchCsvColumns] API response data:`, { 
+          hasContent: !!data.content, 
+          contentLength: data.content?.length,
+          fileId: data.file_id 
+        });
+        
+        const content = data.content || '';
+        
+        if (!content || typeof content !== 'string') {
+          console.log(`[fetchCsvColumns] No valid content in response`);
+          setCsvColumns([]);
+          return;
+        }
+
+        const columns = parseCSVColumns(content);
+        console.log(`[fetchCsvColumns] Parsed ${columns.length} columns:`, columns);
+        setCsvColumns(columns);
+      } catch (apiError: any) {
+        // If annotations API fails (e.g., file not in dataset), try alternative
+        console.log(`[fetchCsvColumns] Annotations API failed (${apiError.response?.status || 'unknown'}):`, apiError.message);
+        
+        // Alternative: Try to get file content from data_files.content column via project API
+        // For now, we'll just return empty and log the error
+        // TODO: Could add a new API endpoint to get project file content directly
+        console.log(`[fetchCsvColumns] File may not be in a dataset, cannot fetch content via annotations API`);
+        setCsvColumns([]);
+      }
+    } catch (error) {
+      console.error(`[fetchCsvColumns] Failed to fetch columns for file ${csvFile.file_id}:`, error);
+      setCsvColumns([]);
+    } finally {
+      setIsLoadingColumns(false);
     }
   };
 
@@ -627,12 +764,69 @@ export default function ProjectJobPage() {
         )}
 
         {/* Row Summary */}
-        {totalCsvRows > 0 && (
+        {(totalCsvRows > 0 || hasCsvFiles) && (
           <div className="p-6 border-b">
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm font-medium text-blue-900">
-                Total rows to label: <span className="font-bold">{totalCsvRows} rows</span>
-              </p>
+              <div className="flex items-center justify-between">
+                {totalCsvRows > 0 ? (
+                  <p className="text-sm font-medium text-blue-900">
+                    Total rows to label: <span className="font-bold">{totalCsvRows} rows</span>
+                  </p>
+                ) : (
+                  <p className="text-sm font-medium text-blue-900">
+                    CSV Files in batch
+                  </p>
+                )}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-8 w-8 text-blue-900 hover:bg-blue-100"
+                      disabled={isLoadingColumns}
+                    >
+                      {isLoadingColumns ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Columns className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-4" align="start">
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 font-semibold text-sm">
+                          <FileText className="w-4 h-4" />
+                          Dataset Columns
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Columns from CSV files
+                        </p>
+                      </div>
+                      {isLoadingColumns ? (
+                        <div className="text-xs text-muted-foreground">Loading columns...</div>
+                      ) : csvColumns.length > 0 ? (
+                        <>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span>{csvColumns.length} column{csvColumns.length !== 1 ? 's' : ''} found</span>
+                          </div>
+                          <ScrollArea className="max-h-[200px] w-full rounded-md border p-3">
+                            <div className="flex flex-wrap gap-2">
+                              {csvColumns.map((column, index) => (
+                                <Badge key={index} variant="secondary" className="text-xs">
+                                  {column}
+                                </Badge>
+                              ))}
+                            </div>
+                          </ScrollArea>
+                        </>
+                      ) : (
+                        <div className="text-xs text-muted-foreground">No columns available</div>
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
           </div>
         )}
@@ -892,14 +1086,17 @@ export default function ProjectJobPage() {
                     <div key={file.file_id} className="group cursor-pointer">
                       <div className="aspect-square rounded-lg border bg-muted flex items-center justify-center relative overflow-hidden hover:border-primary transition-colors">
                         <FileText className="h-8 w-8 text-muted-foreground" />
-                        {file.filename && file.filename.toLowerCase().endsWith('.csv') && csvRowCounts[file.file_id] && (
-                          <Badge variant="secondary" className="absolute top-2 left-2 text-xs">
-                            {csvRowCounts[file.file_id]} câu
-                          </Badge>
-                        )}
+                        {(() => {
+                          const fileName = (file as any).file_name || file.filename || '';
+                          return fileName && fileName.toLowerCase().endsWith('.csv') && csvRowCounts[file.file_id] && (
+                            <Badge variant="secondary" className="absolute top-2 left-2 text-xs">
+                              {csvRowCounts[file.file_id]} rows
+                            </Badge>
+                          );
+                        })()}
                       </div>
-                      <p className="text-xs truncate mt-2" title={file.filename}>
-                        {file.filename}
+                      <p className="text-xs truncate mt-2" title={(file as any).file_name || file.filename || 'Unknown file'}>
+                        {(file as any).file_name || file.filename || 'Unknown file'}
                       </p>
                     </div>
                   ))}
@@ -925,14 +1122,17 @@ export default function ProjectJobPage() {
                         >
                           ✓
                         </Badge>
-                        {file.filename && file.filename.toLowerCase().endsWith('.csv') && csvRowCounts[file.file_id] && (
-                          <Badge variant="secondary" className="absolute top-2 left-2 text-xs">
-                            {csvRowCounts[file.file_id]} câu
-                          </Badge>
-                        )}
+                        {(() => {
+                          const fileName = (file as any).file_name || file.filename || '';
+                          return fileName && fileName.toLowerCase().endsWith('.csv') && csvRowCounts[file.file_id] && (
+                            <Badge variant="secondary" className="absolute top-2 left-2 text-xs">
+                              {csvRowCounts[file.file_id]} rows
+                            </Badge>
+                          );
+                        })()}
                       </div>
-                      <p className="text-xs truncate mt-2" title={file.filename}>
-                        {file.filename}
+                      <p className="text-xs truncate mt-2" title={(file as any).file_name || file.filename || 'Unknown file'}>
+                        {(file as any).file_name || file.filename || 'Unknown file'}
                       </p>
                     </div>
                   ))}
