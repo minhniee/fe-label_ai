@@ -523,12 +523,24 @@ export default function JobLabelAIPage() {
   const isRowModified = (original: RowData | undefined, current: RowData): boolean => {
     if (!original) return true
     
-    const origCopy = { ...original }
-    const currCopy = { ...current }
-    delete origCopy._isModified
-    delete currCopy._isModified
+    // Only compare data fields (non-meta fields), ignore meta fields like _isModified, _ai_suggestion, etc.
+    const origDataFields: Record<string, any> = {}
+    const currDataFields: Record<string, any> = {}
     
-    return JSON.stringify(origCopy) !== JSON.stringify(currCopy)
+    Object.keys(original).forEach((k) => {
+      if (!k.startsWith("_")) {
+        origDataFields[k] = original[k]
+      }
+    })
+    
+    Object.keys(current).forEach((k) => {
+      if (!k.startsWith("_")) {
+        currDataFields[k] = current[k]
+      }
+    })
+    
+    // Compare only data fields
+    return JSON.stringify(origDataFields) !== JSON.stringify(currDataFields)
   }
 
   const convertDataToCSV = (dataRows: RowData[], columnsList: string[], delimiter: string = ","): string => {
@@ -1241,7 +1253,17 @@ export default function JobLabelAIPage() {
 
                   const mergeRows = (newRow: RowData, oldRow: RowData) => {
                     const originalRow = originalData.find((d) => d._id === newRow._id)
-                    const isModified = isRowModified(originalRow, newRow)
+                    
+                    // Use _isModified from newRow if it exists (calculated in DataGrid)
+                    // Otherwise, calculate it based on comparison with original
+                    let isModified: boolean
+                    if (newRow._isModified !== undefined) {
+                      // DataGrid already calculated _isModified correctly
+                      isModified = newRow._isModified
+                    } else {
+                      // Fallback: calculate based on row comparison
+                      isModified = isRowModified(originalRow, newRow)
+                    }
 
                     const dataColumns: Record<string, any> = {}
                     Object.keys(newRow).forEach((k) => {
@@ -1277,7 +1299,7 @@ export default function JobLabelAIPage() {
                       _id: newRow._id || oldRow._id,
                       ...dataColumns,
                       ...metaFields,
-                      _isModified: isModified || oldRow._isModified,
+                      _isModified: isModified, // Use calculated value, don't preserve old _isModified
                     }
                   }
 

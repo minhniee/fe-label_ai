@@ -131,7 +131,11 @@ export function DataGrid({
   }, [filteredTotalPages, filteredCurrentPage, currentPage, onPageChange])
 
   const confirmedCount = manualMode
-    ? filteredAllData.filter((row) => row[resultColumn] && row[resultColumn].toString().trim() !== "").length
+    ? filteredAllData.filter((row) => {
+        const value = row[resultColumn]
+        // Check if value exists and is not empty string (but allow 0, false, etc.)
+        return value !== null && value !== undefined && String(value).trim() !== ""
+      }).length
     : filteredAllData.filter((row) => row._confirmed).length
   const pendingOnPage = filteredData.filter((row) => row._ai_suggestion && !row._confirmed).length
   const allConfirmed = confirmedCount === filteredAllData.length && filteredAllData.length > 0
@@ -231,7 +235,25 @@ export function DataGrid({
   const handleCellEditEnd = (rowId: string, field: string) => {
     // Compare with originalData to correctly set _isModified flag
     const originalRow = originalData.find(r => r._id === rowId)
-    const isActuallyModified = originalRow?.[field] !== editingValue
+    const currentRow = allData.find(r => r._id === rowId)
+    
+    // Only set _isModified if originalData exists and value actually changed
+    let isActuallyModified = false
+    if (originalRow && currentRow) {
+      const originalValue = String(originalRow[field] ?? "").trim()
+      const newValue = String(editingValue).trim()
+      isActuallyModified = originalValue !== newValue
+    } else if (originalRow) {
+      // If originalRow exists but currentRow doesn't, compare with original
+      const originalValue = String(originalRow[field] ?? "").trim()
+      const newValue = String(editingValue).trim()
+      isActuallyModified = originalValue !== newValue
+    } else if (currentRow) {
+      // If no originalRow but currentRow exists, compare with current value
+      const currentValue = String(currentRow[field] ?? "").trim()
+      const newValue = String(editingValue).trim()
+      isActuallyModified = currentValue !== newValue
+    }
     
     // Update allData with final value
     const updatedAllData = allData.map((row) =>
@@ -336,6 +358,9 @@ export function DataGrid({
 
   const handleConfirmManual = (rowId: string) => {
     // For manual mode: mark as confirmed when user confirms their manual edit
+    const row = allData.find((r) => r._id === rowId)
+    if (!row) return
+    
     const updatedAllData = allData.map((r) =>
       r._id === rowId
         ? {
@@ -971,7 +996,7 @@ export function DataGrid({
                         "hover:bg-secondary/50 transition-colors",
                         row._is_new && "bg-blue-50 dark:bg-blue-950/20 border-l-4 border-l-blue-500",
                         !manualMode && row._confirmed && "bg-success/5",
-                        manualMode && row[resultColumn] && row[resultColumn].toString().trim() !== "" && "bg-success/5",
+                        manualMode && row[resultColumn] !== null && row[resultColumn] !== undefined && String(row[resultColumn]).trim() !== "" && "bg-success/5",
                       )}
                     >
                       <td className="px-4 py-3 text-sm text-muted-foreground font-mono">
@@ -1293,7 +1318,7 @@ export function DataGrid({
                           </Tooltip>
                         )}
                         {/* Empty state */}
-                        {!row._ai_suggestion && !row._confirmed && (
+                        {!row._ai_suggestion && !row._confirmed && !(manualMode && row[resultColumn] && String(row[resultColumn]).trim() !== "") && (
                           <span className="text-muted-foreground text-xs">-</span>
                         )}
                       </td>
