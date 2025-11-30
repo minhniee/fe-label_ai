@@ -10,20 +10,19 @@ export default function ProjectAnnotatePage() {
   const projectId = params.projectId as string;
 
   return (
-    <div className="grid grid-cols-3 gap-4 p-4 h-[calc(100vh-4rem)]">
+    <div className="flex h-[calc(100vh-4rem-1rem)] overflow-hidden bg-background -m-4 gap-4 p-4">
         {/* Unassigned Files Column */}
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col flex-1 min-w-0 min-h-0">
           <UnassignedSection />
         </div>
         {/* Annotating Column */}
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col flex-1 min-w-0 min-h-0">
           <AnnotatingSection />
         </div>
         {/* Dataset Column */}
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col flex-1 min-w-0 min-h-0">
           <DatasetSection />
         </div>
-        
     </div>
   );
 }

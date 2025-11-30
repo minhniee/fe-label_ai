@@ -299,7 +299,7 @@ export function AutoLabelingStatus({
             <Button
               onClick={handleReview}
               disabled={navigating}
-              className="w-full"
+              className="w-full cursor-pointer"
               size="lg"
             >
               {navigating ? (
