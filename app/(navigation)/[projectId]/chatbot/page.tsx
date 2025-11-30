@@ -237,7 +237,8 @@ export default function ProjectChatbotPage() {
   const loadDatasets = useCallback(async () => {
     setIsLoadingDatasets(true);
     try {
-      const datasetsList = await getDatasets();
+      const projectIdForFilter = projectId ? Number(projectId) : undefined;
+      const datasetsList = await getDatasets(projectIdForFilter);
       setDatasets(datasetsList);
     } catch (error) {
       console.error("Failed to load datasets:", error);
@@ -249,7 +250,7 @@ export default function ProjectChatbotPage() {
     } finally {
       setIsLoadingDatasets(false);
     }
-  }, [toast]);
+  }, [toast, projectId]);
 
   useEffect(() => {
     loadDatasets();

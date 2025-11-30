@@ -62,7 +62,7 @@ import {
 } from "@/app/api/dataset";
 import { toast } from "sonner";
 import { uploadFilesToProject } from "@/app/api/project";
-import { createProjectBatch } from "@/app/api/batch";
+import { createProjectBatch, splitProjectFile, updateBatch } from "@/app/api/batch";
 
 export default function ProjectDatasetPage() {
   const { project } = useProjectFromSlug();
@@ -118,8 +118,10 @@ export default function ProjectDatasetPage() {
   >({});
 
   useEffect(() => {
-    loadDatasets();
-  }, []);
+    if (project?.id) {
+      loadDatasets();
+    }
+  }, [project?.id]);
 
   useEffect(() => {
     filterAndSortDatasets();
@@ -128,7 +130,10 @@ export default function ProjectDatasetPage() {
   const loadDatasets = async () => {
     try {
       setIsLoading(true);
-      const datasetsList = await getDatasets();
+      const projectId = project?.id ? parseInt(project.id) : undefined;
+      console.log("[Dataset Page] Loading datasets for project:", projectId, "Project:", project);
+      const datasetsList = await getDatasets(projectId);
+      console.log("[Dataset Page] Received datasets:", datasetsList.length, datasetsList);
       setDatasets(datasetsList);
       const versionsMap: Record<number, DatasetVersion[]> = {};
       for (const dataset of datasetsList) {
@@ -309,50 +314,67 @@ export default function ProjectDatasetPage() {
     setCreatingBatch(true);
 
     try {
-      // Step 1: export dataset version as CSV (proxied through backend to avoid CORS)
-      const exportResult = await downloadDatasetVersionFile(
-        dataset.dataset_id,
-        version.version_id,
-        "csv",
-        `${dataset.name}-v${version.version_number}.csv`
-      );
-
-      const file = new File(
-        [exportResult.blob],
-        exportResult.fileName ||
-          `${dataset.name}-v${version.version_number}.csv`,
-        {
-          type:
-            exportResult.contentType || exportResult.blob.type || "text/csv",
-        }
-      );
-
-      // Step 2: upload to current project
-      const uploadResponse = await uploadFilesToProject(
-        parseInt(project.id),
-        [file],
-        "text"
-      );
-      const fileIds =
-        uploadResponse?.files?.map((fileInfo) => fileInfo.file_id) || [];
-      if (fileIds.length === 0) {
-        throw new Error("Uploaded file but did not receive file details");
-      }
-
-      // Step 3: create batch linked to these files
+      // Create batch directly from dataset version without uploading files again
+      // Backend will copy files from the dataset version to the source dataset's draft version
       const batchResponse = await createProjectBatch({
         project_id: parseInt(project.id),
         name: batchName,
         description: batchDescriptionInput.trim() || undefined,
-        file_ids: fileIds,
+        file_ids: [], // Empty - backend will get files from version
         batch_metadata: {
           source: "dataset_version",
           dataset_id: dataset.dataset_id,
           version_id: version.version_id,
           version_number: version.version_number,
-          file_ids: fileIds,
         },
       });
+
+      // After creating batch, split the files (similar to upload more flow)
+      if (batchResponse.file_ids && batchResponse.file_ids.length > 0) {
+        console.log(`[Create Batch from Version] Splitting ${batchResponse.file_ids.length} files...`);
+        
+        // Collect all chunk file IDs to update batch metadata
+        const allChunkFileIds: number[] = [];
+        
+        // Split each file
+        for (const fileId of batchResponse.file_ids) {
+          try {
+            const splitResponse = await splitProjectFile({
+              project_id: parseInt(project.id),
+              file_id: fileId,
+              auto_create_batches: false,
+            });
+            
+            // Collect chunk file IDs from split response
+            if (splitResponse.chunks_created && splitResponse.chunks_created.length > 0) {
+              const chunkFileIds = splitResponse.chunks_created
+                .map((chunk) => chunk.file_id)
+                .filter((id): id is number => id !== undefined);
+              allChunkFileIds.push(...chunkFileIds);
+              console.log(`[Create Batch from Version] Successfully split file ${fileId} into ${chunkFileIds.length} chunks`);
+            }
+          } catch (splitError: any) {
+            console.error(`[Create Batch from Version] Failed to split file ${fileId}:`, splitError);
+            // Continue with other files even if one fails
+          }
+        }
+        
+        // Update batch metadata with chunk file IDs
+        if (allChunkFileIds.length > 0) {
+          try {
+            await updateBatch(batchResponse.batch_id, {
+              batch_metadata: {
+                file_ids: allChunkFileIds,
+                original_file_ids: batchResponse.file_ids, // Keep track of original files
+              },
+            });
+            console.log(`[Create Batch from Version] Updated batch ${batchResponse.batch_id} with ${allChunkFileIds.length} chunk files`);
+          } catch (updateError: any) {
+            console.error(`[Create Batch from Version] Failed to update batch metadata:`, updateError);
+            // Don't fail the whole operation if update fails
+          }
+        }
+      }
 
       toast.success(
         "Batch created from dataset version. Check the Unassigned section to continue labeling."
