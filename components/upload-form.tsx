@@ -45,6 +45,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 const PDF_EXTENSIONS = [".pdf"];
 const DATA_EXTENSIONS = [".csv", ".xlsx", ".xlsv", ".json"];
 const ALL_SUPPORTED_EXTENSIONS = [...PDF_EXTENSIONS, ...DATA_EXTENSIONS];
+const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024; // 20MB
 
 type Tab = "all" | "annotated" | "not-annotated";
 
@@ -108,10 +109,30 @@ export function UploadForm() {
 
 
   const validateFiles = (files: File[]): File[] => {
-    return files.filter((file) => {
+    const valid: File[] = [];
+    let rejectedCount = 0;
+
+    for (const file of files) {
       const extension = `.${file.name.split(".").pop()?.toLowerCase()}`;
-      return ALL_SUPPORTED_EXTENSIONS.includes(extension);
-    });
+      const isSupported = ALL_SUPPORTED_EXTENSIONS.includes(extension);
+      const isTooLarge = file.size > MAX_FILE_SIZE_BYTES;
+
+      if (!isSupported || isTooLarge) {
+        rejectedCount++;
+        continue;
+      }
+      valid.push(file);
+    }
+
+    if (rejectedCount > 0) {
+      toast({
+        title: "Some files were skipped",
+        description: `Only CSV/Excel/JSON/PDF files under 20MB are allowed. Skipped ${rejectedCount} file(s).`,
+        variant: "destructive",
+      });
+    }
+
+    return valid;
   };
 
   // Parse CSV file to extract column names

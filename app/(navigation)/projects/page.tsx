@@ -138,6 +138,14 @@ export default function ProjectsPage() {
     project.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const sortedProjects = [...filteredProjects].sort((a, b) => {
+    if (sortBy === "name") {
+      return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+    }
+    // default: date-edited (newest first)
+    return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+  });
+
   const handleProjectClick = (project: Project) => {
     setSelectedProject(project);
     const slug = projectToSlug(project);
@@ -424,7 +432,7 @@ export default function ProjectsPage() {
 
           {/* Projects Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredProjects.map((project) => (
+            {sortedProjects.map((project) => (
               <Card
                 key={project.id}
                 className="group cursor-pointer overflow-hidden hover:shadow-lg transition-shadow relative"

@@ -737,18 +737,37 @@ export default function ProjectBatchPage() {
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const filesArray = Array.from(e.target.files);
-      // Add new files to existing ones (avoid duplicates)
-      setUploadFiles(prev => {
-        const newFiles = filesArray.filter(
-          newFile => !prev.some(existingFile =>
-            existingFile.name === newFile.name && existingFile.size === newFile.size
-          )
-        );
-        return [...prev, ...newFiles];
-      });
+    if (!e.target.files) return;
+
+    const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024; // 20MB
+    const filesArray = Array.from(e.target.files);
+
+    const validFiles: File[] = [];
+    let rejectedCount = 0;
+
+    for (const file of filesArray) {
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        rejectedCount++;
+        continue;
+      }
+      validFiles.push(file);
     }
+
+    if (rejectedCount > 0) {
+      toast.error(`Some files were skipped because they exceed 20MB (skipped ${rejectedCount} file(s)).`);
+    }
+
+    if (validFiles.length === 0) return;
+
+    // Add new files to existing ones (avoid duplicates)
+    setUploadFiles(prev => {
+      const newFiles = validFiles.filter(
+        newFile => !prev.some(existingFile =>
+          existingFile.name === newFile.name && existingFile.size === newFile.size
+        )
+      );
+      return [...prev, ...newFiles];
+    });
   };
 
   const handleRemoveFile = (index: number) => {
@@ -807,7 +826,7 @@ export default function ProjectBatchPage() {
 
     try {
       // Step 1: Upload files to project
-        const uploadResponse = await uploadFilesToProject(parseInt(project.id), uploadFiles);
+      const uploadResponse = await uploadFilesToProject(parseInt(project.id), uploadFiles);
 
       toast.success("Files uploaded successfully!", { id: loadingToast });
 

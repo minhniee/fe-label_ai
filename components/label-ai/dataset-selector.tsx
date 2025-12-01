@@ -230,6 +230,19 @@ export function DatasetSelector({ onVersionSelect, onGenerateClick, onFileUpload
     const file = event.target.files?.[0]
     if (!file) return
 
+    const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024 // 20MB
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      toast({
+        title: "File too large",
+        description: "Please upload a CSV file smaller than 20MB",
+        variant: "destructive",
+      })
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""
+      }
+      return
+    }
+
     if (!file.name.endsWith(".csv")) {
       toast({
         title: "Invalid file type",

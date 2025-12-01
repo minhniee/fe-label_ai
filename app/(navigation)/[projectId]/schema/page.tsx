@@ -872,7 +872,17 @@ export default function ProjectSchemaPage() {
               <div className="flex gap-2">
                 <Input
                   type="file"
-                  onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null
+                    const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024 // 20MB
+                    if (file && file.size > MAX_FILE_SIZE_BYTES) {
+                      toast.error("File size must be less than 20MB")
+                      e.target.value = ""
+                      setUploadFile(null)
+                      return
+                    }
+                    setUploadFile(file)
+                  }}
                   accept=".json,.yaml,.yml,.pdf,.txt"
                 />
                 <Select value={fileType} onValueChange={setFileType}>

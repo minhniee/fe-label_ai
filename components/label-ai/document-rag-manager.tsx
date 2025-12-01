@@ -168,9 +168,19 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
     const files = event.target.files
     if (!files || files.length === 0) return
 
+    const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024 // 20MB
+
     setIsUploading(true)
     try {
       for (const file of Array.from(files)) {
+        if (file.size > MAX_FILE_SIZE_BYTES) {
+          toast({
+            title: "File too large",
+            description: `File "${file.name}" exceeds the 20MB limit and was skipped.`,
+            variant: "destructive",
+          })
+          continue
+        }
         await uploadDocument(projectId, file)
       }
       

@@ -387,6 +387,12 @@ export default function ChatbotPage() {
                                   className="hidden"
                                   onChange={(event) => {
                                     const file = event.target.files?.[0] || null
+                                    const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024 // 20MB
+                                    if (file && file.size > MAX_FILE_SIZE_BYTES) {
+                                      toast.error("File size must be less than 20MB")
+                                      event.target.value = ""
+                                      return
+                                    }
                                     handleDatasetFileUpload(dataset.dataset_id, file)
                                     event.target.value = ""
                                   }}

@@ -224,6 +224,14 @@ export default function ProjectDatasetPage() {
   ) => {
     const file = event.target.files?.[0];
     if (!file) return;
+
+    const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024; // 20MB
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      toast.error("File size must be less than 20MB");
+      event.target.value = "";
+      return;
+    }
+
     if (!file.name.toLowerCase().endsWith(".csv")) {
       toast.error("Only CSV files are supported for upload");
       event.target.value = "";

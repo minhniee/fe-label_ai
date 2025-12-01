@@ -35,12 +35,22 @@ export function ReferenceUploader({ onReferenceUpdate }: ReferenceUploaderProps)
     const uploadedFiles = event.target.files
     if (!uploadedFiles || uploadedFiles.length === 0) return
 
+    const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024 // 20MB
+
     setIsUploading(true)
 
     try {
       const newFiles: ReferenceFile[] = []
 
       for (const file of Array.from(uploadedFiles)) {
+        if (file.size > MAX_FILE_SIZE_BYTES) {
+          toast({
+            title: "File too large",
+            description: `File "${file.name}" exceeds the 20MB limit and was skipped.`,
+            variant: "destructive",
+          })
+          continue
+        }
         const result = await parseReference(file)
 
         if (result.success) {

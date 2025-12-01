@@ -18,6 +18,12 @@ export function FileUpload({ label, onFileLoaded, fileData }: FileUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const processFile = async (file: File) => {
+    const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024; // 20MB
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      setError("File size must be less than 20MB");
+      return;
+    }
+
     setError(null);
     setIsProcessing(true);
     try {
@@ -73,7 +79,7 @@ export function FileUpload({ label, onFileLoaded, fileData }: FileUploadProps) {
             <Upload className="h-12 w-12 text-muted-foreground" />
             <div>
               <p className="font-medium">Drop CSV file here or click to browse</p>
-              <p className="text-sm text-muted-foreground mt-1">Supports files up to 10MB</p>
+              <p className="text-sm text-muted-foreground mt-1">Supports files up to 20MB</p>
             </div>
           </div>
         )}
