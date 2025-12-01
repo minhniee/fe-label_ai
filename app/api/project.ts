@@ -94,6 +94,9 @@ export interface ProjectFileResponse {
   filename?: string; // Keep for backward compatibility
   file_path?: string;
   file_type?: string;
+  line_count?: number | null;
+  column_count?: number | null;
+  content?: string | null;
   annotation_status: 'unannotated' | 'annotating' | 'completed' | 'verified';
   uploaded_at?: string;
   uploaded_by?: number;

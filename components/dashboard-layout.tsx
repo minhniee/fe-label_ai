@@ -28,7 +28,7 @@ import {
   type NotificationResponse 
 } from "@/app/api/notifications"
 import { acceptInvitation, viewAllProjects } from "@/app/api/project"
-import { projectToSlug, setSelectedProject, type Project } from "@/types/project"
+import { projectToSlug, setSelectedProject, getSelectedProject, type Project } from "@/types/project"
 import { formatDistanceToNow } from "date-fns"
 import { toast } from "sonner"
 
@@ -66,6 +66,17 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [unreadCount, setUnreadCount] = React.useState(0)
   const [loadingNotifications, setLoadingNotifications] = React.useState(false)
   const [open, setOpen] = React.useState(false)
+  const [storedProject, setStoredProjectState] = React.useState<Project | null>(null)
+
+  React.useEffect(() => {
+    const updateStoredProject = () => {
+      setStoredProjectState(getSelectedProject())
+    }
+
+    updateStoredProject()
+    window.addEventListener("project-changed", updateStoredProject)
+    return () => window.removeEventListener("project-changed", updateStoredProject)
+  }, [])
 
   // Fetch notifications
   const fetchNotifications = React.useCallback(async () => {
@@ -272,7 +283,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         const jobHrefBase = segments.slice(0, index + 1).join("/")
 
         breadcrumbItems.push({
-          label: `Job ${jobIdSegment}`,
+          label: "Job",
           href: `/${jobHrefBase}?${jobQuery.toString()}`,
           isLast,
         })
@@ -287,9 +298,14 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       let href: string
 
       if (projectMatch) {
-        const [, , projectName] = projectMatch
-        label = projectName
-        href = "/projects"
+        const [, projectId, projectNameSlug] = projectMatch
+        const decodedSlugName = decodeURIComponent(projectNameSlug.replace(/-/g, " "))
+        const matchedProjectName =
+          storedProject && storedProject.id === projectId
+            ? storedProject.name
+            : decodedSlugName
+        label = matchedProjectName
+        href = `/${segments.slice(0, index + 1).join("/")}`
       } else {
         const segmentWithSpaces = segment.replace(/[-_]/g, " ")
         label = ROUTE_TITLES[segment] ?? capitalizeWords(segmentWithSpaces)

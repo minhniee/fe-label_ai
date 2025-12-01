@@ -194,7 +194,54 @@ export default function ProjectBatchPage() {
         console.log("Batch specific files:", batchSpecificFiles.length);
         setBatchFiles(batchSpecificFiles);
 
+        // Extract row counts and column names from file objects if available
+        // This is important for chunk files created from split operations
+        const fileRowCounts: { [fileId: number]: number } = {};
+        const fileColumnNames: Record<number, string[]> = {};
+        
+        for (const file of batchSpecificFiles) {
+          // Use line_count from file object if available (for chunk files)
+          // Type assertion needed as ProjectFileResponse might not have these fields in type definition
+          const fileAny = file as any;
+          if (fileAny.line_count && typeof fileAny.line_count === 'number') {
+            fileRowCounts[file.file_id] = fileAny.line_count;
+            console.log(`[Load Batch] File ${file.file_id} has line_count: ${fileAny.line_count}`);
+          }
+          
+          // Parse column names from file.content if available (JSON format)
+          if (fileAny.content) {
+            try {
+              const parsedContent = JSON.parse(fileAny.content);
+              if (Array.isArray(parsedContent)) {
+                fileColumnNames[file.file_id] = parsedContent;
+                console.log(`[Load Batch] File ${file.file_id} has column names in content: ${parsedContent.length} columns`);
+              }
+            } catch (e) {
+              // Not JSON, might be actual CSV content - will be handled by fetchCsvColumns
+            }
+          }
+        }
+        
+        // Update row counts state with file metadata
+        if (Object.keys(fileRowCounts).length > 0) {
+          setCsvRowCounts(prev => {
+            const updated = { ...prev, ...fileRowCounts };
+            const newTotal = Object.values(updated).reduce(
+              (sum: number, count: any) => sum + (count || 0),
+              0
+            );
+            setTotalRows(newTotal);
+            return updated;
+          });
+        }
+        
+        // Update column names state with file metadata
+        if (Object.keys(fileColumnNames).length > 0) {
+          setFileColumns(prev => ({ ...prev, ...fileColumnNames }));
+        }
+
         // Fetch columns from CSV files (async, don't await)
+        // This will only fetch for files that don't already have column names
         fetchCsvColumns(batchSpecificFiles).catch((err: any) => {
           console.error('Failed to fetch CSV columns:', err);
         });
@@ -317,6 +364,22 @@ export default function ProjectBatchPage() {
       // Skip if already loaded or loading
       if (fileColumns[file.file_id] || columnsLoading[file.file_id]) {
         continue;
+      }
+      
+      // Skip if file already has column names in content field (JSON format)
+      const fileAny = file as any;
+      if (fileAny.content) {
+        try {
+          const parsedContent = JSON.parse(fileAny.content);
+          if (Array.isArray(parsedContent) && parsedContent.length > 0) {
+            console.log(`[fetchCsvColumns] File ${file.file_id} already has column names in content, skipping API fetch`);
+            // Set columns from content
+            setFileColumns((prev) => ({ ...prev, [file.file_id]: parsedContent }));
+            continue;
+          }
+        } catch (e) {
+          // Not JSON, continue to fetch from API
+        }
       }
 
       try {
