@@ -3,32 +3,19 @@
 import { useState, useEffect } from "react";
 import { useProjectFromSlug } from "@/hooks/use-project-from-slug";
 import { 
-  getSchemas, 
-  createSchema, 
-  updateSchema, 
-  deleteSchema,
-  getSchema,
-  getOntology,
-  updateOntology,
+  // We only use backend for validation and some optional views;
+  // create/update/delete will be handled locally per project.
   validateOntology,
-  getSchemaVersions,
-  createSchemaVersion,
   getSchemaVersion,
-  compareSchemas,
-  getSchemaFiles,
   uploadSchemaFile,
   deleteSchemaFile,
-  searchSchemas,
-  getSchemaStatistics,
   type SchemaResponse,
-  type SchemaCreateRequest,
-  type SchemaUpdateRequest,
   type OntologyStructure,
   type SchemaFileResponse,
   type SchemaHistoryResponse,
   type SchemaVersionResponse,
   type SchemaCompareResponse,
-  type OntologyValidationResponse
+  type OntologyValidationResponse,
 } from "@/app/api/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,6 +33,7 @@ import { toast } from "sonner";
 import { Plus, Search, Edit, Trash2, FileText, History, GitCompare, Upload, Download, CheckCircle2, XCircle, AlertCircle, Loader2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useUserPermissions } from "@/hooks/use-user-permissions";
+import { Drawer, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle, DrawerDescription } from "@/components/ui/drawer";
 
 export default function ProjectSchemaPage() {
   const { project } = useProjectFromSlug();
@@ -88,23 +76,58 @@ export default function ProjectSchemaPage() {
   // Statistics
   const [statistics, setStatistics] = useState<any>(null);
 
+  // Active schema for current project (frontend-only, per-project)
+  const [activeSchemaId, setActiveSchemaId] = useState<number | null>(null);
+
   // Get dataset_id from project
   const datasetId = project?.dataset_id || undefined;
+  const projectId = project?.id;
+
+  const getStorageKey = () =>
+    projectId ? `project_schemas_${projectId}` : null;
 
   useEffect(() => {
     if (project) {
       loadSchemas();
       loadStatistics();
+      // Load active schema for this project from localStorage
+      try {
+        const stored = localStorage.getItem(`active_schema_project_${project.id}`);
+        if (stored) {
+          const parsed = parseInt(stored, 10);
+          if (!isNaN(parsed)) {
+            setActiveSchemaId(parsed);
+          }
+        }
+      } catch (e) {
+        // ignore localStorage errors
+      }
+    } else {
+      setSchemas([]);
+      setStatistics(null);
+      setActiveSchemaId(null);
     }
-  }, [project]);
+  }, [project?.id]);
 
   const loadSchemas = async () => {
     try {
       setIsLoading(true);
-      const data = await getSchemas(datasetId);
-      setSchemas(data);
+      const storageKey = getStorageKey();
+      if (!storageKey || typeof window === "undefined") {
+        setSchemas([]);
+        return;
+      }
+      const raw = window.localStorage.getItem(storageKey);
+      if (!raw) {
+        setSchemas([]);
+        return;
+      }
+      const parsed = JSON.parse(raw) as SchemaResponse[];
+      setSchemas(Array.isArray(parsed) ? parsed : []);
     } catch (error: any) {
-      toast.error(error.message || "Failed to load schemas");
+      console.error("Failed to load local schemas:", error);
+      toast.error("Failed to load local schemas");
+      setSchemas([]);
     } finally {
       setIsLoading(false);
     }
@@ -112,8 +135,24 @@ export default function ProjectSchemaPage() {
 
   const loadStatistics = async () => {
     try {
-      const stats = await getSchemaStatistics(datasetId);
-      setStatistics(stats);
+      // Compute simple stats from local schemas
+      const total_schemas = schemas.length;
+      const total_versions = schemas.length;
+      const total_files = 0;
+      const last_updated =
+        schemas.length > 0
+          ? schemas
+              .map((s) => s.created_at)
+              .sort()
+              .slice(-1)[0]
+          : null;
+
+      setStatistics({
+        total_schemas,
+        total_versions,
+        total_files,
+        last_updated,
+      });
     } catch (error: any) {
       console.error("Failed to load statistics:", error);
     }
@@ -124,20 +163,12 @@ export default function ProjectSchemaPage() {
       loadSchemas();
       return;
     }
-    try {
-      setIsLoading(true);
-      const results = await searchSchemas(searchQuery, datasetId);
-      setSchemas(results);
-    } catch (error: any) {
-      toast.error(error.message || "Failed to search schemas");
-    } finally {
-      setIsLoading(false);
-    }
+    // Local-only search is handled by filteredSchemas; no extra work needed here.
   };
 
   const handleCreateSchema = async () => {
-    if (!datasetId) {
-      toast.error("Dataset ID is required. Please ensure the project has a valid dataset.");
+    if (!projectId) {
+      toast.error("Project context is required to create a schema.");
       return;
     }
 
@@ -152,18 +183,30 @@ export default function ProjectSchemaPage() {
         }
       }
 
-      const data: SchemaCreateRequest = {
+      const now = new Date().toISOString();
+      const newSchema: SchemaResponse = {
+        schema_id: Date.now(), // simple local id
+        dataset_id: 0,
         name: schemaName,
+        schema_definition: definition,
         description: schemaDescription || undefined,
-        schema_definition: definition
+        created_at: now,
+        created_by: 0,
+        created_by_username: project?.name || "local",
+        version: 1,
       };
 
-      await createSchema(datasetId, data);
-      toast.success("Schema created successfully");
+      const updated = [...schemas, newSchema];
+      setSchemas(updated);
+
+      const storageKey = getStorageKey();
+      if (storageKey && typeof window !== "undefined") {
+        window.localStorage.setItem(storageKey, JSON.stringify(updated));
+      }
+
+      toast.success("Schema created locally for this project");
       setCreateDialogOpen(false);
       resetForm();
-      loadSchemas();
-      loadStatistics();
     } catch (error: any) {
       toast.error(error.message || "Failed to create schema");
     }
@@ -182,17 +225,27 @@ export default function ProjectSchemaPage() {
         }
       }
 
-      const data: SchemaUpdateRequest = {
-        name: schemaName,
-        description: schemaDescription || undefined,
-        schema_definition: definition
-      };
+      const updatedSchemas = schemas.map((s) =>
+        s.schema_id === selectedSchema.schema_id
+          ? {
+              ...s,
+              name: schemaName,
+              description: schemaDescription || undefined,
+              schema_definition: definition,
+            }
+          : s
+      );
 
-      await updateSchema(selectedSchema.schema_id, data);
-      toast.success("Schema updated successfully");
+      setSchemas(updatedSchemas);
+
+      const storageKey = getStorageKey();
+      if (storageKey && typeof window !== "undefined") {
+        window.localStorage.setItem(storageKey, JSON.stringify(updatedSchemas));
+      }
+
+      toast.success("Schema updated locally");
       setEditDialogOpen(false);
       resetForm();
-      loadSchemas();
     } catch (error: any) {
       toast.error(error.message || "Failed to update schema");
     }
@@ -200,10 +253,13 @@ export default function ProjectSchemaPage() {
 
   const handleDeleteSchema = async (schemaId: number) => {
     try {
-      await deleteSchema(schemaId);
-      toast.success("Schema deleted successfully");
-      loadSchemas();
-      loadStatistics();
+      const updated = schemas.filter((s) => s.schema_id !== schemaId);
+      setSchemas(updated);
+      const storageKey = getStorageKey();
+      if (storageKey && typeof window !== "undefined") {
+        window.localStorage.setItem(storageKey, JSON.stringify(updated));
+      }
+      toast.success("Schema deleted locally");
     } catch (error: any) {
       toast.error(error.message || "Failed to delete schema");
     }
@@ -254,48 +310,23 @@ export default function ProjectSchemaPage() {
   };
 
   const handleLoadVersions = async (schemaId: number) => {
-    try {
-      const vers = await getSchemaVersions(schemaId);
-      setVersions(vers);
-      setSelectedSchema(schemas.find(s => s.schema_id === schemaId) || null);
-      setVersionDialogOpen(true);
-    } catch (error: any) {
-      toast.error(error.message || "Failed to load versions");
-    }
+    // Local-only mode: version history not persisted yet
+    setVersions([]);
+    setSelectedSchema(schemas.find((s) => s.schema_id === schemaId) || null);
+    setVersionDialogOpen(true);
   };
 
   const handleCreateVersion = async () => {
     if (!selectedSchema) return;
-    try {
-      let definition = schemaDefinition;
-      if (ontologyJson.trim()) {
-        try {
-          definition = JSON.parse(ontologyJson);
-        } catch (e) {
-          toast.error("Invalid JSON format");
-          return;
-        }
-      }
-
-      await createSchemaVersion(selectedSchema.schema_id, definition, versionChanges || undefined);
-      toast.success("Schema version created successfully");
-      setVersionDialogOpen(false);
-      resetForm();
-      loadSchemas();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to create version");
-    }
+    toast.error("Versioning is not supported for local project schemas yet.");
   };
 
   const handleLoadFiles = async (schemaId: number) => {
-    try {
-      const fileList = await getSchemaFiles(schemaId);
-      setFiles(fileList);
-      setSelectedSchema(schemas.find(s => s.schema_id === schemaId) || null);
-      setFileDialogOpen(true);
-    } catch (error: any) {
-      toast.error(error.message || "Failed to load files");
-    }
+    // Guideline files rely on backend schemas; keep disabled for local-only schemas
+    toast.error("Guideline files are not supported for local project schemas yet.");
+    setFiles([]);
+    setSelectedSchema(schemas.find((s) => s.schema_id === schemaId) || null);
+    setFileDialogOpen(true);
   };
 
   const handleUploadFile = async () => {
@@ -327,13 +358,7 @@ export default function ProjectSchemaPage() {
       toast.error("Please select two schemas to compare");
       return;
     }
-    try {
-      const result = await compareSchemas(compareSchema1, compareSchema2);
-      setCompareResult(result);
-      setCompareDialogOpen(true);
-    } catch (error: any) {
-      toast.error(error.message || "Failed to compare schemas");
-    }
+    toast.error("Compare is not supported for local project schemas yet.");
   };
 
   const resetForm = () => {
@@ -352,6 +377,23 @@ export default function ProjectSchemaPage() {
     schema.description?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const handleSetActiveSchema = (schemaId: number) => {
+    if (!project?.id) {
+      toast.error("Project context is missing. Please select a project.");
+      return;
+    }
+    setActiveSchemaId(schemaId);
+    try {
+      localStorage.setItem(
+        `active_schema_project_${project.id}`,
+        schemaId.toString()
+      );
+    } catch (e) {
+      // ignore storage errors
+    }
+    toast.success("Active schema for this project has been updated.");
+  };
+
   return (
     <div className="flex flex-col gap-6 p-6">
       <div className="flex items-center justify-between">
@@ -361,14 +403,72 @@ export default function ProjectSchemaPage() {
             Manage schemas and ontologies for project: {project?.name || "Loading..."}
           </p>
         </div>
-        <Button 
-          onClick={() => setCreateDialogOpen(true)}
-          disabled={!canCreate}
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Create Schema
-        </Button>
+        <div className="flex flex-col items-end gap-1">
+          <Button 
+            onClick={() => setCreateDialogOpen(true)}
+            disabled={!canCreate}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Create Schema
+          </Button>
+          {!datasetId && (
+            <p className="text-xs text-muted-foreground max-w-sm text-right">
+              To create a schema, this project needs an associated dataset. Please upload data for the project first.
+            </p>
+          )}
+          {datasetId && !canCreate && (
+            <p className="text-xs text-muted-foreground max-w-sm text-right">
+              You don&apos;t have permission to create schemas in this project. Ask an owner or co-owner to update your role.
+            </p>
+          )}
+        </div>
       </div>
+
+      {/* Active schema for this project */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <div>
+            <CardTitle className="text-sm font-medium">Active Schema for This Project</CardTitle>
+            <CardDescription>
+              The active schema is used as the main guideline / ontology reference for this project.
+            </CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {activeSchemaId
+            ? (() => {
+                const active = schemas.find((s) => s.schema_id === activeSchemaId);
+                if (!active) {
+                  return (
+                    <p className="text-sm text-muted-foreground">
+                      Active schema ID {activeSchemaId} is not available in the current list.
+                    </p>
+                  );
+                }
+                return (
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium flex items-center gap-2">
+                        <Badge variant="default">Active</Badge>
+                        {active.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {active.description || "No description"}
+                      </p>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      Schema ID: {active.schema_id}
+                    </span>
+                  </div>
+                );
+              })()
+            : (
+              <p className="text-sm text-muted-foreground">
+                No active schema selected for this project. Choose one in the list below and set it as active.
+              </p>
+            )}
+        </CardContent>
+      </Card>
 
       {statistics && (
         <div className="grid gap-4 md:grid-cols-4">
@@ -497,6 +597,24 @@ export default function ProjectSchemaPage() {
                             >
                               <Upload className="h-4 w-4" />
                             </Button>
+                            <Button
+                              variant={schema.schema_id === activeSchemaId ? "default" : "outline"}
+                              size="icon"
+                              onClick={() => handleSetActiveSchema(schema.schema_id)}
+                              title={
+                                schema.schema_id === activeSchemaId
+                                  ? "This schema is currently active for this project"
+                                  : "Set this schema as active for this project"
+                              }
+                            >
+                              <CheckCircle2
+                                className={
+                                  schema.schema_id === activeSchemaId
+                                    ? "h-4 w-4"
+                                    : "h-4 w-4 text-muted-foreground"
+                                }
+                              />
+                            </Button>
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
                                 <Button variant="ghost" size="icon" disabled={!canDelete}>
@@ -586,16 +704,16 @@ export default function ProjectSchemaPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Create Schema Dialog */}
-      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Create New Schema</DialogTitle>
-            <DialogDescription>
-              Create a new schema with ontology structure
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
+      {/* Create Schema Drawer */}
+      <Drawer open={createDialogOpen} onOpenChange={setCreateDialogOpen} direction="right">
+        <DrawerContent className="h-full data-[vaul-drawer-direction=right]:w-1/2 data-[vaul-drawer-direction=right]:sm:max-w-none">
+          <DrawerHeader>
+            <DrawerTitle>Create New Schema</DrawerTitle>
+            <DrawerDescription>
+              Create a new schema with an ontology structure for this project.
+            </DrawerDescription>
+          </DrawerHeader>
+          <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-4">
             <div className="space-y-2">
               <Label>Schema Name *</Label>
               <Input
@@ -614,7 +732,7 @@ export default function ProjectSchemaPage() {
               />
             </div>
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <Label>Ontology Definition (JSON) *</Label>
                 <Button
                   variant="outline"
@@ -628,7 +746,7 @@ export default function ProjectSchemaPage() {
                 value={ontologyJson}
                 onChange={(e) => setOntologyJson(e.target.value)}
                 placeholder='{"labels": ["label1", "label2"], "hierarchy": {}, "categories": {}, "metadata": {}}'
-                rows={15}
+                rows={18}
                 className="font-mono text-sm"
               />
               {validationResult && (
@@ -651,16 +769,27 @@ export default function ProjectSchemaPage() {
               )}
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleCreateSchema} disabled={!schemaName || !ontologyJson.trim() || !datasetId || !canCreate}>
-              Create Schema
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <DrawerFooter className="border-t">
+            <div className="flex w-full justify-between gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setCreateDialogOpen(false);
+                  resetForm();
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateSchema}
+                disabled={!schemaName || !ontologyJson.trim() || !canCreate}
+              >
+                Create Schema
+              </Button>
+            </div>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
 
       {/* Edit Schema Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
