@@ -502,9 +502,11 @@ export default function JobLabelAIPage() {
   const handleAddColumn = (columnName: string) => {
     setColumns([...columns, columnName])
     setVisibleColumns([...visibleColumns, columnName])
+    // Mark all rows as modified when column structure changes
     const updatedData = data.map((row) => ({
       ...row,
       [columnName]: "",
+      _isModified: true, // Mark as modified since structure changed
     }))
     setData(updatedData)
   }
@@ -517,7 +519,12 @@ export default function JobLabelAIPage() {
   }
 
   const handleGenerateMore = (newRows: RowData[]) => {
-    setData([...data, ...newRows])
+    // Mark new rows as modified so they get saved
+    const markedNewRows = newRows.map((row) => ({
+      ...row,
+      _isModified: true, // Mark as modified so they get saved
+    }))
+    setData([...data, ...markedNewRows])
   }
 
   const isRowModified = (original: RowData | undefined, current: RowData): boolean => {
@@ -615,7 +622,8 @@ export default function JobLabelAIPage() {
       return
     }
 
-    const modifiedRows = data.filter(row => row._isModified)
+    // Check for modifications: rows with _isModified or new rows (_is_new)
+    const modifiedRows = data.filter(row => row._isModified || row._is_new)
     if (modifiedRows.length === 0) {
       toast({
         title: "No changes",
@@ -652,7 +660,7 @@ export default function JobLabelAIPage() {
       
       if (response.data.success) {
         const savedData = data.map(row => {
-          const { _isModified, ...rest } = row
+          const { _isModified, _is_new, ...rest } = row
           return rest
         })
         setData(savedData)
@@ -660,7 +668,7 @@ export default function JobLabelAIPage() {
         
         toast({
           title: "Success",
-          description: `File saved successfully. ${modifiedRows.length} modified rows saved.`,
+          description: `File saved successfully. ${modifiedRows.length} rows saved.`,
         })
       } else {
         throw new Error(response.data.error || "Failed to save file")
@@ -732,6 +740,32 @@ export default function JobLabelAIPage() {
         variant: "destructive",
       })
       return
+    }
+
+    // Auto-save file before completing if there are unsaved changes and currentFileId exists
+    if (currentFileId) {
+      const hasUnsavedChanges = data.some(row => row._isModified || row._is_new)
+      if (hasUnsavedChanges) {
+        // Wait for any ongoing save to complete
+        while (saving) {
+          await new Promise(resolve => setTimeout(resolve, 100))
+        }
+        
+        try {
+          await handleSaveFile()
+          // Wait a bit for save to complete and state to update
+          await new Promise(resolve => setTimeout(resolve, 500))
+        } catch (error) {
+          // If save fails, ask user if they want to continue
+          const shouldContinue = window.confirm(
+            "Failed to save file. Do you want to continue creating dataset anyway? " +
+            "Unsaved changes will not be included in the dataset."
+          )
+          if (!shouldContinue) {
+            return
+          }
+        }
+      }
     }
 
     try {
@@ -1217,6 +1251,8 @@ export default function JobLabelAIPage() {
                 apiKey={embeddingConfig.apiKey}
                 model={embeddingConfig.model || "gemini-2.5-flash"}
                 referenceFileContent={referenceContext}
+                projectId={parseInt(projectId)}
+                documentIds={selectedDocumentIds}
               />
 
               <DataGrid

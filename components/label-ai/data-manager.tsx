@@ -1,13 +1,15 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Plus, Sparkles, Loader2 } from "lucide-react"
+import { Plus, Sparkles, Loader2, Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useToast } from "@/hooks/use-toast"
 import type { RowData } from "@/app/(navigation)/[projectId]/annotate/job/[jobId]/annotating/page"
 import { generateMoreData } from "@/app/api/labelai"
@@ -24,6 +26,9 @@ interface DataManagerProps {
   model?: string
   // (NEW) Reference CSV file content, required for Generate More (enforced by UI)
   referenceFileContent?: string
+  // (NEW) Project ID and document IDs for RAG integration
+  projectId?: number
+  documentIds?: number[]
 }
 
 export function DataManager({
@@ -35,7 +40,9 @@ export function DataManager({
   contextColumn,
   apiKey,
   model = "gemini-2.5-flash",
-  referenceFileContent = "" // default empty
+  referenceFileContent = "", // default empty
+  projectId,
+  documentIds
 }: DataManagerProps) {
   const [showAddRow, setShowAddRow] = useState(false)
   const [showAddColumn, setShowAddColumn] = useState(false)
@@ -47,7 +54,11 @@ export function DataManager({
   const [newRowData, setNewRowData] = useState<Record<string, string>>({})
   const [effectiveApiKey, setEffectiveApiKey] = useState<string>("")
   const [effectiveModel, setEffectiveModel] = useState<string>("gemini-2.5-flash")
+  const [referenceMode, setReferenceMode] = useState<"csv_rag" | "rag_only">("csv_rag")
   const { toast } = useToast()
+  
+  // Check if RAG documents are available
+  const hasRAGDocuments = projectId && documentIds && documentIds.length > 0
 
   // Load API key from localStorage or props
   useEffect(() => {
@@ -213,6 +224,9 @@ export function DataManager({
         apiKey: finalApiKey,
         model: effectiveModel,
         contextColumn,
+        projectId,
+        documentIds,
+        referenceMode: hasRAGDocuments ? referenceMode : "csv_only",
       })
       if (result.success) {
         // result.data now expected to be array of new row dicts
@@ -403,6 +417,72 @@ export function DataManager({
                   </div>
                 )}
               </div>
+
+              {/* Reference Mode Selection (only show if RAG documents available) */}
+              {hasRAGDocuments && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm font-medium">Reference Mode</Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-sm">
+                          <div className="space-y-2 text-sm">
+                            <p><strong>CSV + RAG:</strong> Uses both CSV data and RAG documents as reference sources. AI can extract facts from both sources.</p>
+                            <p><strong>RAG Only:</strong> Uses only RAG documents as the source of facts. CSV is only used to determine column structure (headers).</p>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <RadioGroup value={referenceMode} onValueChange={(value) => setReferenceMode(value as "csv_rag" | "rag_only")}>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="csv_rag" id="csv_rag" />
+                      <Label htmlFor="csv_rag" className="text-sm font-normal cursor-pointer">
+                        CSV + RAG (use both CSV data and RAG documents)
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="rag_only" id="rag_only" />
+                      <Label htmlFor="rag_only" className="text-sm font-normal cursor-pointer">
+                        RAG Only (use only RAG documents, CSV for structure only)
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                  <p className="text-xs text-muted-foreground">
+                    Select how AI should use reference sources when generating data.
+                  </p>
+                </div>
+              )}
+              
+              {!hasRAGDocuments && projectId && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm font-medium">Reference Mode</Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-sm">
+                          <p className="text-sm">
+                            No RAG documents are selected. Only CSV data will be used as reference. 
+                            Upload and select documents in the Document RAG Manager above to enable RAG mode.
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <div className="text-sm text-muted-foreground bg-gray-50 dark:bg-gray-950/20 p-3 rounded-lg border border-gray-200 dark:border-gray-800">
+                    CSV Only (no RAG documents selected)
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    AI will use only CSV data as reference. Select documents in Document RAG Manager to enable RAG mode.
+                  </p>
+                </div>
+              )}
 
               {/* Number of rows */}
               <div className="space-y-2">

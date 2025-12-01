@@ -324,6 +324,9 @@ export async function generateMoreData(data: {
   apiKey: string;
   model: string;
   referenceFileContent: string;
+  projectId?: number;
+  documentIds?: number[];
+  referenceMode?: "csv_only" | "csv_rag" | "rag_only";
 }) {
   try {
     console.log("Calling generateMoreData API:", {
@@ -332,7 +335,9 @@ export async function generateMoreData(data: {
       columns: data.columns.length,
       count: data.count,
       hasContent: !!data.referenceFileContent,
-      contentLength: data.referenceFileContent?.length || 0
+      contentLength: data.referenceFileContent?.length || 0,
+      projectId: data.projectId,
+      documentIds: data.documentIds
     });
     
     const response = await api.post(`/gen-ai/generate-rows-from-file`, {
@@ -343,6 +348,9 @@ export async function generateMoreData(data: {
       context_column: data.contextColumn,
       api_key: data.apiKey,
       model: data.model,
+      project_id: data.projectId,
+      document_ids: data.documentIds,
+      reference_mode: data.referenceMode || "csv_only",
     },{
     });
     return response.data;

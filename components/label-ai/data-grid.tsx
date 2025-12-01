@@ -270,6 +270,39 @@ export function DataGrid({
     setEditingValue("")
   }
 
+  // Helper function to get AI value from various fields
+  // Used by both handleConfirm and Compare Result dialog to ensure consistency
+  const getAIValue = (row: RowData): string | null => {
+    const statusValues = ["true", "false", "correct", "wrong", "ambiguous", "needs_label"]
+    const aiSuggestion = row._ai_suggestion
+    const isStatusValue = aiSuggestion && statusValues.includes(String(aiSuggestion).toLowerCase())
+    
+    // Try _corrected_value first (from correct_answer field)
+    if (row._corrected_value) {
+      const correctedVal = String(row._corrected_value).trim()
+      const correctedValLower = correctedVal.toLowerCase()
+      if (correctedVal && !statusValues.includes(correctedValLower)) {
+        return correctedVal
+      }
+    }
+    
+    // Try _ai_suggestion if it's not a status value
+    if (aiSuggestion && !isStatusValue) {
+      return String(aiSuggestion).trim()
+    }
+    
+    // Try _correct_info as fallback
+    if (row._correct_info) {
+      const correctInfoVal = String(row._correct_info).trim()
+      const correctInfoLower = correctInfoVal.toLowerCase()
+      if (correctInfoVal && !statusValues.includes(correctInfoLower)) {
+        return correctInfoVal
+      }
+    }
+    
+    return null
+  }
+
   const handleConfirm = (rowId: string) => {
     const row = allData.find((r) => r._id === rowId) || filteredData.find((r) => r._id === rowId)
     if (!row) return
@@ -311,38 +344,65 @@ export function DataGrid({
       if (hasValidCorrectedValue) {
         valueToFill = String(valueToFill).trim()
       } 
-      // Priority 2: For "correct" type, keep existing value (it's already correct)
-      else if (aiType === "correct" && r[resultColumn]) {
-        valueToFill = r[resultColumn]
+      // Priority 2: For "needs_label" type, always use AI's value (generate new label)
+      // This handles case when Current is empty and AI has a value
+      else if (aiType === "needs_label") {
+        const aiValue = getAIValue(row)
+        valueToFill = aiValue || "" // Use AI value, or empty if not found (don't fallback to current)
+      }
+      // Priority 3: For "correct" type, prefer AI value if available (AI verified/normalized value)
+      // Otherwise keep existing value if it exists
+      else if (aiType === "correct") {
+        const aiValue = getAIValue(row)
+        if (aiValue) {
+          // Use AI value if available (even for correct type, AI might have normalized/verified value)
+          valueToFill = aiValue
+        } else if (r[resultColumn]) {
+          // Keep existing value if no AI value available
+          valueToFill = r[resultColumn]
+        } else {
+          // If no existing value and no AI value, leave empty
+          valueToFill = ""
+        }
       } 
-      // Priority 3: Use _ai_suggestion if it's not a status value (i.e., it's an actual label)
+      // Priority 4: Use _ai_suggestion if it's not a status value (i.e., it's an actual label)
       else if (aiSuggestion && !isStatusValue) {
         valueToFill = String(aiSuggestion).trim()
       } 
-      // Priority 4: For "wrong" type, if no corrected_value, try to use _correct_info as fallback
-      else if (aiType === "wrong" && row._correct_info && String(row._correct_info).trim() !== "") {
-        const correctInfoStr = String(row._correct_info).trim().toLowerCase()
-        if (!["true", "false", "correct", "wrong", "ambiguous", "needs_label"].includes(correctInfoStr)) {
-          valueToFill = String(row._correct_info).trim()
-        } else {
-          // Keep existing value if no valid corrected value
-          valueToFill = r[resultColumn] || ""
-        }
+      // Priority 5: For "wrong" type, if no corrected_value, try to use _correct_info as fallback
+      else if (aiType === "wrong") {
+        const aiValue = getAIValue(row)
+        valueToFill = aiValue || (r[resultColumn] || "")
       }
-      // Priority 5: Keep existing value if no valid corrected value
+      // Priority 6: Keep existing value if no valid corrected value
       else {
         valueToFill = r[resultColumn] || ""
       }
       
+      // Handle extra columns corrections (e.g., reference_page from documents)
+      const extraCorrectedValues = row._extra_corrected_values
+      const updatedRow: any = {
+        ...r,
+        [resultColumn]: valueToFill,
+        _confirmed: true,
+      }
+      
+      // Apply extra column corrections if present
+      if (extraCorrectedValues && typeof extraCorrectedValues === 'object') {
+        Object.keys(extraCorrectedValues).forEach((colName) => {
+          const correctedValue = extraCorrectedValues[colName]
+          if (correctedValue !== null && correctedValue !== undefined) {
+            updatedRow[colName] = String(correctedValue).trim()
+            console.log(`[handleConfirm] Row ${rowId}: Updating extra column '${colName}' with value '${correctedValue}'`)
+          }
+        })
+      }
+      
       // Debug logging
-      console.log(`[handleConfirm] Row ${rowId}: aiType=${aiType}, _corrected_value='${row._corrected_value}', valueToFill='${valueToFill}'`)
+      console.log(`[handleConfirm] Row ${rowId}: aiType=${aiType}, _corrected_value='${row._corrected_value}', valueToFill='${valueToFill}', extra_corrected_values=`, extraCorrectedValues)
       
       if (isIncorrect || isCorrect || isAmbiguous) {
-        return {
-          ...r,
-          [resultColumn]: valueToFill,
-          _confirmed: true,
-        }
+        return updatedRow
       }
       return r
     }
@@ -449,35 +509,73 @@ export function DataGrid({
         ambiguous += 1
         return row
       }
-      // When confirming, prioritize correct_answer (_corrected_value) from auto-labeling prompt
-      // This ensures we use the correct_answer field when user accepts
-      // Skip _ai_suggestion if it's just "true"/"false"/"correct"/"wrong" (status values, not actual labels)
+      // Use same logic as handleConfirm for consistency
       const aiSuggestion = row._ai_suggestion
       const isStatusValue = aiSuggestion && ["true", "false", "correct", "wrong", "ambiguous", "needs_label"].includes(String(aiSuggestion).toLowerCase())
       
-      let valueToFill = row._corrected_value
+      let valueToFill: string | null | undefined = row._corrected_value
       
-      // If _corrected_value is empty or is a status value, handle based on type
-      if (!valueToFill || valueToFill === "" || ["true", "false", "correct", "wrong", "ambiguous", "needs_label"].includes(String(valueToFill).toLowerCase())) {
-        // For "correct" type, keep existing value (it's already correct)
-        if (rowAiType === "correct" && row[resultColumn]) {
+      // Check if _corrected_value is a valid value (not empty, not null, not a status string)
+      const correctedValueStr = String(valueToFill || "").trim().toLowerCase()
+      const isCorrectedValueStatus = ["true", "false", "correct", "wrong", "ambiguous", "needs_label"].includes(correctedValueStr)
+      const hasValidCorrectedValue = valueToFill && valueToFill !== "" && !isCorrectedValueStatus
+      
+      // Priority 1: Use _corrected_value if it's valid (this contains correct_answer from AI)
+      if (hasValidCorrectedValue) {
+        valueToFill = String(valueToFill).trim()
+      } 
+      // Priority 2: For "needs_label" type, always use AI's value (generate new label)
+      else if (rowAiType === "needs_label") {
+        const aiValue = getAIValue(row)
+        valueToFill = aiValue || "" // Use AI value, or empty if not found (don't fallback to current)
+      }
+      // Priority 3: For "correct" type, prefer AI value if available (AI verified/normalized value)
+      else if (rowAiType === "correct") {
+        const aiValue = getAIValue(row)
+        if (aiValue) {
+          valueToFill = aiValue
+        } else if (row[resultColumn]) {
           valueToFill = row[resultColumn]
-        } else if (aiSuggestion && !isStatusValue) {
-          // Only use _ai_suggestion if it's not a status value (i.e., it's an actual label)
-          valueToFill = aiSuggestion
         } else {
-          // Keep existing value if no valid corrected value
-          valueToFill = row[resultColumn] || ""
+          valueToFill = ""
         }
+      } 
+      // Priority 4: Use _ai_suggestion if it's not a status value (i.e., it's an actual label)
+      else if (aiSuggestion && !isStatusValue) {
+        valueToFill = String(aiSuggestion).trim()
+      } 
+      // Priority 5: For "wrong" type, if no corrected_value, try to use _correct_info as fallback
+      else if (rowAiType === "wrong") {
+        const aiValue = getAIValue(row)
+        valueToFill = aiValue || (row[resultColumn] || "")
+      }
+      // Priority 6: Keep existing value if no valid corrected value
+      else {
+        valueToFill = row[resultColumn] || ""
       }
       
       if (isIncorrect || isCorrect || isAmbiguous) {
         applied += 1
-        return {
+        
+        // Handle extra columns corrections (e.g., reference_page from documents)
+        const extraCorrectedValues = row._extra_corrected_values
+        const updatedRow: any = {
           ...row,
           [resultColumn]: valueToFill,
           _confirmed: true,
         }
+        
+        // Apply extra column corrections if present
+        if (extraCorrectedValues && typeof extraCorrectedValues === 'object') {
+          Object.keys(extraCorrectedValues).forEach((colName) => {
+            const correctedValue = extraCorrectedValues[colName]
+            if (correctedValue !== null && correctedValue !== undefined) {
+              updatedRow[colName] = String(correctedValue).trim()
+            }
+          })
+        }
+        
+        return updatedRow
       }
       return row
     })
@@ -1014,8 +1112,7 @@ export function DataGrid({
                           <div
                             className={cn(
                               "rounded px-3 py-2 text-sm border transition-all max-w-md",
-                              manualMode && "cursor-pointer hover:shadow-md",
-                              !manualMode && "line-clamp-3"
+                              manualMode && "cursor-pointer hover:shadow-md"
                             )}
                             onClick={() => {
                               if (manualMode) {
@@ -1412,7 +1509,7 @@ export function DataGrid({
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground mb-2">AI</p>
                   <div className="bg-secondary/50 rounded px-3 py-2 border border-border font-mono text-sm">
-                    {String((compareRow._corrected_value ?? (compareRow._ai_suggestion ?? "")) || "-")}
+                    {String(getAIValue(compareRow) || "-")}
                   </div>
                 </div>
               </div>
