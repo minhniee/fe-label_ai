@@ -57,6 +57,7 @@ import {
   exportDatasetVersion,
   downloadDatasetVersionFile,
   uploadFileToDataset,
+  getVersionFilesByDataset,
   type Dataset,
   type DatasetVersion,
 } from "@/app/api/dataset";
@@ -261,6 +262,32 @@ export default function ProjectDatasetPage() {
     setIsExporting(true);
     try {
       const dataset = datasets.find((d) => d.dataset_id === selectedDatasetId);
+
+      // Guard: only allow export when this version actually has data files (e.g. after all chunks are merged)
+      try {
+        const versionFiles = await getVersionFilesByDataset(
+          selectedDatasetId,
+          selectedVersionId
+        );
+        if (!versionFiles || versionFiles.file_count === 0) {
+          toast.error(
+            "Cannot export this dataset version because it has no data file yet. Please finish labeling/merging before exporting."
+          );
+          setIsExportOpen(false);
+          setIsExporting(false);
+          return;
+        }
+      } catch (checkError: any) {
+        console.error("Failed to check version files before export:", checkError);
+        toast.error(
+          checkError.message ||
+            "Không thể kiểm tra dữ liệu version trước khi export."
+        );
+        setIsExportOpen(false);
+        setIsExporting(false);
+        return;
+      }
+
       const exportResponse = await exportDatasetVersion(
         selectedDatasetId,
         selectedVersionId,
