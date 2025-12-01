@@ -8,11 +8,20 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft, Play, FileText, Search, X, Zap } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ArrowLeft, Play, FileText, Search, X, Zap, UserPlus, Send, Loader2, Columns } from "lucide-react";
 import { useProjectFromSlug } from "@/hooks/use-project-from-slug";
 import { getBatch, updateBatch, getBatchAssignments, getUserBatchProgress, createBatchAssignment, deleteBatchAssignment } from "@/app/api/batch";
-import { getProjectFiles, listPendingInvitations, getProjectCollaborators } from "@/app/api/project";
+import { getProjectFiles, listPendingInvitations, getProjectCollaborators, createInvitation } from "@/app/api/project";
 import { getMe } from "@/app/api/auth";
+import api from "@/app/api/client";
 import { toast } from "sonner";
 import { Mail } from "lucide-react";
 import {
@@ -25,6 +34,12 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 
 export default function ProjectJobPage() {
@@ -60,6 +75,12 @@ export default function ProjectJobPage() {
   const [assignmentHistory, setAssignmentHistory] = useState<any[]>([]);
   const [assignmentLogs, setAssignmentLogs] = useState<any[]>([]);
   const [csvRowCounts, setCsvRowCounts] = useState<{ [fileId: number]: number }>({});
+  const [showInviteForm, setShowInviteForm] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"Co-Owner" | "Labeler" | "Viewer">("Labeler");
+  const [isSendingInvite, setIsSendingInvite] = useState(false);
+  const [csvColumns, setCsvColumns] = useState<string[]>([]);
+  const [isLoadingColumns, setIsLoadingColumns] = useState(false);
 
   useEffect(() => {
     const tabParam = searchParams.get("tab");
@@ -237,6 +258,11 @@ export default function ProjectJobPage() {
       setUnannotatedFiles(unannotated);
       setAnnotatedFiles(annotated);
 
+      // Fetch columns from CSV files (async, don't await)
+      fetchCsvColumns(batchFiles).catch(err => {
+        console.error('Failed to fetch CSV columns:', err);
+      });
+
       // Load audit logs for this batch
     } catch (error: any) {
       console.error("Failed to load job data:", error);
@@ -276,10 +302,69 @@ export default function ProjectJobPage() {
     }
   };
 
+  const handleSendInvitation = async () => {
+    if (!inviteEmail.trim()) {
+      toast.error("Please enter an email address");
+      return;
+    }
+
+    if (!project) {
+      toast.error("Project not found");
+      return;
+    }
+
+    setIsSendingInvite(true);
+    try {
+      // Map role names to role_ids
+      const roleMap: Record<string, number> = {
+        "Co-Owner": 4,
+        "Labeler": 5,
+        "Viewer": 6,
+      };
+
+      await createInvitation(parseInt(project.id), {
+        email: inviteEmail,
+        role_id: roleMap[inviteRole] || 5,
+      });
+
+      toast.success(`Invitation sent to ${inviteEmail}`);
+
+      // Reload team data
+      await loadPendingInvitations();
+      await loadCollaborators();
+
+      // Clear form
+      setInviteEmail("");
+      setInviteRole("Labeler");
+      setShowInviteForm(false);
+
+    } catch (error: any) {
+      console.error("Failed to send invitation:", error);
+      toast.error(error.message || "Failed to send invitation");
+    } finally {
+      setIsSendingInvite(false);
+    }
+  };
+
   const totalCsvRows = Object.values(csvRowCounts || {}).reduce(
     (sum, count) => sum + (count || 0),
     0
   );
+
+  // Check if there are any CSV files in the batch
+  const hasCsvFiles = [...unannotatedFiles, ...annotatedFiles].some((f) => {
+    const filename = (f as any).file_name || f.filename || '';
+    return filename.toLowerCase().endsWith('.csv');
+  });
+
+  // Debug: log CSV files detection
+  console.log('CSV Files Detection:', {
+    totalCsvRows,
+    hasCsvFiles,
+    unannotatedFiles: unannotatedFiles.length,
+    annotatedFiles: annotatedFiles.length,
+    csvColumns: csvColumns.length,
+  });
 
   const handleReassign = async () => {
     if (!selectedReassignUserId && !selectedReassignEmail) {
@@ -415,6 +500,114 @@ export default function ProjectJobPage() {
     }
   };
 
+  // Parse CSV content to extract column names
+  const parseCSVColumns = (content: string): string[] => {
+    try {
+      if (!content || content.trim().length === 0) {
+        return [];
+      }
+      
+      const lines = content.split(/\r?\n/).filter(line => line.trim());
+      if (lines.length === 0) {
+        return [];
+      }
+      
+      // Parse first line as headers
+      const firstLine = lines[0].trim();
+      
+      // Improved CSV parsing to handle quoted values and commas inside quotes
+      const columns: string[] = [];
+      let currentColumn = '';
+      let insideQuotes = false;
+      
+      for (let i = 0; i < firstLine.length; i++) {
+        const char = firstLine[i];
+        
+        if (char === '"') {
+          insideQuotes = !insideQuotes;
+        } else if (char === ',' && !insideQuotes) {
+          columns.push(currentColumn.trim());
+          currentColumn = '';
+        } else {
+          currentColumn += char;
+        }
+      }
+      
+      // Add the last column
+      if (currentColumn.trim() || columns.length > 0) {
+        columns.push(currentColumn.trim());
+      }
+      
+      // Clean up columns (remove surrounding quotes)
+      const cleanedColumns = columns
+        .map(col => col.replace(/^"|"$/g, '').trim())
+        .filter(col => col.length > 0);
+      
+      return cleanedColumns;
+    } catch (error) {
+      console.error('Error parsing CSV columns:', error);
+      return [];
+    }
+  };
+
+  // Fetch CSV columns from files
+  const fetchCsvColumns = async (files: any[]) => {
+    // Find first CSV file
+    const csvFile = files.find((f) => {
+      const filename = (f as any).file_name || f.filename || '';
+      return filename.toLowerCase().endsWith('.csv');
+    });
+
+    if (!csvFile) {
+      console.log('[fetchCsvColumns] No CSV file found');
+      setCsvColumns([]);
+      return;
+    }
+
+    try {
+      setIsLoadingColumns(true);
+      console.log(`[fetchCsvColumns] Attempting to fetch columns for file ${csvFile.file_id}`);
+      
+      // Try to get file content from annotations API using API client (with auth)
+      try {
+        const response = await api.get(`/annotations/files/${csvFile.file_id}/content`);
+        const data = response.data;
+        
+        console.log(`[fetchCsvColumns] API response data:`, { 
+          hasContent: !!data.content, 
+          contentLength: data.content?.length,
+          fileId: data.file_id 
+        });
+        
+        const content = data.content || '';
+        
+        if (!content || typeof content !== 'string') {
+          console.log(`[fetchCsvColumns] No valid content in response`);
+          setCsvColumns([]);
+          return;
+        }
+
+        const columns = parseCSVColumns(content);
+        console.log(`[fetchCsvColumns] Parsed ${columns.length} columns:`, columns);
+        setCsvColumns(columns);
+      } catch (apiError: any) {
+        // If annotations API fails (e.g., file not in dataset), try alternative
+        console.log(`[fetchCsvColumns] Annotations API failed (${apiError.response?.status || 'unknown'}):`, apiError.message);
+        
+        // Alternative: Try to get file content from data_files.content column via project API
+        // For now, we'll just return empty and log the error
+        // TODO: Could add a new API endpoint to get project file content directly
+        console.log(`[fetchCsvColumns] File may not be in a dataset, cannot fetch content via annotations API`);
+        setCsvColumns([]);
+      }
+    } catch (error) {
+      console.error(`[fetchCsvColumns] Failed to fetch columns for file ${csvFile.file_id}:`, error);
+      setCsvColumns([]);
+    } finally {
+      setIsLoadingColumns(false);
+    }
+  };
+
   const getRoleName = (roleId: number) => {
     const roleNames: Record<number, string> = {
       1: "Owner",
@@ -479,11 +672,17 @@ export default function ProjectJobPage() {
   const userCompletedFiles = userProgress?.completed_batches || 0;
   const userAssignedFiles = userProgress?.assigned_batches || 0;
 
+  // Check if job is completed (all files annotated or batch status is completed)
+  const isJobCompleted = 
+    progress === 100 || 
+    unannotatedFiles.length === 0 || 
+    batchData?.status === 'completed';
+
   // Check if current user is Owner (3) or Co-Owner (4) in this project
   const currentUserProjectRole = currentUser?.user_id 
     ? collaborators.find(c => c.user_id === currentUser.user_id)?.role_id 
     : null;
-  const canReassign = currentUserProjectRole === 3 || currentUserProjectRole === 4; // Owner or Co-Owner
+  const canReassign = (currentUserProjectRole === 3 || currentUserProjectRole === 4) && !isJobCompleted; // Owner or Co-Owner and job not completed
 
   if (isLoading) {
     return (
@@ -513,24 +712,26 @@ export default function ProjectJobPage() {
               </p>
             </div>
           </div>
-          <div className="flex items-center justify-between gap-2 mt-4">
-            <Button 
-              className="flex-1 cursor-pointer" 
-              onClick={() => {
-                // Navigate to labelai page with jobId in path
-                const fileIds = unannotatedFiles.map(f => f.file_id);
-                const params = new URLSearchParams({
-                  fileIds: JSON.stringify(fileIds),
-                  jobName: batchName
-                });
-                  router.push(`/${projectSlug}/annotate/job/${batchId}/annotating?${params.toString()}`);
-              }}
-              disabled={unannotatedFiles.length === 0}
-            >
-              <Play className="mr-2 h-4 w-4" />
-              Start Annotating
-            </Button>
-          </div>
+          {!isJobCompleted && (
+            <div className="flex items-center justify-between gap-2 mt-4">
+              <Button 
+                className="flex-1 cursor-pointer" 
+                onClick={() => {
+                  // Navigate to labelai page with jobId in path
+                  const fileIds = unannotatedFiles.map(f => f.file_id);
+                  const params = new URLSearchParams({
+                    fileIds: JSON.stringify(fileIds),
+                    jobName: batchName
+                  });
+                    router.push(`/${projectSlug}/annotate/job/${batchId}/annotating?${params.toString()}`);
+                }}
+                disabled={unannotatedFiles.length === 0}
+              >
+                <Play className="mr-2 h-4 w-4" />
+                Start Annotating
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Progress Section */}
@@ -563,12 +764,69 @@ export default function ProjectJobPage() {
         )}
 
         {/* Row Summary */}
-        {totalCsvRows > 0 && (
+        {(totalCsvRows > 0 || hasCsvFiles) && (
           <div className="p-6 border-b">
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm font-medium text-blue-900">
-                Total rows to label: <span className="font-bold">{totalCsvRows} rows</span>
-              </p>
+              <div className="flex items-center justify-between">
+                {totalCsvRows > 0 ? (
+                  <p className="text-sm font-medium text-blue-900">
+                    Total rows to label: <span className="font-bold">{totalCsvRows} rows</span>
+                  </p>
+                ) : (
+                  <p className="text-sm font-medium text-blue-900">
+                    CSV Files in batch
+                  </p>
+                )}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-8 w-8 text-blue-900 hover:bg-blue-100"
+                      disabled={isLoadingColumns}
+                    >
+                      {isLoadingColumns ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Columns className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-4" align="start">
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 font-semibold text-sm">
+                          <FileText className="w-4 h-4" />
+                          Dataset Columns
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Columns from CSV files
+                        </p>
+                      </div>
+                      {isLoadingColumns ? (
+                        <div className="text-xs text-muted-foreground">Loading columns...</div>
+                      ) : csvColumns.length > 0 ? (
+                        <>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span>{csvColumns.length} column{csvColumns.length !== 1 ? 's' : ''} found</span>
+                          </div>
+                          <ScrollArea className="max-h-[200px] w-full rounded-md border p-3">
+                            <div className="flex flex-wrap gap-2">
+                              {csvColumns.map((column, index) => (
+                                <Badge key={index} variant="secondary" className="text-xs">
+                                  {column}
+                                </Badge>
+                              ))}
+                            </div>
+                          </ScrollArea>
+                        </>
+                      ) : (
+                        <div className="text-xs text-muted-foreground">No columns available</div>
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
           </div>
         )}
@@ -592,16 +850,96 @@ export default function ProjectJobPage() {
                   </DrawerDescription>
                 </DrawerHeader>
                 <div className="px-4 pb-4 flex-1 overflow-hidden flex flex-col">
-                  {/* Search */}
-                  <div className="relative mb-4">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search for team members..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-9"
-                    />
+                  {/* Buttons */}
+                  <div className="flex gap-2 mb-4">
+                    <Button
+                      variant={showInviteForm ? "default" : "outline"}
+                      className="flex-1"
+                      onClick={() => setShowInviteForm(!showInviteForm)}
+                    >
+                      <UserPlus className="mr-2 h-4 w-4" />
+                      Invite team member
+                    </Button>
                   </div>
+
+                  {/* Invite Form */}
+                  {showInviteForm && (
+                    <Card className="p-4 mb-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <UserPlus className="h-5 w-5 text-muted-foreground" />
+                          <h4 className="font-semibold">Invite Team Member</h4>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setShowInviteForm(false)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="invite-email">Email Address</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              id="invite-email"
+                              placeholder="Email address"
+                              value={inviteEmail}
+                              onChange={(e) => setInviteEmail(e.target.value)}
+                              disabled={isSendingInvite}
+                              className="flex-1"
+                            />
+                            <Select
+                              value={inviteRole}
+                              onValueChange={(v: any) => setInviteRole(v)}
+                              disabled={isSendingInvite}
+                            >
+                              <SelectTrigger className="w-32">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Co-Owner">Co-Owner</SelectItem>
+                                <SelectItem value="Labeler">Labeler</SelectItem>
+                                <SelectItem value="Viewer">Viewer</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <Button
+                          onClick={handleSendInvitation}
+                          disabled={isSendingInvite || !inviteEmail.trim()}
+                          className="w-full"
+                        >
+                          {isSendingInvite ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Sending...
+                            </>
+                          ) : (
+                            <>
+                              <Send className="mr-2 h-4 w-4" />
+                              Send Invite
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </Card>
+                  )}
+
+                  {/* Search */}
+                  {!showInviteForm && (
+                    <div className="relative mb-4">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search for team members..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-9"
+                      />
+                    </div>
+                  )}
 
                   {/* User List */}
                   <div className="space-y-2 flex-1 overflow-y-auto">
@@ -748,14 +1086,17 @@ export default function ProjectJobPage() {
                     <div key={file.file_id} className="group cursor-pointer">
                       <div className="aspect-square rounded-lg border bg-muted flex items-center justify-center relative overflow-hidden hover:border-primary transition-colors">
                         <FileText className="h-8 w-8 text-muted-foreground" />
-                        {file.filename && file.filename.toLowerCase().endsWith('.csv') && csvRowCounts[file.file_id] && (
-                          <Badge variant="secondary" className="absolute top-2 left-2 text-xs">
-                            {csvRowCounts[file.file_id]} câu
-                          </Badge>
-                        )}
+                        {(() => {
+                          const fileName = (file as any).file_name || file.filename || '';
+                          return fileName && fileName.toLowerCase().endsWith('.csv') && csvRowCounts[file.file_id] && (
+                            <Badge variant="secondary" className="absolute top-2 left-2 text-xs">
+                              {csvRowCounts[file.file_id]} rows
+                            </Badge>
+                          );
+                        })()}
                       </div>
-                      <p className="text-xs truncate mt-2" title={file.filename}>
-                        {file.filename}
+                      <p className="text-xs truncate mt-2" title={(file as any).file_name || file.filename || 'Unknown file'}>
+                        {(file as any).file_name || file.filename || 'Unknown file'}
                       </p>
                     </div>
                   ))}
@@ -781,14 +1122,17 @@ export default function ProjectJobPage() {
                         >
                           ✓
                         </Badge>
-                        {file.filename && file.filename.toLowerCase().endsWith('.csv') && csvRowCounts[file.file_id] && (
-                          <Badge variant="secondary" className="absolute top-2 left-2 text-xs">
-                            {csvRowCounts[file.file_id]} câu
-                          </Badge>
-                        )}
+                        {(() => {
+                          const fileName = (file as any).file_name || file.filename || '';
+                          return fileName && fileName.toLowerCase().endsWith('.csv') && csvRowCounts[file.file_id] && (
+                            <Badge variant="secondary" className="absolute top-2 left-2 text-xs">
+                              {csvRowCounts[file.file_id]} rows
+                            </Badge>
+                          );
+                        })()}
                       </div>
-                      <p className="text-xs truncate mt-2" title={file.filename}>
-                        {file.filename}
+                      <p className="text-xs truncate mt-2" title={(file as any).file_name || file.filename || 'Unknown file'}>
+                        {(file as any).file_name || file.filename || 'Unknown file'}
                       </p>
                     </div>
                   ))}

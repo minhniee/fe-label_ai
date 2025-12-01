@@ -4,6 +4,7 @@ import { useRouter, useParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import { MoreVertical, CircleHelp } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { getProjectBatches } from "@/app/api/batch";
 import { getProjectFiles } from "@/app/api/project";
 import { useProjectFromSlug } from "@/hooks/use-project-from-slug";
@@ -102,7 +103,7 @@ export default function DatasetSection() {
   };
 
   return (
-    <div className="border border-input rounded-lg p-6 bg-card h-full flex flex-col">
+    <div className="border border-input rounded-lg p-6 bg-card h-full flex flex-col min-h-0">
       <div className="flex items-center justify-between mb-6">
         <div className="text-center flex-1">
           <h2 className="text-lg font-semibold mb-1">Dataset</h2>
@@ -128,52 +129,54 @@ export default function DatasetSection() {
       </div>
 
       {/* Dataset Jobs List */}
-      <div className="space-y-3 flex-1 overflow-y-auto">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <p className="text-sm text-muted-foreground">Loading dataset...</p>
-          </div>
-        ) : jobs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <p className="text-sm text-muted-foreground">No completed jobs</p>
-            <p className="text-xs text-muted-foreground mt-1">Complete annotation jobs to add to dataset</p>
-          </div>
-        ) : (
-          jobs.map((job) => (
-            <div
-              key={job.batch_id}
-              className="border border-input rounded-md p-4 bg-background hover:bg-accent/50 transition-colors cursor-pointer"
-              onClick={() => handleViewJob(job)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  handleViewJob(job);
-                }
-              }}
-            >
-              <div className="flex items-start justify-between mb-2">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{job.name}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Labeler: {job.labeler}</p>
-                </div>
-                <button 
-                  className="text-muted-foreground hover:text-foreground flex-shrink-0"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <MoreVertical className="w-4 h-4" />
-                </button>
-              </div>
-              <div className="flex items-center justify-between mt-3 pt-3 border-t border-input/50">
-                <span className="text-xs text-muted-foreground">
-                  {job.annotatedCount} Annotated Files
-                </span>
-              </div>
+      <ScrollArea className="flex-1 min-h-0">
+        <div className="space-y-3 pr-4">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <p className="text-sm text-muted-foreground">Loading dataset...</p>
             </div>
-          ))
-        )}
-      </div>
+          ) : jobs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <p className="text-sm text-muted-foreground">No completed jobs</p>
+              <p className="text-xs text-muted-foreground mt-1">Complete annotation jobs to add to dataset</p>
+            </div>
+          ) : (
+            jobs.map((job) => (
+              <div
+                key={job.batch_id}
+                className="border border-input rounded-md p-4 bg-background hover:bg-accent/50 transition-colors cursor-pointer"
+                onClick={() => handleViewJob(job)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    handleViewJob(job);
+                  }
+                }}
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{job.name}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Labeler: {job.labeler}</p>
+                  </div>
+                  <button 
+                    className="text-muted-foreground hover:text-foreground flex-shrink-0"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <MoreVertical className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-input/50">
+                  <span className="text-xs text-muted-foreground">
+                    {job.annotatedCount} Annotated Files
+                  </span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </ScrollArea>
     </div>
   );
 }

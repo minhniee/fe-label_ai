@@ -90,12 +90,16 @@ export interface InvitationDetailsResponse {
 
 export interface ProjectFileResponse {
   file_id: number;
-  filename: string;
-  file_path: string;
-  file_type: string;
+  file_name: string; // Backend returns file_name, not filename
+  filename?: string; // Keep for backward compatibility
+  file_path?: string;
+  file_type?: string;
   annotation_status: 'unannotated' | 'annotating' | 'completed' | 'verified';
-  uploaded_at: string;
-  uploaded_by: number;
+  uploaded_at?: string;
+  uploaded_by?: number;
+  assigned_to?: number;
+  started_at?: string;
+  completed_at?: string;
 }
 
 export interface ProjectStatsResponse {

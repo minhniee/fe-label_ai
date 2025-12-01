@@ -345,7 +345,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     )}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent align="end" className="w-96 p-0">
+                <PopoverContent align="end" className="w-96 p-0 overflow-hidden">
                   <div className="flex items-center justify-between p-4 border-b">
                     <h3 className="font-semibold">Notifications</h3>
                     {unreadCount > 0 && (
@@ -382,18 +382,25 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                           >
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
+                                <div className="flex items-start gap-2 mb-1">
                                   <h4 className={cn(
-                                    "text-sm font-medium",
+                                    "text-sm font-medium break-words flex-1 min-w-0",
                                     !notification.read && "font-semibold"
                                   )}>
                                     {notification.title}
                                   </h4>
                                   {!notification.read && (
-                                    <div className="h-2 w-2 rounded-full bg-primary" />
+                                    <div className="h-2 w-2 rounded-full bg-primary flex-shrink-0 mt-1.5" />
                                   )}
                                 </div>
-                                <p className="text-sm text-muted-foreground mb-2">
+                                <p 
+                                  className="text-sm text-muted-foreground mb-2 break-words whitespace-normal"
+                                  style={{ 
+                                    wordBreak: 'break-word',
+                                    overflowWrap: 'anywhere',
+                                    hyphens: 'auto'
+                                  }}
+                                >
                                   {notification.message}
                                 </p>
                                 <p className="text-xs text-muted-foreground">

@@ -4,6 +4,7 @@ import { useRouter, useParams } from "next/navigation"
 import { useState, useEffect } from "react"
 import { Upload, Eye, ArrowRight, MoreVertical, CircleHelp } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { getProjectBatches } from "@/app/api/batch"
 import { getProjectFiles } from "@/app/api/project"
 import { useProjectFromSlug } from "@/hooks/use-project-from-slug"
@@ -90,7 +91,7 @@ export default function UnassignedSection() {
   }
 
   return (
-    <div className="border border-input rounded-lg p-6 bg-card h-full flex flex-col">
+    <div className="border border-input rounded-lg p-6 bg-card h-full flex flex-col min-h-0">
       <div className="flex items-center justify-between mb-6">
         <div className="text-center flex-1">
           <h2 className="text-lg font-semibold mb-1">Unassigned</h2>
@@ -125,55 +126,57 @@ export default function UnassignedSection() {
       </button>
 
       {/* Batches List */}
-      <div className="space-y-3 flex-1 overflow-y-auto">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <p className="text-sm text-muted-foreground">Loading batches...</p>
-          </div>
-        ) : batches.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <p className="text-sm text-muted-foreground">No unassigned batches</p>
-            <p className="text-xs text-muted-foreground mt-1">Upload files to create a new batch</p>
-          </div>
-        ) : (
-          batches.map((batch) => (
-          <div
-              key={batch.batch_id}
-              className="border border-input rounded-md p-4 bg-background hover:bg-accent/50 transition-colors cursor-pointer"
-              onClick={() => handleBatchSelect(batch)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault()
-                  handleBatchSelect(batch)
-                }
-              }}
-          >
-            <div className="flex items-start justify-between mb-2">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{batch.name}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{batch.unannotatedCount} unassigned files</p>
+      <ScrollArea className="flex-1 min-h-0">
+        <div className="space-y-3 pr-4">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <p className="text-sm text-muted-foreground">Loading batches...</p>
+            </div>
+          ) : batches.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <p className="text-sm text-muted-foreground">No unassigned batches</p>
+              <p className="text-xs text-muted-foreground mt-1">Upload files to create a new batch</p>
+            </div>
+          ) : (
+            batches.map((batch) => (
+            <div
+                key={batch.batch_id}
+                className="border border-input rounded-md p-4 bg-background hover:bg-accent/50 transition-colors cursor-pointer"
+                onClick={() => handleBatchSelect(batch)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault()
+                    handleBatchSelect(batch)
+                  }
+                }}
+            >
+              <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{batch.name}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{batch.unannotatedCount} unassigned files</p>
+                </div>
+                  <button className="text-muted-foreground hover:text-foreground flex-shrink-0">
+                  <MoreVertical className="w-4 h-4" />
+                </button>
               </div>
-                <button className="text-muted-foreground hover:text-foreground flex-shrink-0">
-                <MoreVertical className="w-4 h-4" />
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    handleBatchSelect(batch)
+                  }}
+                  className="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors text-sm font-medium mt-3"
+                >
+                  <span>Annotate Files</span>
+                <ArrowRight className="w-3 h-3" />
               </button>
             </div>
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  handleBatchSelect(batch)
-                }}
-                className="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors text-sm font-medium mt-3"
-              >
-                <span>Annotate Files</span>
-              <ArrowRight className="w-3 h-3" />
-            </button>
-          </div>
-          ))
-        )}
-      </div>
+            ))
+          )}
+        </div>
+      </ScrollArea>
     </div>
   )
 }

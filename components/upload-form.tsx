@@ -14,6 +14,7 @@ import {
   Upload,
   FileText,
   ExternalLink,
+  Columns,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { toast as sonnerToast } from "sonner";
@@ -32,6 +33,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Define supported file formats
 const PDF_EXTENSIONS = [".pdf"];
@@ -58,6 +66,7 @@ export function UploadForm() {
 
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [fileColumns, setFileColumns] = useState<Record<string, string[]>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
@@ -105,6 +114,69 @@ export function UploadForm() {
     });
   };
 
+  // Parse CSV file to extract column names
+  const parseCSVColumns = async (file: File): Promise<string[]> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const text = e.target?.result as string;
+          if (!text || text.trim().length === 0) {
+            resolve([]);
+            return;
+          }
+          
+          const lines = text.split(/\r?\n/).filter(line => line.trim());
+          if (lines.length === 0) {
+            resolve([]);
+            return;
+          }
+          
+          // Parse first line as headers
+          const firstLine = lines[0].trim();
+          
+          // Improved CSV parsing to handle quoted values and commas inside quotes
+          const columns: string[] = [];
+          let currentColumn = '';
+          let insideQuotes = false;
+          
+          for (let i = 0; i < firstLine.length; i++) {
+            const char = firstLine[i];
+            
+            if (char === '"') {
+              insideQuotes = !insideQuotes;
+            } else if (char === ',' && !insideQuotes) {
+              columns.push(currentColumn.trim());
+              currentColumn = '';
+            } else {
+              currentColumn += char;
+            }
+          }
+          
+          // Add the last column
+          if (currentColumn.trim() || columns.length > 0) {
+            columns.push(currentColumn.trim());
+          }
+          
+          // Clean up columns (remove surrounding quotes)
+          const cleanedColumns = columns
+            .map(col => col.replace(/^"|"$/g, '').trim())
+            .filter(col => col.length > 0);
+          
+          resolve(cleanedColumns);
+        } catch (error) {
+          console.error('Error parsing CSV:', error);
+          resolve([]);
+        }
+      };
+      reader.onerror = () => {
+        console.error('Failed to read file');
+        resolve([]);
+      };
+      reader.readAsText(file);
+    });
+  };
+
   const addFiles = async (newFiles: File[]) => {
     const validFiles = validateFiles(newFiles);
     const uniqueNewFiles = validFiles.filter(
@@ -114,6 +186,21 @@ export function UploadForm() {
             existingFile.name === file.name && existingFile.size === file.size
         )
     );
+    
+    // Parse CSV columns for CSV files
+    const columnsMap: Record<string, string[]> = {};
+    for (const file of uniqueNewFiles) {
+      if (isDataFile(file) && file.name.toLowerCase().endsWith('.csv')) {
+        try {
+          const columns = await parseCSVColumns(file);
+          columnsMap[file.name] = columns;
+        } catch (error) {
+          console.error(`Failed to parse columns for ${file.name}:`, error);
+        }
+      }
+    }
+    
+    setFileColumns((prev) => ({ ...prev, ...columnsMap }));
     setSelectedFiles((prev) => [...prev, ...uniqueNewFiles]);
   };
 
@@ -164,6 +251,11 @@ export function UploadForm() {
 
   const removeFile = (fileName: string) => {
     setSelectedFiles((prev) => prev.filter((file) => file.name !== fileName));
+    setFileColumns((prev) => {
+      const updated = { ...prev };
+      delete updated[fileName];
+      return updated;
+    });
   };
 
   const getFilteredFiles = () => {
@@ -545,28 +637,77 @@ export function UploadForm() {
 
               {filteredFiles.length > 0 ? (
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 pt-6">
-                  {filteredFiles.map((file) => (
-                    <div
-                      key={file.name}
-                      className="relative group rounded-lg overflow-hidden bg-muted aspect-video flex items-center justify-center text-center"
-                    >
-                      {canCreate && (
-                        <button
-                          type="button"
-                          onClick={() => setFileToDelete(file)}
-                          className="absolute top-1 right-1 z-10 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      )}
-                      <div className="flex flex-col items-center gap-2 p-2">
-                        <FileIcon className="w-8 h-8 text-muted-foreground" />
-                        <p className="text-xs text-muted-foreground break-all">
-                          {file.name}
-                        </p>
+                  {filteredFiles.map((file) => {
+                    const columns = fileColumns[file.name] || [];
+                    const hasColumns = columns.length > 0;
+                    
+                    return (
+                      <div
+                        key={file.name}
+                        className="relative group rounded-lg overflow-hidden bg-muted aspect-video flex items-center justify-center text-center"
+                      >
+                        {canCreate && (
+                          <button
+                            type="button"
+                            onClick={() => setFileToDelete(file)}
+                            className="absolute top-1 right-1 z-10 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                        {hasColumns && (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button
+                                type="button"
+                                className="absolute top-1 left-1 z-10 p-1.5 bg-primary text-primary-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary/90"
+                                title="View columns"
+                              >
+                                <Columns className="w-3 h-3" />
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-4" align="start" side="right">
+                              <div className="space-y-3">
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-2 font-semibold text-sm">
+                                    <FileText className="w-4 h-4" />
+                                    File Columns
+                                  </div>
+                                  <p className="text-xs text-muted-foreground truncate max-w-[300px]" title={file.name}>
+                                    {file.name}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <span>{columns.length} column{columns.length !== 1 ? 's' : ''} found</span>
+                                </div>
+                                <ScrollArea className="max-h-[200px] w-full rounded-md border p-3">
+                                  <div className="flex flex-wrap gap-2">
+                                    {columns.map((column, index) => (
+                                      <Badge key={index} variant="secondary" className="text-xs">
+                                        {column}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </ScrollArea>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        )}
+                        <div className="flex flex-col items-center gap-2 p-2">
+                          <FileIcon className="w-8 h-8 text-muted-foreground" />
+                          <p className="text-xs text-muted-foreground break-all">
+                            {file.name}
+                          </p>
+                          {hasColumns && (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Columns className="w-3 h-3" />
+                              <span>{columns.length} cols</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-12 text-muted-foreground">

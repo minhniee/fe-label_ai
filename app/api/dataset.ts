@@ -111,12 +111,17 @@ export interface DatasetUpdateRequest {
 }
 
 // Get all datasets
-export async function getDatasets() {
+export async function getDatasets(projectId?: number) {
   try {
+    const params = projectId ? { project_id: projectId } : {}
+    console.log("[API getDatasets] Calling with params:", params, "projectId:", projectId);
     const response = await api.get<Dataset[]>(`/datasets`, {
+      params
     })
+    console.log("[API getDatasets] Response:", response.data?.length, "datasets");
     return response.data
   } catch (error: any) {
+    console.error("[API getDatasets] Error:", error);
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to get datasets'
     throw new Error(errorMessage)
   }

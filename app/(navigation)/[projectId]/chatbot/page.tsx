@@ -14,9 +14,11 @@ import {
   RefreshCw,
   Send,
   Trash2,
-  Upload,
-  User,
   Zap,
+  Plus,
+  Edit2,
+  X,
+  Check,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -32,7 +34,7 @@ import {
   sendChatMessage,
   switchChatbotDataset,
 } from "@/app/api/chatbot";
-import { getDataset, getDatasets, uploadFileToDataset, type Dataset } from "@/app/api/dataset";
+import { getDataset, getDatasets, type Dataset } from "@/app/api/dataset";
 import type { ChatHistory } from "@/app/api/chatbot";
 import {
   Select,
@@ -41,6 +43,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Message {
   id: string;
@@ -50,6 +63,16 @@ interface Message {
   context?: string[];
   chatId?: number;
 }
+
+interface Conversation {
+  id: string;
+  title: string;
+  messages: Message[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+const STORAGE_KEY = "chatbot_conversations";
 
 export default function ProjectChatbotPage() {
   const router = useRouter();
@@ -61,7 +84,8 @@ export default function ProjectChatbotPage() {
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [isLoadingDatasets, setIsLoadingDatasets] = useState(false);
 
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [stats, setStats] = useState({
@@ -71,9 +95,138 @@ export default function ProjectChatbotPage() {
   });
   const [startTime, setStartTime] = useState<number | null>(null);
   const [isDatasetReloading, setIsDatasetReloading] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
-  const uploadInputRef = useRef<HTMLInputElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollViewportRef = useRef<HTMLDivElement>(null);
+  const [isUserNearBottom, setIsUserNearBottom] = useState(true);
+  const [editingConversationId, setEditingConversationId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
+  const [deletingConversationId, setDeletingConversationId] = useState<string | null>(null);
+
+  // Load conversations from localStorage
+  useEffect(() => {
+    if (projectId) {
+      const stored = localStorage.getItem(`${STORAGE_KEY}_${projectId}`);
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          setConversations(parsed);
+          if (parsed.length > 0 && !currentConversationId) {
+            setCurrentConversationId(parsed[0].id);
+          }
+        } catch (e) {
+          console.error("Failed to load conversations:", e);
+        }
+      }
+    }
+  }, [projectId]);
+
+  // Save conversations to localStorage
+  useEffect(() => {
+    if (projectId && conversations.length > 0) {
+      localStorage.setItem(`${STORAGE_KEY}_${projectId}`, JSON.stringify(conversations));
+    }
+  }, [conversations, projectId]);
+
+  // Load chat history from API and merge with conversations
+  const loadChatHistory = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      const data = await getChatHistory(100, projectId);
+      if (data.chats && data.chats.length > 0) {
+        // Group chats into conversations based on time gaps (5 minutes)
+        const groupedConversations: Conversation[] = [];
+        let currentGroup: ChatHistory[] = [];
+        let lastTime: Date | null = null;
+
+        data.chats
+          .slice()
+          .reverse()
+          .forEach((chat: ChatHistory, index: number) => {
+            const chatTime = new Date(chat.created_at);
+            if (
+              lastTime === null ||
+              (chatTime.getTime() - lastTime.getTime()) / 1000 / 60 > 5
+            ) {
+              // Start new conversation
+              if (currentGroup.length > 0) {
+                const conversationId = `conv-${currentGroup[0].chat_id}`;
+                const title = currentGroup[0].query.slice(0, 50) || "New Conversation";
+                const messages: Message[] = currentGroup.flatMap((c) => [
+                  {
+                    id: `user-${c.chat_id}`,
+                    text: c.query,
+                    type: "user" as const,
+                    timestamp: c.created_at,
+                    chatId: c.chat_id,
+                  },
+                  {
+                    id: `bot-${c.chat_id}`,
+                    text: c.answer,
+                    type: "bot" as const,
+                    timestamp: c.created_at,
+                    chatId: c.chat_id,
+                  },
+                ]);
+                groupedConversations.push({
+                  id: conversationId,
+                  title,
+                  messages,
+                  createdAt: currentGroup[0].created_at,
+                  updatedAt: currentGroup[currentGroup.length - 1].created_at,
+                });
+              }
+              currentGroup = [chat];
+            } else {
+              currentGroup.push(chat);
+            }
+            lastTime = chatTime;
+          });
+
+        // Add last group
+        if (currentGroup.length > 0) {
+          const conversationId = `conv-${currentGroup[0].chat_id}`;
+          const title = currentGroup[0].query.slice(0, 50) || "New Conversation";
+          const messages: Message[] = currentGroup.flatMap((c) => [
+            {
+              id: `user-${c.chat_id}`,
+              text: c.query,
+              type: "user" as const,
+              timestamp: c.created_at,
+              chatId: c.chat_id,
+            },
+            {
+              id: `bot-${c.chat_id}`,
+              text: c.answer,
+              type: "bot" as const,
+              timestamp: c.created_at,
+              chatId: c.chat_id,
+            },
+          ]);
+          groupedConversations.push({
+            id: conversationId,
+            title,
+            messages,
+            createdAt: currentGroup[0].created_at,
+            updatedAt: currentGroup[currentGroup.length - 1].created_at,
+          });
+        }
+
+        // Merge with existing conversations (avoid duplicates)
+        setConversations((prev) => {
+          const existingIds = new Set(prev.map((c) => c.id));
+          const newConversations = groupedConversations.filter((c) => !existingIds.has(c.id));
+          const merged = [...newConversations, ...prev];
+          if (merged.length > 0 && !currentConversationId) {
+            setCurrentConversationId(merged[0].id);
+          }
+          return merged;
+        });
+      }
+    } catch (error) {
+      console.error("Error loading chat history:", error);
+    }
+  }, [projectId, currentConversationId]);
 
   useEffect(() => {
     if (project?.dataset_id) {
@@ -84,7 +237,8 @@ export default function ProjectChatbotPage() {
   const loadDatasets = useCallback(async () => {
     setIsLoadingDatasets(true);
     try {
-      const datasetsList = await getDatasets();
+      const projectIdForFilter = projectId ? Number(projectId) : undefined;
+      const datasetsList = await getDatasets(projectIdForFilter);
       setDatasets(datasetsList);
     } catch (error) {
       console.error("Failed to load datasets:", error);
@@ -96,7 +250,7 @@ export default function ProjectChatbotPage() {
     } finally {
       setIsLoadingDatasets(false);
     }
-  }, [toast]);
+  }, [toast, projectId]);
 
   useEffect(() => {
     loadDatasets();
@@ -138,37 +292,12 @@ export default function ProjectChatbotPage() {
     }
   }, [datasetId]);
 
-  const loadChatHistory = useCallback(async () => {
-    if (!projectId) return;
-    try {
-      const data = await getChatHistory(20, projectId);
-      if (data.chats && data.chats.length > 0) {
-        const historyMessages: Message[] = [];
-        data.chats
-          .slice()
-          .reverse()
-          .forEach((chat: ChatHistory) => {
-            historyMessages.push({
-              id: `user-${chat.chat_id}`,
-              text: chat.query,
-              type: "user",
-              timestamp: chat.created_at,
-              chatId: chat.chat_id,
-            });
-            historyMessages.push({
-              id: `bot-${chat.chat_id}`,
-              text: chat.answer,
-              type: "bot",
-              timestamp: chat.created_at,
-              chatId: chat.chat_id,
-            });
-          });
-        setMessages(historyMessages);
-      }
-    } catch (error) {
-      console.error("Error loading chat history:", error);
+  useEffect(() => {
+    if (projectId) {
+      loadStats();
+      loadChatHistory();
     }
-  }, [projectId]);
+  }, [projectId, loadStats, loadChatHistory]);
 
   const reloadDataset = async () => {
     if (!datasetId) return;
@@ -213,34 +342,15 @@ export default function ProjectChatbotPage() {
     }
   };
 
-  const handleDatasetFileUpload = async (file: File | null) => {
-    if (!file || !datasetId) return;
-    setIsUploading(true);
-    try {
-      await uploadFileToDataset(datasetId, file, "text");
-      toast({
-        title: "Upload successful",
-        description: `Added "${file.name}". Click Reload for the chatbot to refresh.`,
-      });
-      await loadDatasetInfo();
-    } catch (error: any) {
-      toast({
-        title: "Upload failed",
-        description: error.message || "Unable to upload data to the dataset",
-        variant: "destructive",
-      });
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
   const handleDeleteChat = async (chatId: number) => {
-    if (!confirm("Are you sure you want to delete this message?")) {
-      return;
-    }
     try {
       await deleteChatMessage(chatId);
-      setMessages((prev) => prev.filter((msg) => msg.chatId !== chatId));
+      setConversations((prev) =>
+        prev.map((conv) => ({
+          ...conv,
+          messages: conv.messages.filter((msg) => msg.chatId !== chatId),
+        }))
+      );
       toast({
         title: "Deleted",
         description: "Message removed",
@@ -252,6 +362,39 @@ export default function ProjectChatbotPage() {
         variant: "destructive",
       });
     }
+  };
+
+  const createNewConversation = () => {
+    const newId = `conv-${Date.now()}`;
+    const newConversation: Conversation = {
+      id: newId,
+      title: "New Conversation",
+      messages: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setConversations((prev) => [newConversation, ...prev]);
+    setCurrentConversationId(newId);
+  };
+
+  const deleteConversation = (conversationId: string) => {
+    setConversations((prev) => {
+      const filtered = prev.filter((c) => c.id !== conversationId);
+      if (currentConversationId === conversationId) {
+        setCurrentConversationId(filtered.length > 0 ? filtered[0].id : null);
+      }
+      return filtered;
+    });
+    setDeletingConversationId(null);
+  };
+
+  const updateConversationTitle = (conversationId: string, newTitle: string) => {
+    if (!newTitle.trim()) return;
+    setConversations((prev) =>
+      prev.map((c) => (c.id === conversationId ? { ...c, title: newTitle.trim() } : c))
+    );
+    setEditingConversationId(null);
+    setEditingTitle("");
   };
 
   const handleSendMessage = async () => {
@@ -266,7 +409,17 @@ export default function ProjectChatbotPage() {
       return;
     }
 
+    // Create new conversation if none exists
+    if (!currentConversationId) {
+      createNewConversation();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+
+    const conversationId = currentConversationId || `conv-${Date.now()}`;
     setInputValue("");
+    
+    // Force scroll to bottom when user sends a message
+    setIsUserNearBottom(true);
 
     const userMessage: Message = {
       id: `user-${Date.now()}`,
@@ -274,7 +427,20 @@ export default function ProjectChatbotPage() {
       type: "user",
       timestamp: new Date().toISOString(),
     };
-    setMessages((prev) => [...prev, userMessage]);
+
+    // Update conversation with user message
+    setConversations((prev) =>
+      prev.map((conv) =>
+        conv.id === conversationId
+          ? {
+              ...conv,
+              messages: [...conv.messages, userMessage],
+              updatedAt: new Date().toISOString(),
+              title: conv.title === "New Conversation" ? message.slice(0, 50) : conv.title,
+            }
+          : conv
+      )
+    );
 
     const loadingId = `loading-${Date.now()}`;
     const loadingMessage: Message = {
@@ -283,7 +449,14 @@ export default function ProjectChatbotPage() {
       type: "bot",
       timestamp: new Date().toISOString(),
     };
-    setMessages((prev) => [...prev, loadingMessage]);
+
+    setConversations((prev) =>
+      prev.map((conv) =>
+        conv.id === conversationId
+          ? { ...conv, messages: [...conv.messages, loadingMessage] }
+          : conv
+      )
+    );
 
     setIsLoading(true);
     setStartTime(Date.now());
@@ -299,32 +472,49 @@ export default function ProjectChatbotPage() {
         setStats((prev) => ({ ...prev, responseTime: `${responseTime}s` }));
       }
 
-      setMessages((prev) => {
-        const filtered = prev.filter((msg) => msg.id !== loadingId);
-        return [
-          ...filtered,
-          {
-            id: `bot-${Date.now()}`,
-            text: data.answer,
-            type: "bot",
-            timestamp: new Date().toISOString(),
-            context: data.context,
-          },
-        ];
-      });
+      setConversations((prev) =>
+        prev.map((conv) => {
+          if (conv.id === conversationId) {
+            const filtered = conv.messages.filter((msg) => msg.id !== loadingId);
+            return {
+              ...conv,
+              messages: [
+                ...filtered,
+                {
+                  id: `bot-${Date.now()}`,
+                  text: data.answer,
+                  type: "bot",
+                  timestamp: new Date().toISOString(),
+                  context: data.context,
+                },
+              ],
+              updatedAt: new Date().toISOString(),
+            };
+          }
+          return conv;
+        })
+      );
     } catch (error: any) {
-      setMessages((prev) => {
-        const filtered = prev.filter((msg) => msg.id !== loadingId);
-        return [
-          ...filtered,
-          {
-            id: `error-${Date.now()}`,
-            text: "Sorry, something went wrong. Please try again.",
-            type: "bot",
-            timestamp: new Date().toISOString(),
-          },
-        ];
-      });
+      setConversations((prev) =>
+        prev.map((conv) => {
+          if (conv.id === conversationId) {
+            const filtered = conv.messages.filter((msg) => msg.id !== loadingId);
+            return {
+              ...conv,
+              messages: [
+                ...filtered,
+                {
+                  id: `error-${Date.now()}`,
+                  text: "Sorry, something went wrong. Please try again.",
+                  type: "bot",
+                  timestamp: new Date().toISOString(),
+                },
+              ],
+            };
+          }
+          return conv;
+        })
+      );
       toast({
         title: "Error",
         description: error.message || "Unable to send message",
@@ -340,19 +530,6 @@ export default function ProjectChatbotPage() {
     setInputValue(question);
   };
 
-  useEffect(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-    }
-  }, [messages]);
-
-  useEffect(() => {
-    if (projectId) {
-      loadStats();
-      loadChatHistory();
-    }
-  }, [projectId, loadStats, loadChatHistory]);
-
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
     return date.toLocaleString("vi-VN", {
@@ -363,281 +540,448 @@ export default function ProjectChatbotPage() {
     });
   };
 
+  const formatDate = (timestamp: string) => {
+    const date = new Date(timestamp);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (date.toDateString() === today.toDateString()) {
+      return "Today";
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return "Yesterday";
+    } else {
+      return date.toLocaleDateString("vi-VN", {
+        day: "numeric",
+        month: "short",
+        year: date.getFullYear() !== today.getFullYear() ? "numeric" : undefined,
+      });
+    }
+  };
+
+  const currentConversation = conversations.find((c) => c.id === currentConversationId);
+  const currentMessages = currentConversation?.messages || [];
+
+  // Check if user is near bottom of scroll container
+  const checkIfNearBottom = useCallback(() => {
+    if (!scrollViewportRef.current) return true;
+    const { scrollTop, scrollHeight, clientHeight } = scrollViewportRef.current;
+    const threshold = 200; // 200px from bottom
+    const isNearBottom = scrollHeight - scrollTop - clientHeight < threshold;
+    setIsUserNearBottom(isNearBottom);
+    return isNearBottom;
+  }, []);
+
+  // Handle scroll events to track user position
+  useEffect(() => {
+    const viewport = scrollViewportRef.current;
+    if (!viewport) return;
+
+    const handleScroll = () => {
+      checkIfNearBottom();
+    };
+
+    viewport.addEventListener("scroll", handleScroll);
+    return () => {
+      viewport.removeEventListener("scroll", handleScroll);
+    };
+  }, [checkIfNearBottom]);
+
+  // Auto-scroll to bottom when conversation changes (always scroll to bottom when switching conversations)
+  useEffect(() => {
+    if (messagesEndRef.current && currentConversationId) {
+      setTimeout(() => {
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: "auto" });
+          setIsUserNearBottom(true);
+        }
+      }, 100);
+    }
+  }, [currentConversationId]);
+
+  // Auto-scroll to bottom only if user is near bottom or when loading (new message being sent)
+  useEffect(() => {
+    if (messagesEndRef.current && (isUserNearBottom || isLoading)) {
+      // Use setTimeout to ensure DOM is updated
+      setTimeout(() => {
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+        }
+      }, 100);
+    }
+  }, [currentMessages.length, isLoading, isUserNearBottom]);
+
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-          <Bot className="w-7 h-7" />
-          RAG Chatbot
-        </h1>
-        <p className="text-muted-foreground">
-          Interact with your project&apos;s labeled data in a conversational workflow.
-        </p>
+    <div className="flex h-[calc(100vh-4rem-1rem)] overflow-hidden bg-background -m-4">
+      {/* Sidebar - Conversations List */}
+      <div className="w-64 border-r bg-muted/40 flex flex-col flex-shrink-0">
+        <div className="p-4 border-b">
+          <Button
+            onClick={createNewConversation}
+            className="w-full gap-2"
+            size="sm"
+          >
+            <Plus className="h-4 w-4" />
+            New Chat
+          </Button>
+        </div>
+
+        <ScrollArea className="flex-1">
+          <div className="p-2 space-y-1">
+            {conversations.map((conversation) => {
+              const isActive = conversation.id === currentConversationId;
+              const isEditing = editingConversationId === conversation.id;
+
+              return (
+                <div
+                  key={conversation.id}
+                  className={cn(
+                    "group relative flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors",
+                    isActive
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-muted"
+                  )}
+                  onClick={() => {
+                    if (!isEditing) {
+                      setCurrentConversationId(conversation.id);
+                    }
+                  }}
+                >
+                  {isEditing ? (
+                    <div className="flex-1 flex items-center gap-1">
+                      <Input
+                        value={editingTitle}
+                        onChange={(e) => setEditingTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            updateConversationTitle(conversation.id, editingTitle);
+                          } else if (e.key === "Escape") {
+                            setEditingConversationId(null);
+                            setEditingTitle("");
+                          }
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="h-7 text-sm"
+                        autoFocus
+                      />
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateConversationTitle(conversation.id, editingTitle);
+                        }}
+                      >
+                        <Check className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingConversationId(null);
+                          setEditingTitle("");
+                        }}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <MessageCircle className="h-4 w-4 flex-shrink-0" />
+                      <div className="flex-1 min-w-0 overflow-hidden">
+                        <p className="text-sm font-medium truncate" title={conversation.title}>
+                          {conversation.title.length > 30 
+                            ? `${conversation.title.slice(0, 30)}...` 
+                            : conversation.title}
+                        </p>
+                        <p className="text-xs opacity-70 truncate">
+                          {formatDate(conversation.updatedAt)}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingConversationId(conversation.id);
+                            setEditingTitle(conversation.title);
+                          }}
+                        >
+                          <Edit2 className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeletingConversationId(conversation.id);
+                          }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </ScrollArea>
+
+        {/* Dataset Settings */}
+        <div className="p-4 border-t space-y-3">
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground">Dataset</p>
+            <Select
+              value={datasetId?.toString() || "none"}
+              onValueChange={handleDatasetChange}
+              disabled={isLoadingDatasets}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue>
+                  {isLoadingDatasets
+                    ? "Loading..."
+                    : datasetInfo
+                    ? datasetInfo.name
+                    : "No dataset"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No dataset</SelectItem>
+                {datasets.map((dataset) => (
+                  <SelectItem key={dataset.dataset_id} value={dataset.dataset_id.toString()}>
+                    {dataset.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button
+            size="sm"
+            className="w-full gap-1 h-8 text-xs"
+            disabled={!datasetId || isDatasetReloading}
+            onClick={reloadDataset}
+          >
+            {isDatasetReloading ? (
+              <RefreshCw className="w-3 h-3 animate-spin" />
+            ) : (
+              <RefreshCw className="w-3 h-3" />
+            )}
+            Reload Dataset
+          </Button>
+        </div>
       </div>
 
-      <Card className="flex flex-col h-[calc(100vh-220px)] overflow-hidden">
-        <div className="bg-muted/40 p-4 border-b flex justify-around flex-wrap gap-4">
-          <div className="text-center">
-            <div className="text-xl font-bold text-primary flex items-center justify-center gap-2">
-              <Database className="w-4 h-4" />
-              <span>{stats.totalQuestions}</span>
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header with Stats */}
+        <div className="border-b bg-muted/40 p-4">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-2xl font-bold flex items-center gap-2">
+                <Bot className="w-6 h-6" />
+                RAG Chatbot
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                Interact with your project&apos;s labeled data
+              </p>
             </div>
-            <div className="text-xs text-muted-foreground mt-1">Questions</div>
-          </div>
-          <div className="text-center">
-            <div className="text-xl font-bold text-primary flex items-center justify-center gap-2">
-              <Activity className="w-4 h-4" />
-              <span>{stats.status}</span>
+            <div className="flex gap-4">
+              <div className="text-center">
+                <div className="text-lg font-bold text-primary flex items-center justify-center gap-2">
+                  <Database className="w-4 h-4" />
+                  <span>{stats.totalQuestions}</span>
+                </div>
+                <div className="text-xs text-muted-foreground">Questions</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-bold text-primary flex items-center justify-center gap-2">
+                  <Activity className="w-4 h-4" />
+                  <span>{stats.status}</span>
+                </div>
+                <div className="text-xs text-muted-foreground">Status</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-bold text-primary flex items-center justify-center gap-2">
+                  <Zap className="w-4 h-4" />
+                  <span>{stats.responseTime}</span>
+                </div>
+                <div className="text-xs text-muted-foreground">Response</div>
+              </div>
             </div>
-            <div className="text-xs text-muted-foreground mt-1">Status</div>
-          </div>
-          <div className="text-center">
-            <div className="text-xl font-bold text-primary flex items-center justify-center gap-2">
-              <Zap className="w-4 h-4" />
-              <span>{stats.responseTime}</span>
-            </div>
-            <div className="text-xs text-muted-foreground mt-1">Response time</div>
           </div>
         </div>
 
-        <div className="p-4 border-b bg-muted/20">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="flex-1">
-              <p className="text-sm font-semibold flex items-center gap-2 mb-2">
-                <Database className="w-4 h-4" />
-                Select Dataset
-              </p>
-              <Select
-                value={datasetId?.toString() || "none"}
-                onValueChange={handleDatasetChange}
-                disabled={isLoadingDatasets}
-              >
-                <SelectTrigger className="w-full max-w-md">
-                  <SelectValue placeholder="Select a dataset">
-                    {isLoadingDatasets
-                      ? "Loading datasets..."
-                      : datasetInfo
-                      ? `${datasetInfo.name}${datasetInfo.description ? ` - ${datasetInfo.description}` : ""}`
-                      : "No dataset selected"}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No dataset</SelectItem>
-                  {datasets.map((dataset) => (
-                    <SelectItem key={dataset.dataset_id} value={dataset.dataset_id.toString()}>
-                      {dataset.name}
-                      {dataset.description && ` - ${dataset.description}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {datasetInfo && (
-                <p className="text-xs text-muted-foreground mt-2">
-                  Created: {new Date(datasetInfo.created_at).toLocaleDateString()} by {datasetInfo.created_by_username}
-                </p>
-              )}
-            </div>
-            <div className="flex gap-2 flex-wrap">
-              <label>
-                <input
-                  ref={uploadInputRef}
-                  type="file"
-                  accept=".csv,.txt,.json"
-                  className="hidden"
-                  disabled={!datasetId || isUploading}
-                  onChange={(event) => {
-                    const file = event.target.files?.[0] || null;
-                    handleDatasetFileUpload(file);
-                    event.target.value = "";
-                  }}
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={!datasetId || isUploading}
-                  onClick={() => uploadInputRef.current?.click()}
-                  className="gap-2"
-                >
-                  {isUploading ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      Uploading...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="w-4 h-4" />
-                      Upload CSV/TXT
-                    </>
-                  )}
-                </Button>
-              </label>
+        {/* Messages Area */}
+        <div 
+          ref={scrollViewportRef}
+          className="flex-1 overflow-y-auto"
+        >
+          <div className="max-w-3xl mx-auto p-6 space-y-6">
+            {currentMessages.length === 0 ? (
+              <div className="text-center text-muted-foreground py-20">
+                <MessageCircle className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                <p className="text-lg font-medium mb-2">Start a conversation</p>
+                <p className="text-sm">Ask a question about this project or select an example above.</p>
+              </div>
+            ) : (
+              <>
+                {currentMessages.map((message, index) => {
+                  const showDate =
+                    index === 0 ||
+                    new Date(message.timestamp).toDateString() !==
+                      new Date(currentMessages[index - 1].timestamp).toDateString();
+
+                  return (
+                    <div key={message.id}>
+                      {showDate && (
+                        <div className="flex items-center justify-center my-6">
+                          <div className="text-xs text-muted-foreground bg-muted px-3 py-1 rounded-full">
+                            {formatDate(message.timestamp)}
+                          </div>
+                        </div>
+                      )}
+                      <div
+                        className={cn(
+                          "flex animate-in fade-in slide-in-from-bottom-2",
+                          message.type === "user" ? "justify-end" : "justify-start"
+                        )}
+                      >
+                        <div className="flex flex-col max-w-[80%]">
+                          <div
+                            className={cn(
+                              "rounded-2xl px-4 py-3",
+                              message.type === "user"
+                                ? "bg-primary text-primary-foreground rounded-br-sm"
+                                : "bg-muted text-foreground rounded-bl-sm"
+                            )}
+                          >
+                            {message.id.startsWith("loading") ? (
+                              <div className="flex gap-1">
+                                <span className="w-2 h-2 bg-current rounded-full animate-pulse" />
+                                <span className="w-2 h-2 bg-current rounded-full animate-pulse delay-75" />
+                                <span className="w-2 h-2 bg-current rounded-full animate-pulse delay-150" />
+                              </div>
+                            ) : (
+                              <div className="whitespace-pre-wrap break-words">{message.text}</div>
+                            )}
+                            {message.context && message.context.length > 0 && (
+                              <div
+                                className={cn(
+                                  "text-xs opacity-75 mt-2 pt-2 border-t flex items-center gap-1",
+                                  message.type === "user"
+                                    ? "border-white/20"
+                                    : "border-border"
+                                )}
+                              >
+                                <BookMarked className="w-3 h-3" />
+                                Referencing {message.context.length} source
+                                {message.context.length === 1 ? "" : "s"}
+                              </div>
+                            )}
+                          </div>
+                          {message.timestamp && !message.id.startsWith("loading") && (
+                            <div
+                              className={cn(
+                                "text-xs text-muted-foreground mt-1 flex items-center gap-2",
+                                message.type === "user" ? "justify-end" : "justify-start"
+                              )}
+                            >
+                              <span>{formatTime(message.timestamp)}</span>
+                              {message.chatId && message.type === "bot" && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-5 px-2 text-muted-foreground hover:text-destructive"
+                                  onClick={() => handleDeleteChat(message.chatId!)}
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div ref={messagesEndRef} />
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Input Area */}
+        <div className="border-t bg-background p-4">
+          <div className="max-w-3xl mx-auto">
+            <div className="flex gap-3">
+              <Input
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                  }
+                }}
+                placeholder="Type your message..."
+                className="flex-1"
+                disabled={isLoading || !datasetId}
+              />
               <Button
-                size="sm"
-                className="gap-2"
-                disabled={!datasetId || isDatasetReloading}
-                onClick={reloadDataset}
+                onClick={handleSendMessage}
+                disabled={isLoading || !inputValue.trim() || !datasetId || !projectId}
+                size="icon"
               >
-                {isDatasetReloading ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    Reloading...
-                  </>
+                {isLoading ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
-                  <>
-                    <RefreshCw className="w-4 h-4" />
-                    Reload Dataset
-                  </>
+                  <Send className="w-4 h-4" />
                 )}
               </Button>
             </div>
+            <p className="text-xs text-muted-foreground mt-2 text-center">
+              Press Enter to send, Shift+Enter for new line
+            </p>
           </div>
         </div>
+      </div>
 
-        <div className="flex gap-2 p-4 flex-wrap border-b bg-background">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleExampleQuestion("What is the overview of this project?")}
-            className="gap-2"
-          >
-            <BookOpen className="w-4 h-4" />
-            Overview
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleExampleQuestion("Which items have already been completed?")}
-            className="gap-2"
-          >
-            <Clock className="w-4 h-4" />
-            Progress
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleExampleQuestion("Are there any notes for labeling this dataset?")}
-            className="gap-2"
-          >
-            <DollarSign className="w-4 h-4" />
-            Labeling notes
-          </Button>
-        </div>
-
-        <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-6 bg-background space-y-5">
-          {messages.length === 0 ? (
-            <div className="text-center text-muted-foreground py-10">
-              <MessageCircle className="w-16 h-16 mx-auto mb-4 opacity-50" />
-              <p>Hello! Ask a question about this project.</p>
-            </div>
-          ) : (
-            messages.map((message) => (
-              <div
-                key={message.id}
-                className={cn(
-                  "flex gap-3 animate-in fade-in slide-in-from-bottom-2",
-                  message.type === "user" && "flex-row-reverse"
-                )}
-              >
-                <div
-                  className={cn(
-                    "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0",
-                    message.type === "user"
-                      ? "bg-gradient-to-r from-purple-500 to-purple-600"
-                      : "bg-gradient-to-r from-pink-400 to-pink-500"
-                  )}
-                >
-                  {message.type === "user" ? (
-                    <User className="w-5 h-5 text-white" />
-                  ) : (
-                    <Bot className="w-5 h-5 text-white" />
-                  )}
-                </div>
-                <div className="flex flex-col max-w-[70%]">
-                  <div
-                    className={cn(
-                    "rounded-2xl px-4 py-3",
-                    message.type === "user"
-                      ? "bg-primary text-primary-foreground rounded-br-sm"
-                      : "bg-card text-card-foreground rounded-bl-sm shadow-sm"
-                    )}
-                  >
-                    {message.id.startsWith("loading") ? (
-                      <div className="flex gap-1">
-                        <span className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
-                        <span className="w-2 h-2 bg-purple-500 rounded-full animate-pulse delay-75" />
-                        <span className="w-2 h-2 bg-purple-500 rounded-full animate-pulse delay-150" />
-                      </div>
-                    ) : (
-                      <div className="whitespace-pre-wrap break-words">{message.text}</div>
-                    )}
-                    {message.context && message.context.length > 0 && (
-                      <div className="text-xs opacity-75 mt-2 pt-2 border-t border-white/20 flex items-center gap-1">
-                        <BookMarked className="w-3 h-3" />
-                        Referencing {message.context.length} dataset source{message.context.length === 1 ? "" : "s"}
-                      </div>
-                    )}
-                  </div>
-                  {message.timestamp && (
-                    <div
-                      className={cn(
-                        "text-xs text-muted-foreground mt-1 flex items-center gap-2",
-                        message.type === "user" ? "justify-end" : "justify-start"
-                      )}
-                    >
-                      <span>{formatTime(message.timestamp)}</span>
-                      {message.chatId && message.type === "bot" && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2 text-muted-foreground hover:text-destructive"
-                          onClick={() => handleDeleteChat(message.chatId!)}
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div className="p-5 bg-white border-t flex gap-3">
-          <Input
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSendMessage();
-              }
-            }}
-            placeholder="Type your question..."
-            className="flex-1"
-            disabled={isLoading || !datasetId}
-          />
-          <Button
-            onClick={handleSendMessage}
-            disabled={isLoading || !inputValue.trim() || !datasetId || !projectId}
-            className="gap-2"
-          >
-            {isLoading ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Processing...
-              </>
-            ) : (
-              <>
-                <Send className="w-4 h-4" />
-                Send
-              </>
-            )}
-          </Button>
-        </div>
-      </Card>
+      {/* Delete Conversation Dialog */}
+      <AlertDialog
+        open={deletingConversationId !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeletingConversationId(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Conversation</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this conversation? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deletingConversationId) {
+                  deleteConversation(deletingConversationId);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
-
-
