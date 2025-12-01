@@ -366,7 +366,10 @@ export function DataGrid({
         ? {
             ...r,
             _confirmed: true,
-            _isModified: false, // Clear modified flag after confirmation
+            // Keep row marked as modified so "Save File" detects this change.
+            // The _isModified flag will be cleared after a successful save
+            // in JobLabelAIPage.handleSaveFile, when data & originalData sync.
+            _isModified: true,
           }
         : r,
     )

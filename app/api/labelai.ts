@@ -226,7 +226,8 @@ export async function indexProjectDocuments(
   embeddingProvider: string = "local",
   embeddingApiKey?: string,
   embeddingModel?: string,
-  forceReindex: boolean = false
+  forceReindex: boolean = false,
+  documentIds?: number[]
 ) {
   try {
     const params = new URLSearchParams({
@@ -240,6 +241,12 @@ export async function indexProjectDocuments(
     }
     if (embeddingModel) {
       params.append('embedding_model', embeddingModel)
+    }
+    // Optional: index only specific documents if provided
+    if (documentIds && documentIds.length > 0) {
+      documentIds.forEach((id) => {
+        params.append("document_ids", id.toString())
+      })
     }
 
     const response = await api.post(`/documents/index-project?${params.toString()}`, {})

@@ -203,6 +203,10 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
   }
 
   const handleIndexDocuments = async () => {
+    // Nếu user đã chọn tài liệu, chỉ index những tài liệu đó.
+    // Nếu không chọn gì, backend sẽ index toàn bộ tài liệu của project (hành vi cũ).
+    const documentIdsToIndex = selectedDocumentIds.length > 0 ? selectedDocumentIds : undefined
+
     // Validate embedding config for non-local providers
     if (embeddingProvider !== "local") {
       if (!embeddingApiKey) {
@@ -230,7 +234,8 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
         embeddingProvider,
         embeddingApiKey || undefined,
         embeddingModel || undefined,
-        false
+        false,
+        documentIdsToIndex
       )
       
       // Reload documents to get updated statuses
@@ -347,7 +352,7 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
             <input
               id="document-upload"
               type="file"
-              accept=".pdf,.docx,.txt"
+              accept=".pdf,.doc,.docx,.html,.htm,.txt"
               multiple
               onChange={handleFileUpload}
               className="hidden"
@@ -364,7 +369,7 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
         ) : documents.length > 0 ? (
           <div className="space-y-2">
             <div className="text-xs text-muted-foreground mb-2">
-              Select documents to use for labeling (only indexed documents can be selected):
+              Select documents to use for RAG and labeling. You can select both indexed and newly uploaded documents.
             </div>
             {documents.map((doc) => {
               const isIndexed = doc.status === 'indexed'
@@ -388,7 +393,7 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
                           setSelectedDocumentIds(selectedDocumentIds.filter(id => id !== doc.document_id))
                         }
                       }}
-                      disabled={!isIndexed}
+                      // Cho phép chọn cả tài liệu chưa index; nút "Index Documents" sẽ index những tài liệu được chọn
                       className="flex-shrink-0"
                     />
                     <CheckCircle2 className={`h-4 w-4 flex-shrink-0 ${
