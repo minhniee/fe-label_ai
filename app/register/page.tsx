@@ -199,13 +199,14 @@ export default function RegisterPage() {
 
         {/* Registration Card */}
         <Card className="shadow-lg border-0  backdrop-blur-sm">
-          <CardHeader className="space-y-1">
-            <div className="flex items-center gap-2">
-              <Link href="/login" className="text-muted-foreground hover:text-foreground">
+          <CardHeader className="space-y-1 text-center">
+            <div className="flex justify-center mb-2">
+              <Link href="/login" className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground">
                 <ArrowLeft className="h-4 w-4" />
+                <span className="text-sm">Back to login</span>
               </Link>
-              <CardTitle className="text-2xl text-card-foreground">Register Account</CardTitle>
             </div>
+            <CardTitle className="text-2xl text-card-foreground">Register Account</CardTitle>
             <CardDescription className="text-muted-foreground">
               Create a new account to access the Label-AI system
             </CardDescription>
@@ -223,7 +224,7 @@ export default function RegisterPage() {
                   <Input
                     id="name"
                     type="text"
-                    placeholder="your_username"
+                    placeholder="Enter your user name"
                     value={formData.name}
                     onChange={(e) => handleInputChange("name", e.target.value)}
                     onFocus={() => setIsNameFocused(true)}
@@ -254,7 +255,7 @@ export default function RegisterPage() {
                   <Input
                     id="email"
                     type="email"
-                    placeholder="your.email@example.com"
+                    placeholder="Enter your email address"
                     value={formData.email}
                     onChange={(e) => handleInputChange("email", e.target.value)}
                     onFocus={() => setIsEmailFocused(true)}
@@ -295,7 +296,7 @@ export default function RegisterPage() {
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="Enter password"
+                    placeholder="Enter your password"
                     value={formData.password}
                     onChange={(e) => handleInputChange("password", e.target.value)}
                     onFocus={() => setIsPasswordFocused(true)}
@@ -363,7 +364,7 @@ export default function RegisterPage() {
                   <Input
                     id="confirmPassword"
                     type={showConfirmPassword ? "text" : "password"}
-                    placeholder="Re-enter password"
+                    placeholder="Re-enter your password"
                     value={formData.confirmPassword}
                     onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
                     onFocus={() => setIsConfirmFocused(true)}

@@ -133,13 +133,13 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
       const segments = pathname.split("/").filter(Boolean);
       const projectSlug = segments[0];
       const projectId = slugToProjectId(projectSlug);
-      
+
       // Try to find project from localStorage first
       const storedProject = getSelectedProject();
       if (storedProject && storedProject.id === projectId) {
         setSelectedProjectState(storedProject);
       }
-      
+
       // Load projects and find the matching project
       loadProjects().then(async () => {
         try {
@@ -154,9 +154,11 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
             created_at: p.created_at,
             updated_at: p.updated_at,
           }));
-          
+
           // Find project by ID
-          const foundProject = convertedProjects.find(p => p.id === projectId);
+          const foundProject = convertedProjects.find(
+            (p) => p.id === projectId
+          );
           if (foundProject) {
             setSelectedProject(foundProject);
             setSelectedProjectState(foundProject);
@@ -288,17 +290,17 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
         requiresProject: false,
       },
       {
-        title: "Comparison Tool",
-        url: `${projectPrefix}/comparison-tool`,
-        icon: GitCompare,
-        isActive: pathname === `${projectPrefix}/comparison-tool`,
-        requiresProject: true,
-      },
-      {
         title: "Chatbot",
         url: `${projectPrefix}/chatbot`,
         icon: Bot,
         isActive: pathname === `${projectPrefix}/chatbot`,
+        requiresProject: true,
+      },
+      {
+        title: "Comparison Tool",
+        url: `${projectPrefix}/comparison-tool`,
+        icon: GitCompare,
+        isActive: pathname === `${projectPrefix}/comparison-tool`,
         requiresProject: true,
       },
     ];
@@ -336,15 +338,13 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
     "Annotate",
     "Dataset",
     "Schema",
-    "Labeling with AI",
-    "Classes",
   ]);
 
   // Group items: Admin
   const adminGroupTitles = new Set(["Administrator"]);
 
   // Group items: Tool
-  const toolGroupTitles = new Set(["Comparison Tool","Chatbot"]);
+  const toolGroupTitles = new Set(["Chatbot", "Comparison Tool"]);
 
   const dataItems = flatItems.filter((i) => dataGroupTitles.has(i.title));
   const adminItems = flatItems.filter((i) => adminGroupTitles.has(i.title));
@@ -380,7 +380,10 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
           <>
             <div className="flex flex-col items-center justify-center p-6 text-center text-muted-foreground text-sm">
               <FolderOpen className="h-12 w-12 mb-3 opacity-20" />
-              <p>Select a project or create new project to view workspace navigation.</p>
+              <p>
+                Select a project or create new project to view workspace
+                navigation.
+              </p>
             </div>
             {adminItems.length > 0 && (
               <NavMain groupTitle="Admin" items={adminItems} />
