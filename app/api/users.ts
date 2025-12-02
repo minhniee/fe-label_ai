@@ -22,6 +22,11 @@ export interface UpdateUserPayload {
   role_id?: number
 }
 
+export interface ResetPasswordPayload {
+  user_id: number
+  new_password: string
+}
+
 export async function getUsers() {
   try {
     const response = await api.get<User[]>(`/users/`, {
@@ -65,4 +70,15 @@ export async function deleteUser(userId: number) {
   }
 }
 
-//HI from Gokul
+// Admin: reset another user's password (cannot be used for own account)
+export async function resetUserPassword(payload: ResetPasswordPayload) {
+  try {
+    const response = await api.post(`/users/reset-password`, payload, {})
+    return response.data
+  } catch (error: any) {
+    const errorMessage =
+      error.response?.data?.detail || error.message || 'Failed to reset user password'
+    throw new Error(errorMessage)
+  }
+}
+

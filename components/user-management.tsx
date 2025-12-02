@@ -72,6 +72,7 @@ import {
   createUser,
   updateUser as apiUpdateUser,
   deleteUser as apiDeleteUser,
+  resetUserPassword,
   type User,
 } from "@/app/api/users";
 
@@ -114,6 +115,14 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
     role_id: 2 as number,
   });
   const [editOriginalRoleId, setEditOriginalRoleId] = useState<number>(2);
+
+  // Change password dialog state (admin resets another user's password)
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [passwordUser, setPasswordUser] = useState<{ id: number; name: string } | null>(null);
+  const [passwordForm, setPasswordForm] = useState({
+    newPassword: "",
+    confirmPassword: "",
+  });
 
   // Delete confirm state
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -256,6 +265,61 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
     if (role === "admin") return; // Prevent deleting Admin users
     if (currentUserId && userId === currentUserId) return;
     setDeleteTarget({ id: userId, name, role });
+  };
+
+  const openChangePasswordDialog = (user: UserManagementUser) => {
+    // Prevent opening for self; self should use profile change-password flow
+    if (currentUserId && user.id === currentUserId) {
+      toast({
+        title: "You cannot change your own password here.",
+        description: "Please use your personal Change Password page instead.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setPasswordUser({ id: user.id, name: user.name });
+    setPasswordForm({ newPassword: "", confirmPassword: "" });
+    setIsChangePasswordOpen(true);
+  };
+
+  const handleChangePassword = async () => {
+    if (!passwordUser) return;
+
+    if (!passwordForm.newPassword || !passwordForm.confirmPassword) {
+      toast({
+        title: "Password is required",
+        description: "Please enter and confirm the new password.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast({
+        title: "Passwords do not match",
+        description: "New password and confirmation must be the same.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await resetUserPassword({
+        user_id: passwordUser.id,
+        new_password: passwordForm.newPassword,
+      });
+      toast({ title: "Password reset successfully!" });
+      setIsChangePasswordOpen(false);
+      setPasswordUser(null);
+      setPasswordForm({ newPassword: "", confirmPassword: "" });
+    } catch (e: any) {
+      setError(e?.message || "Failed to reset user password");
+      toast({
+        title: "Failed to reset user password",
+        description: e?.message,
+        variant: "destructive",
+      });
+    }
   };
 
   const confirmDeleteUser = async () => {
@@ -496,12 +560,9 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
                         <SelectValue placeholder="Select role" />
                       </SelectTrigger>
                       <SelectContent>
+                        {/* Limit assignable roles to Admin and User only */}
                         <SelectItem value="1">Admin</SelectItem>
                         <SelectItem value="2">User</SelectItem>
-                        <SelectItem value="3">Owner</SelectItem>
-                        <SelectItem value="4">Co-Owner</SelectItem>
-                        <SelectItem value="5">Labeler</SelectItem>
-                        <SelectItem value="6">Viewer</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -562,6 +623,10 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
                           <Edit className="mr-2 h-4 w-4" />
                           Edit
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => openChangePasswordDialog(user)}>
+                          <Shield className="mr-2 h-4 w-4" />
+                          Change Password
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           className="text-red-600"
@@ -583,13 +648,13 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
         </CardContent>
       </Card>
 
-      {/* Edit User Dialog (no password field for Admin) */}
+      {/* Edit User Dialog (no password field; use Change Password) */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit User</DialogTitle>
             <DialogDescription>
-              Update user information (password changes not available here)
+              Update user information. To change password, use the "Change Password" action.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -628,12 +693,9 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
                 <SelectContent>
+                  {/* Limit assignable roles to Admin and User only */}
                   <SelectItem value="1">Admin</SelectItem>
                   <SelectItem value="2">User</SelectItem>
-                  <SelectItem value="3">Owner</SelectItem>
-                  <SelectItem value="4">Co-Owner</SelectItem>
-                  <SelectItem value="5">Labeler</SelectItem>
-                  <SelectItem value="6">Viewer</SelectItem>
                 </SelectContent>
               </Select>
               {currentUserId &&
@@ -662,6 +724,66 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
             >
               Save Changes
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Change Password Dialog (admin resets another user's password) */}
+      <Dialog open={isChangePasswordOpen} onOpenChange={setIsChangePasswordOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Password</DialogTitle>
+            <DialogDescription>
+              Set a new password for{" "}
+              <span className="font-medium">
+                {passwordUser?.name || "this user"}
+              </span>
+              . The user will use this password the next time they log in.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-password">New Password</Label>
+              <Input
+                id="new-password"
+                type="password"
+                value={passwordForm.newPassword}
+                onChange={(e) =>
+                  setPasswordForm((prev) => ({
+                    ...prev,
+                    newPassword: e.target.value,
+                  }))
+                }
+                placeholder="Enter new strong password"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password">Confirm Password</Label>
+              <Input
+                id="confirm-password"
+                type="password"
+                value={passwordForm.confirmPassword}
+                onChange={(e) =>
+                  setPasswordForm((prev) => ({
+                    ...prev,
+                    confirmPassword: e.target.value,
+                  }))
+                }
+                placeholder="Re-enter new password"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsChangePasswordOpen(false);
+                setPasswordUser(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleChangePassword}>Save Password</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
