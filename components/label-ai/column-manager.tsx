@@ -52,7 +52,14 @@ export function ColumnManager({
   const displayColumns = columns.filter(
     (col) => !col.startsWith("_") && col !== contextColumn && col !== resultColumn,
   )
-  const allManagedColumns = [...displayColumns, ...(contextColumn ? [contextColumn] : []), ...(resultColumn ? [resultColumn] : [])]
+  // Ensure uniqueness by using Set to deduplicate
+  const allManagedColumns = Array.from(
+    new Set([
+      ...displayColumns,
+      ...(contextColumn ? [contextColumn] : []),
+      ...(resultColumn ? [resultColumn] : []),
+    ])
+  )
 
   const handleAddColumn = () => {
     if (!newColumnName.trim()) {

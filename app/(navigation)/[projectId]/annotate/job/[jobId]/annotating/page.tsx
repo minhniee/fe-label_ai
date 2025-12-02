@@ -1301,6 +1301,10 @@ export default function JobLabelAIPage() {
                       isModified = isRowModified(originalRow, newRow)
                     }
 
+                    // Check if this row is confirmed (accepting AI suggestion)
+                    // When confirmed, prioritize newRow value for resultColumn
+                    const isConfirmed = newRow._confirmed
+
                     const dataColumns: Record<string, any> = {}
                     Object.keys(newRow).forEach((k) => {
                       if (!k.startsWith("_")) {
@@ -1310,6 +1314,11 @@ export default function JobLabelAIPage() {
 
                     Object.keys(oldRow).forEach((k) => {
                       if (!k.startsWith("_")) {
+                        // If row is confirmed and this is the result column, always prioritize newRow value
+                        if (isConfirmed && k === resultColumn) {
+                          // Keep the new value from newRow (already set above)
+                          return
+                        }
                         if (dataColumns[k] === undefined || dataColumns[k] === "" || dataColumns[k] === null) {
                           dataColumns[k] = oldRow[k]
                         }
@@ -1318,8 +1327,15 @@ export default function JobLabelAIPage() {
 
                     if (preserveUserData) {
                       Object.keys(oldRow).forEach((k) => {
-                        if (!k.startsWith("_") && oldRow[k] !== originalRow?.[k]) {
-                          dataColumns[k] = oldRow[k]
+                        if (!k.startsWith("_")) {
+                          // If row is confirmed and this is the result column, don't preserve old value
+                          // This ensures that when accepting AI suggestion, the new value is not overwritten
+                          if (isConfirmed && k === resultColumn) {
+                            return
+                          }
+                          if (oldRow[k] !== originalRow?.[k]) {
+                            dataColumns[k] = oldRow[k]
+                          }
                         }
                       })
                     }
