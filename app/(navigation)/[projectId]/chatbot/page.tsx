@@ -33,6 +33,10 @@ import {
   getChatbotStatus,
   sendChatMessage,
   switchChatbotDataset,
+  getFineTuneStatus,
+  triggerFineTuning,
+  type FineTuneStatus,
+  type SwitchDatasetResponse,
 } from "@/app/api/chatbot";
 import { getDataset, getDatasets, type Dataset } from "@/app/api/dataset";
 import type { ChatHistory } from "@/app/api/chatbot";
@@ -95,6 +99,9 @@ export default function ProjectChatbotPage() {
   });
   const [startTime, setStartTime] = useState<number | null>(null);
   const [isDatasetReloading, setIsDatasetReloading] = useState(false);
+  const [fineTuneStatus, setFineTuneStatus] = useState<FineTuneStatus | null>(null);
+  const [isLoadingFineTuneStatus, setIsLoadingFineTuneStatus] = useState(false);
+  const [isTriggeringFineTune, setIsTriggeringFineTune] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollViewportRef = useRef<HTMLDivElement>(null);
@@ -134,6 +141,18 @@ export default function ProjectChatbotPage() {
     try {
       const data = await getChatHistory(100, projectId);
       if (data.chats && data.chats.length > 0) {
+        // Calculate average response time from chat history
+        const responseTimes = data.chats
+          .map((chat: any) => chat.response_time)
+          .filter((time: any) => time != null && time > 0);
+        
+        if (responseTimes.length > 0) {
+          const avgResponseTime = (
+            responseTimes.reduce((sum: number, time: number) => sum + time, 0) / responseTimes.length
+          ).toFixed(2);
+          setStats((prev) => ({ ...prev, responseTime: `${avgResponseTime}s` }));
+        }
+        
         // Group chats into conversations based on time gaps (5 minutes)
         const groupedConversations: Conversation[] = [];
         let currentGroup: ChatHistory[] = [];
@@ -292,23 +311,64 @@ export default function ProjectChatbotPage() {
     }
   }, [datasetId]);
 
+  const loadFineTuneStatus = useCallback(async () => {
+    if (!datasetId) {
+      setFineTuneStatus(null);
+      return;
+    }
+    setIsLoadingFineTuneStatus(true);
+    try {
+      const status = await getFineTuneStatus(datasetId);
+      setFineTuneStatus(status);
+    } catch (error) {
+      console.error("Error loading fine-tuning status:", error);
+      setFineTuneStatus(null);
+    } finally {
+      setIsLoadingFineTuneStatus(false);
+    }
+  }, [datasetId]);
+
   useEffect(() => {
     if (projectId) {
       loadStats();
       loadChatHistory();
+      loadFineTuneStatus();
     }
-  }, [projectId, loadStats, loadChatHistory]);
+  }, [projectId, loadStats, loadChatHistory, loadFineTuneStatus]);
+
+  // Poll fine-tuning status if there's an active job
+  useEffect(() => {
+    if (!fineTuneStatus?.active_job) return;
+
+    const interval = setInterval(() => {
+      loadFineTuneStatus();
+    }, 10000); // Poll every 10 seconds
+
+    return () => clearInterval(interval);
+  }, [fineTuneStatus?.active_job, loadFineTuneStatus]);
 
   const reloadDataset = async () => {
     if (!datasetId) return;
     setIsDatasetReloading(true);
     try {
       const response = await switchChatbotDataset(datasetId, { projectId: projectId ?? undefined });
+      
+      // Show fine-tuning status first if triggered
+      if (response.fine_tune_triggered) {
+        toast({
+          title: "Fine-tuning started automatically",
+          description: response.fine_tune_reason || "Fine-tuning job has been started automatically",
+        });
+      }
+      
+      // Then show reload success
       toast({
         title: "Dataset reloaded",
         description: `${response.message} (Questions: ${response.total_questions})`,
       });
+      
       await loadStats();
+      await loadFineTuneStatus();
     } catch (error: any) {
       toast({
         title: "Reload failed",
@@ -317,6 +377,27 @@ export default function ProjectChatbotPage() {
       });
     } finally {
       setIsDatasetReloading(false);
+    }
+  };
+
+  const handleTriggerFineTune = async () => {
+    if (!datasetId) return;
+    setIsTriggeringFineTune(true);
+    try {
+      const response = await triggerFineTuning(datasetId);
+      toast({
+        title: "Fine-tuning started",
+        description: "Fine-tuning job has been started successfully",
+      });
+      await loadFineTuneStatus();
+    } catch (error: any) {
+      toast({
+        title: "Fine-tuning failed",
+        description: error.message || "Unable to start fine-tuning",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTriggeringFineTune(false);
     }
   };
 
@@ -417,7 +498,7 @@ export default function ProjectChatbotPage() {
 
     const conversationId = currentConversationId || `conv-${Date.now()}`;
     setInputValue("");
-    
+
     // Force scroll to bottom when user sends a message
     setIsUserNearBottom(true);
 
@@ -433,11 +514,11 @@ export default function ProjectChatbotPage() {
       prev.map((conv) =>
         conv.id === conversationId
           ? {
-              ...conv,
-              messages: [...conv.messages, userMessage],
-              updatedAt: new Date().toISOString(),
-              title: conv.title === "New Conversation" ? message.slice(0, 50) : conv.title,
-            }
+            ...conv,
+            messages: [...conv.messages, userMessage],
+            updatedAt: new Date().toISOString(),
+            title: conv.title === "New Conversation" ? message.slice(0, 50) : conv.title,
+          }
           : conv
       )
     );
@@ -462,15 +543,15 @@ export default function ProjectChatbotPage() {
     setStartTime(Date.now());
 
     try {
+      const startTimeForResponse = Date.now();
       const data = await sendChatMessage(message, 3, {
         datasetId,
         projectId,
       });
 
-      if (startTime) {
-        const responseTime = ((Date.now() - startTime) / 1000).toFixed(2);
-        setStats((prev) => ({ ...prev, responseTime: `${responseTime}s` }));
-      }
+      // Calculate and update response time
+      const responseTime = ((Date.now() - startTimeForResponse) / 1000).toFixed(2);
+      setStats((prev) => ({ ...prev, responseTime: `${responseTime}s` }));
 
       setConversations((prev) =>
         prev.map((conv) => {
@@ -693,8 +774,8 @@ export default function ProjectChatbotPage() {
                       <MessageCircle className="h-4 w-4 flex-shrink-0" />
                       <div className="flex-1 min-w-0 overflow-hidden">
                         <p className="text-sm font-medium truncate" title={conversation.title}>
-                          {conversation.title.length > 30 
-                            ? `${conversation.title.slice(0, 30)}...` 
+                          {conversation.title.length > 30
+                            ? `${conversation.title.slice(0, 30)}...`
                             : conversation.title}
                         </p>
                         <p className="text-xs opacity-70 truncate">
@@ -748,8 +829,8 @@ export default function ProjectChatbotPage() {
                   {isLoadingDatasets
                     ? "Loading..."
                     : datasetInfo
-                    ? datasetInfo.name
-                    : "No dataset"}
+                      ? datasetInfo.name
+                      : "No dataset"}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
@@ -793,33 +874,114 @@ export default function ProjectChatbotPage() {
               </p>
             </div>
             <div className="flex gap-4">
-              <div className="text-center">
+              <div className="text-center min-w-[80px]">
                 <div className="text-lg font-bold text-primary flex items-center justify-center gap-2">
                   <Database className="w-4 h-4" />
                   <span>{stats.totalQuestions}</span>
                 </div>
                 <div className="text-xs text-muted-foreground">Questions</div>
               </div>
-              <div className="text-center">
+              <div className="text-center min-w-[80px]">
                 <div className="text-lg font-bold text-primary flex items-center justify-center gap-2">
                   <Activity className="w-4 h-4" />
                   <span>{stats.status}</span>
                 </div>
                 <div className="text-xs text-muted-foreground">Status</div>
               </div>
-              <div className="text-center">
+              <div className="text-center min-w-[80px]">
                 <div className="text-lg font-bold text-primary flex items-center justify-center gap-2">
                   <Zap className="w-4 h-4" />
                   <span>{stats.responseTime}</span>
                 </div>
                 <div className="text-xs text-muted-foreground">Response</div>
               </div>
+              
+              {/* Fine-Tuning Status */}
+              {datasetId && (
+                <div className="text-center min-w-[80px]">
+                  <div className="text-lg font-bold text-primary flex items-center justify-center gap-2">
+                    {isLoadingFineTuneStatus ? (
+                      <RefreshCw className="w-4 h-4 animate-spin text-muted-foreground" />
+                    ) : fineTuneStatus?.active_job ? (
+                      <Activity className="w-4 h-4 text-blue-500" />
+                    ) : fineTuneStatus?.has_model ? (
+                      <Check className="w-4 h-4 text-green-500" />
+                    ) : (
+                      <Clock className="w-4 h-4 text-yellow-500" />
+                    )}
+                    <span className="text-sm">
+                      {isLoadingFineTuneStatus ? (
+                        "Loading"
+                      ) : fineTuneStatus?.active_job ? (
+                        fineTuneStatus.active_job.status === "running" ? "Training" : 
+                        fineTuneStatus.active_job.status === "pending" ? "Queued" :
+                        fineTuneStatus.active_job.status === "validating_files" ? "Validating" :
+                        fineTuneStatus.active_job.status
+                      ) : fineTuneStatus?.has_model ? (
+                        "Ready"
+                      ) : (
+                        "No model"
+                      )}
+                    </span>
+                    {fineTuneStatus?.active_job?.status === "running" && (
+                      <RefreshCw className="w-3 h-3 animate-spin text-blue-500" />
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Fine-Tuning</div>
+                </div>
+              )}
             </div>
           </div>
+          
+          {/* Fine-Tuning Details (Error messages, action buttons, etc.) */}
+          {datasetId && fineTuneStatus && (
+            <div className="mt-2 space-y-1">
+              {/* Action buttons */}
+              {((fineTuneStatus?.needs_refresh && !fineTuneStatus?.active_job) || fineTuneStatus?.latest_job?.status === "failed") && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    onClick={handleTriggerFineTune}
+                    disabled={isTriggeringFineTune}
+                  >
+                    {isTriggeringFineTune ? (
+                      <>
+                        <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                        Starting...
+                      </>
+                    ) : fineTuneStatus?.latest_job?.status === "failed" ? (
+                      <>
+                        <RefreshCw className="w-3 h-3 mr-1" />
+                        Retry Fine-Tuning
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-3 h-3 mr-1" />
+                        Re-Fine-Tune
+                      </>
+                    )}
+                  </Button>
+                  {fineTuneStatus?.refresh_reason && (
+                    <span className="text-xs text-muted-foreground">
+                      {fineTuneStatus.refresh_reason}
+                    </span>
+                  )}
+                </div>
+              )}
+              {/* Error messages */}
+              {fineTuneStatus?.latest_job?.error_message && (
+                <div className="text-xs text-destructive bg-destructive/10 p-2 rounded">
+                  Error: {fineTuneStatus.latest_job.error_message}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Messages Area */}
-        <div 
+        <div
           ref={scrollViewportRef}
           className="flex-1 overflow-y-auto"
         >
@@ -836,7 +998,7 @@ export default function ProjectChatbotPage() {
                   const showDate =
                     index === 0 ||
                     new Date(message.timestamp).toDateString() !==
-                      new Date(currentMessages[index - 1].timestamp).toDateString();
+                    new Date(currentMessages[index - 1].timestamp).toDateString();
 
                   return (
                     <div key={message.id}>

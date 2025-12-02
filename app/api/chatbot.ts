@@ -25,6 +25,7 @@ export interface ChatHistory {
   query: string
   answer: string
   created_at: string
+  response_time?: number
 }
 
 /**
@@ -82,10 +83,19 @@ export async function getChatbotDatasets(): Promise<{ datasets: ChatbotDataset[]
 /**
  * Switch to a specific dataset
  */
+export interface SwitchDatasetResponse {
+  message: string
+  total_questions: number
+  fine_tune_triggered?: boolean
+  fine_tune_reason?: string
+  job_id?: string
+  needs_refresh?: boolean
+}
+
 export async function switchChatbotDataset(
   datasetId: number,
   options?: { projectId?: number }
-): Promise<{ message: string; total_questions: number }> {
+): Promise<SwitchDatasetResponse> {
   try {
     const params = new URLSearchParams({ dataset_id: String(datasetId) })
     if (options?.projectId) params.append("project_id", String(options.projectId))
@@ -126,3 +136,172 @@ export async function deleteChatMessage(chatId: number): Promise<void> {
   }
 }
 
+// ============================================================
+// FINE-TUNING API FUNCTIONS
+// ============================================================
+
+export interface FineTuneJob {
+  ft_id: number
+  job_id: string
+  dataset_id: number
+  base_model: string
+  status: "pending" | "running" | "succeeded" | "failed" | "cancelled"
+  fine_tuned_model?: string
+  error_message?: string
+  created_at: string
+  updated_at?: string
+}
+
+export interface FineTuneJobDetail extends FineTuneJob {
+  training_file_id?: string
+  finished_at?: number
+  trained_tokens?: number
+  error?: string
+}
+
+export interface FineTunedModel {
+  dataset_id: number
+  has_model: boolean
+  model_name?: string
+  ft_id?: number
+  job_id?: string
+  created_at?: string
+}
+
+export interface StartFineTuneRequest {
+  dataset_id: number
+  suffix?: string
+  n_epochs?: number
+}
+
+export interface StartFineTuneResponse {
+  status: string
+  message: string
+  job: FineTuneJob
+}
+
+/**
+ * Start a fine-tuning job for a dataset
+ */
+export async function startFineTuning(
+  request: StartFineTuneRequest
+): Promise<StartFineTuneResponse> {
+  try {
+    const response = await api.post("/api/fine-tune/start", request)
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.detail || error.message || "Failed to start fine-tuning"
+    throw new Error(errorMessage)
+  }
+}
+
+/**
+ * Get list of fine-tuning jobs
+ */
+export async function getFineTuningJobs(
+  datasetId?: number,
+  limit: number = 20
+): Promise<{ jobs: FineTuneJob[] }> {
+  try {
+    const params = new URLSearchParams({ limit: limit.toString() })
+    if (datasetId) {
+      params.append("dataset_id", datasetId.toString())
+    }
+    const response = await api.get(`/api/fine-tune/jobs?${params.toString()}`)
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.detail || error.message || "Failed to get fine-tuning jobs"
+    throw new Error(errorMessage)
+  }
+}
+
+/**
+ * Get details of a specific fine-tuning job
+ */
+export async function getFineTuningJob(jobId: string): Promise<FineTuneJobDetail> {
+  try {
+    const response = await api.get(`/api/fine-tune/jobs/${jobId}`)
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.detail || error.message || "Failed to get job details"
+    throw new Error(errorMessage)
+  }
+}
+
+/**
+ * Check and update job status from OpenAI
+ */
+export async function checkJobStatus(jobId: string): Promise<FineTuneJob> {
+  try {
+    const response = await api.post(`/api/fine-tune/check-job/${jobId}`)
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.detail || error.message || "Failed to check job status"
+    throw new Error(errorMessage)
+  }
+}
+
+/**
+ * Get fine-tuned model for a dataset
+ */
+export async function getFineTunedModel(datasetId: number): Promise<FineTunedModel> {
+  try {
+    const response = await api.get(`/api/fine-tune/models/${datasetId}`)
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.detail || error.message || "Failed to get fine-tuned model"
+    throw new Error(errorMessage)
+  }
+}
+
+// ============================================================
+// FINE-TUNING STATUS API FUNCTIONS
+// ============================================================
+
+export interface FineTuneStatus {
+  dataset_id: number
+  has_model: boolean
+  model_name?: string
+  model_created_at?: string
+  active_job?: {
+    job_id: string
+    status: string
+    created_at?: string
+  }
+  latest_job?: {
+    job_id: string
+    status: string
+    fine_tuned_model?: string
+    error_message?: string
+    created_at?: string
+    updated_at?: string
+  }
+  needs_refresh: boolean
+  refresh_reason?: string
+}
+
+/**
+ * Get fine-tuning status for a dataset
+ */
+export async function getFineTuneStatus(datasetId: number): Promise<FineTuneStatus> {
+  try {
+    const response = await api.get(`/api/chatbot/fine-tune-status/${datasetId}`)
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.detail || error.message || "Failed to get fine-tuning status"
+    throw new Error(errorMessage)
+  }
+}
+
+/**
+ * Trigger fine-tuning for a dataset manually
+ */
+export async function triggerFineTuning(datasetId: number): Promise<StartFineTuneResponse> {
+  try {
+    const response = await api.post(`/api/chatbot/fine-tune-trigger/${datasetId}`)
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.detail || error.message || "Failed to trigger fine-tuning"
+    throw new Error(errorMessage)
+  }
+}
