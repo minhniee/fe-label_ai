@@ -305,7 +305,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             ? storedProject.name
             : decodedSlugName
         label = matchedProjectName
-        href = `/${segments.slice(0, index + 1).join("/")}`
+        // Always send users to the main project page when clicking project breadcrumb
+        // Example: "/14-my-project/..." -> "/14-my-project/annotate"
+        const projectSlug = segments[0]
+        href = `/projects`
       } else {
         const segmentWithSpaces = segment.replace(/[-_]/g, " ")
         label = ROUTE_TITLES[segment] ?? capitalizeWords(segmentWithSpaces)
