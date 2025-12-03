@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { ExternalLink, Download, Users, BarChart3, LayoutDashboard, FileText } from "lucide-react"
+import { ExternalLink, Download, Users, BarChart3, LayoutDashboard, FileText, Database, HardDrive } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default function AdminPage() {
@@ -80,6 +80,42 @@ export default function AdminPage() {
             <Link href="/admin/audit-log">
               <Button className="w-full" variant="outline">
                 Go to Audit Log
+                <ExternalLink className="w-4 h-4 ml-2" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-lg transition-shadow">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Database className="h-5 w-5" />
+              Storage Management
+            </CardTitle>
+            <CardDescription>Manage storage bucket and objects</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/admin/storage">
+              <Button className="w-full" variant="outline">
+                Go to Storage
+                <ExternalLink className="w-4 h-4 ml-2" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-lg transition-shadow">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <HardDrive className="h-5 w-5" />
+              User Storage Usage
+            </CardTitle>
+            <CardDescription>View storage consumption by user</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/admin/user-storage">
+              <Button className="w-full" variant="outline">
+                Go to User Storage
                 <ExternalLink className="w-4 h-4 ml-2" />
               </Button>
             </Link>
