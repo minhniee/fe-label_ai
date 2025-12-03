@@ -296,9 +296,7 @@ export default function ProjectBatchPage() {
       1: "Admin",
       2: "User",
       3: "Owner",
-      4: "Co-Owner",
       5: "Labeler",
-      6: "Viewer",
     };
     return roleNames[roleId] || "Unknown";
   };
@@ -709,9 +707,8 @@ export default function ProjectBatchPage() {
     try {
       // Map role names to role_ids
       const roleMap: Record<string, number> = {
-        "Co-Owner": 4,
+        "Owner": 3,
         "Labeler": 5,
-        "Viewer": 6,
       };
 
       await createInvitation(parseInt(project.id), {
@@ -1251,9 +1248,8 @@ export default function ProjectBatchPage() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Co-Owner">Co-Owner</SelectItem>
+                            <SelectItem value="Owner">Owner</SelectItem>
                             <SelectItem value="Labeler">Labeler</SelectItem>
-                            <SelectItem value="Viewer">Viewer</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>

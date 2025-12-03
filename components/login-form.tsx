@@ -158,7 +158,7 @@ export function LoginForm({
                 <Input
                   id="identifier"
                   type="text"
-                  placeholder="m@example.com or username"
+                  placeholder="Enter your email or username"
                   value={formData.identifier}
                   onChange={(e) => handleInputChange("identifier", e.target.value)}
                   required
@@ -178,6 +178,7 @@ export function LoginForm({
                 <div className="relative">
                   <Input
                     id="password"
+                    placeholder="Enter your password"
                     type={showPassword ? "text" : "password"}
                     value={formData.password}
                     onChange={(e) => handleInputChange("password", e.target.value)}
