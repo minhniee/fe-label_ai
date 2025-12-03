@@ -37,6 +37,31 @@ export async function registerUser(payload: RegisterPayload) {
   }
 }
 
+export async function verifyOTP(email: string, otp: string) {
+  try {
+    const response = await api.post('/auth/verify-otp', {
+      email,
+      otp,
+    });
+    return response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'OTP verification failed';
+    throw new Error(errorMessage);
+  }
+}
+
+export async function resendOTP(email: string) {
+  try {
+    const response = await api.post('/auth/resend-otp', {
+      email,
+    });
+    return response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to resend OTP';
+    throw new Error(errorMessage);
+  }
+}
+
 export async function loginUser(username_or_email: string, password: string) {
   try {
     const response = await api.post<TokenResponse>('/auth/login', {

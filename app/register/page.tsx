@@ -7,11 +7,16 @@ import { useRouter } from "next/navigation"
 import { getMe } from "@/app/api/auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field"
 import { Eye, EyeOff, ArrowLeft, CheckCircle } from "lucide-react"
 import Link from "next/link"
-import { registerUser, loginUser, persistAuth } from "@/app/api/auth"
+import { registerUser } from "@/app/api/auth"
 import { FPTLogo } from "@/components/fpt-logo"
 
 export default function RegisterPage() {
@@ -159,12 +164,11 @@ export default function RegisterPage() {
         confirm_password: formData.confirmPassword,
       })
 
-      // 2) Auto-login
-      const loginData = await loginUser(formData.email, formData.password)
-      persistAuth(loginData)
-
-      // Redirect to dashboard after successful login
-      window.location.href = "/projects"
+      // Store email temporarily for OTP verification
+      sessionStorage.setItem("pending_email", formData.email)
+      
+      // Redirect to OTP verification page
+      router.push("/verify-otp")
     } catch (err: any) {
       setServerError(err?.message || "An error occurred. Please try again.")
     } finally {
@@ -198,7 +202,7 @@ export default function RegisterPage() {
         </div>
 
         {/* Registration Card */}
-        <Card className="shadow-lg border-0  backdrop-blur-sm">
+        <Card className="shadow-lg border-0 backdrop-blur-sm">
           <CardHeader className="space-y-1 text-center">
             <div className="flex justify-center mb-2">
               <Link href="/login" className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground">
@@ -206,217 +210,167 @@ export default function RegisterPage() {
                 <span className="text-sm">Back to login</span>
               </Link>
             </div>
-            <CardTitle className="text-2xl text-card-foreground">Register Account</CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Create a new account to access the Label-AI system
+            <CardTitle>Create an account</CardTitle>
+            <CardDescription>
+              Enter your information below to create your account
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit}>
               {serverError && (
-                <p className="text-sm text-destructive">{serverError}</p>
+                <p className="text-sm text-destructive mb-4">{serverError}</p>
               )}
-              <div className="space-y-2">
-                <Label htmlFor="name" className="text-card-foreground">
-                  Username
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="name"
-                    type="text"
-                    placeholder="Enter your user name"
-                    value={formData.name}
-                    onChange={(e) => handleInputChange("name", e.target.value)}
-                    onFocus={() => setIsNameFocused(true)}
-                    onBlur={() => setIsNameFocused(false)}
-                    className="bg-input border-border focus:ring-primary pl-10"
-                  />
-                  {isUsernameValid && (
-                    <CheckCircle className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-500" />
-                  )}
-                </div>
-                {isNameFocused && (
-                  <div className="space-y-1">
-                    <p className={`text-xs ${isUsernameValid ? "text-emerald-500" : "text-muted-foreground"}`}>
-                      <span className="inline-flex items-center gap-1">
-                        <CheckCircle className={`h-3 w-3 ${isUsernameValid ? "text-emerald-500" : "text-muted-foreground"}`} />
+              <FieldGroup>
+                <Field>
+                  <FieldLabel htmlFor="name">User Name</FieldLabel>
+                  <div className="relative">
+                    <Input
+                      id="name"
+                      type="text"
+                      placeholder="Enter your user name"
+                      value={formData.name}
+                      onChange={(e) => handleInputChange("name", e.target.value)}
+                      onFocus={() => setIsNameFocused(true)}
+                      onBlur={() => setIsNameFocused(false)}
+                      required
+                      className={isUsernameValid ? "pl-10" : ""}
+                    />
+                    {isUsernameValid && (
+                      <CheckCircle className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-500" />
+                    )}
+                  </div>
+                  {isNameFocused && (
+                    <FieldDescription>
+                      <span className={isUsernameValid ? "text-emerald-500" : ""}>
                         3 - 50 characters
                       </span>
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-card-foreground">
-                  Email
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="Enter your email address"
-                    value={formData.email}
-                    onChange={(e) => handleInputChange("email", e.target.value)}
-                    onFocus={() => setIsEmailFocused(true)}
-                    onBlur={() => setIsEmailFocused(false)}
-                    className="bg-input border-border focus:ring-primary pl-10"
-                  />
-                  {isEmailValid && (
-                    <CheckCircle className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-500" />
+                    </FieldDescription>
                   )}
-                </div>
-                {isEmailFocused && (
-                  <div className="space-y-1">
-                    <p className={`text-xs ${emailHasAt ? "text-emerald-500" : "text-muted-foreground"}`}>
-                      <span className="inline-flex items-center gap-1">
-                        <CheckCircle className={`h-3 w-3 ${emailHasAt ? "text-emerald-500" : "text-muted-foreground"}`} />
-                        Email must contain @
-                      </span>
-                    </p>
-                    <p className={`text-xs ${isEmailValid ? "text-emerald-500" : "text-muted-foreground"}`}>
-                      <span className="inline-flex items-center gap-1">
-                        <CheckCircle className={`h-3 w-3 ${isEmailValid ? "text-emerald-500" : "text-muted-foreground"}`} />
-                        Valid email format
-                      </span>
-                    </p>
-                  </div>
-                )}
-              </div>
+                </Field>
 
-              <div className="space-y-2">
-                {/* Role selection removed. Backend defaults to Labeler. */}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-card-foreground">
-                  Password
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Enter your password"
-                    value={formData.password}
-                    onChange={(e) => handleInputChange("password", e.target.value)}
-                    onFocus={() => setIsPasswordFocused(true)}
-                    onBlur={() => setIsPasswordFocused(false)}
-                    className="bg-input border-border focus:ring-primary pr-10 pl-10"
-                  />
-                  {isPasswordValid && (
-                    <CheckCircle className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-500" />
-                  )}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <Eye className="h-4 w-4 text-muted-foreground" />
+                <Field>
+                  <FieldLabel htmlFor="email">Email</FieldLabel>
+                  <div className="relative">
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="Enter your email address"
+                      value={formData.email}
+                      onChange={(e) => handleInputChange("email", e.target.value)}
+                      onFocus={() => setIsEmailFocused(true)}
+                      onBlur={() => setIsEmailFocused(false)}
+                      required
+                      className={isEmailValid ? "pl-10" : ""}
+                    />
+                    {isEmailValid && (
+                      <CheckCircle className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-500" />
                     )}
-                  </Button>
-                </div>
-                {isPasswordFocused && (
-                  <div className="grid grid-cols-1 gap-1 text-xs">
-                    <p className={` ${pwdLen ? "text-emerald-500" : "text-muted-foreground"}`}>
-                      <span className="inline-flex items-center gap-1">
-                        <CheckCircle className={`h-3 w-3 ${pwdLen ? "text-emerald-500" : "text-muted-foreground"}`} />
-                        At least 8 characters
-                      </span>
-                    </p>
-                    <p className={` ${pwdUpper ? "text-emerald-500" : "text-muted-foreground"}`}>
-                      <span className="inline-flex items-center gap-1">
-                        <CheckCircle className={`h-3 w-3 ${pwdUpper ? "text-emerald-500" : "text-muted-foreground"}`} />
-                        Has uppercase
-                      </span>
-                    </p>
-                    <p className={` ${pwdLower ? "text-emerald-500" : "text-muted-foreground"}`}>
-                      <span className="inline-flex items-center gap-1">
-                        <CheckCircle className={`h-3 w-3 ${pwdLower ? "text-emerald-500" : "text-muted-foreground"}`} />
-                        Has lowercase
-                      </span>
-                    </p>
-                    <p className={` ${pwdDigit ? "text-emerald-500" : "text-muted-foreground"}`}>
-                      <span className="inline-flex items-center gap-1">
-                        <CheckCircle className={`h-3 w-3 ${pwdDigit ? "text-emerald-500" : "text-muted-foreground"}`} />
-                        Has number
-                      </span>
-                    </p>
-                    <p className={` ${pwdSpecial ? "text-emerald-500" : "text-muted-foreground"}`}>
-                      <span className="inline-flex items-center gap-1">
-                        <CheckCircle className={`h-3 w-3 ${pwdSpecial ? "text-emerald-500" : "text-muted-foreground"}`} />
-                        Has special character
-                      </span>
-                    </p>
                   </div>
-                )}
-              </div>
+                  <FieldDescription>
+                    We&apos;ll use this to contact you. We will not share your email with anyone else.
+                  </FieldDescription>
+                </Field>
 
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword" className="text-card-foreground">
-                  Confirm Password
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="confirmPassword"
-                    type={showConfirmPassword ? "text" : "password"}
-                    placeholder="Re-enter your password"
-                    value={formData.confirmPassword}
-                    onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
-                    onFocus={() => setIsConfirmFocused(true)}
-                    onBlur={() => setIsConfirmFocused(false)}
-                    className="bg-input border-border focus:ring-primary pr-10 pl-10"
-                  />
-                  {isConfirmValid && (
-                    <CheckCircle className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-500" />
-                  )}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  >
-                    {showConfirmPassword ? (
-                      <EyeOff className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <Eye className="h-4 w-4 text-muted-foreground" />
+                <Field>
+                  <FieldLabel htmlFor="password">Password</FieldLabel>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      placeholder="Enter your password"
+                      type={showPassword ? "text" : "password"}
+                      value={formData.password}
+                      onChange={(e) => handleInputChange("password", e.target.value)}
+                      onFocus={() => setIsPasswordFocused(true)}
+                      onBlur={() => setIsPasswordFocused(false)}
+                      required
+                      className={isPasswordValid ? "pl-10 pr-10" : "pr-10"}
+                    />
+                    {isPasswordValid && (
+                      <CheckCircle className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-500" />
                     )}
-                  </Button>
-                </div>
-                {isConfirmFocused && (
-                  <div className="space-y-1">
-                    <p className={`text-xs ${isConfirmValid ? "text-emerald-500" : "text-muted-foreground"}`}>
-                      <span className="inline-flex items-center gap-1">
-                        <CheckCircle className={`h-3 w-3 ${isConfirmValid ? "text-emerald-500" : "text-muted-foreground"}`} />
-                        Matches password
-                      </span>
-                    </p>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <Eye className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </Button>
                   </div>
-                )}
-              </div>
+                  {isPasswordFocused && (
+                    <FieldDescription>
+                      <div className="grid grid-cols-1 gap-1 text-xs">
+                        <span className={pwdLen ? "text-emerald-500" : ""}>At least 8 characters</span>
+                        <span className={pwdUpper ? "text-emerald-500" : ""}>Has uppercase</span>
+                        <span className={pwdLower ? "text-emerald-500" : ""}>Has lowercase</span>
+                        <span className={pwdDigit ? "text-emerald-500" : ""}>Has number</span>
+                        <span className={pwdSpecial ? "text-emerald-500" : ""}>Has special character</span>
+                      </div>
+                    </FieldDescription>
+                  )}
+                  {!isPasswordFocused && (
+                    <FieldDescription>
+                      Must be at least 8 characters long.
+                    </FieldDescription>
+                  )}
+                </Field>
 
-              <Button
-                type="submit"
-                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? "Registering..." : "Register"}
-              </Button>
+                <Field>
+                  <FieldLabel htmlFor="confirmPassword">Confirm Password</FieldLabel>
+                  <div className="relative">
+                    <Input
+                      id="confirmPassword"
+                      placeholder="Re-enter your password"
+                      type={showConfirmPassword ? "text" : "password"}
+                      value={formData.confirmPassword}
+                      onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
+                      onFocus={() => setIsConfirmFocused(true)}
+                      onBlur={() => setIsConfirmFocused(false)}
+                      required
+                      className={isConfirmValid ? "pl-10 pr-10" : "pr-10"}
+                    />
+                    {isConfirmValid && (
+                      <CheckCircle className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-500" />
+                    )}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <Eye className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </Button>
+                  </div>
+                  <FieldDescription>
+                    Please confirm your password.
+                  </FieldDescription>
+                </Field>
+
+                <FieldGroup>
+                  <Field>
+                    <Button type="submit" className="w-full" disabled={isSubmitting}>
+                      {isSubmitting ? "Registering..." : "Create Account"}
+                    </Button>
+                    <FieldDescription className="px-6 text-center mt-4">
+                      Already have an account?{" "}
+                      <Link href="/login" className="text-primary hover:text-primary/80 underline-offset-4 hover:underline">
+                        Sign in
+                      </Link>
+                    </FieldDescription>
+                  </Field>
+                </FieldGroup>
+              </FieldGroup>
             </form>
-
-            <div className="mt-4 text-center">
-              <p className="text-sm text-muted-foreground">
-                Already have an account?{" "}
-                <Link href="/login" className="text-primary hover:text-primary/80 underline-offset-4 hover:underline">
-                  Login now
-                </Link>
-              </p>
-            </div>
           </CardContent>
         </Card>
 
