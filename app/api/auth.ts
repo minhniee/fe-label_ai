@@ -185,3 +185,73 @@ export async function isAuthenticated(): Promise<boolean> {
     return false;
   }
 }
+
+// ==================== FORGOT PASSWORD API ====================
+
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ForgotPasswordResponse {
+  status: string;
+  expireIn: number;
+  resendAvailableIn: number;
+}
+
+export interface VerifyResetOTPRequest {
+  email: string;
+  otp: string;
+}
+
+export interface VerifyResetOTPResponse {
+  success: boolean;
+  resetToken: string;
+}
+
+export interface ResetPasswordRequest {
+  resetToken: string;
+  newPassword: string;
+}
+
+export interface ResetPasswordResponse {
+  success: boolean;
+  message: string;
+}
+
+export async function requestPasswordReset(email: string): Promise<ForgotPasswordResponse> {
+  try {
+    const response = await api.post<ForgotPasswordResponse>('/auth/forgot-password/request', {
+      email,
+    });
+    return response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to request password reset';
+    throw new Error(errorMessage);
+  }
+}
+
+export async function verifyResetOTP(email: string, otp: string): Promise<VerifyResetOTPResponse> {
+  try {
+    const response = await api.post<VerifyResetOTPResponse>('/auth/forgot-password/verify-otp', {
+      email,
+      otp,
+    });
+    return response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'OTP verification failed';
+    throw new Error(errorMessage);
+  }
+}
+
+export async function resetPassword(resetToken: string, newPassword: string): Promise<ResetPasswordResponse> {
+  try {
+    const response = await api.post<ResetPasswordResponse>('/auth/forgot-password/reset-password', {
+      resetToken,
+      newPassword,
+    });
+    return response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to reset password';
+    throw new Error(errorMessage);
+  }
+}
