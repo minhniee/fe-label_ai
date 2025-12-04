@@ -43,7 +43,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Define supported file formats
 const PDF_EXTENSIONS = [".pdf"];
-const DATA_EXTENSIONS = [".csv", ".xlsx", ".xlsv", ".json"];
+const DATA_EXTENSIONS = [".csv", ".xlsx", ".json"];
 const ALL_SUPPORTED_EXTENSIONS = [...PDF_EXTENSIONS, ...DATA_EXTENSIONS];
 const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024; // 20MB
 

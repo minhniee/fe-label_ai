@@ -645,15 +645,13 @@ export default function ProjectsPage() {
                   <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="4">Co-Owner</SelectItem>
+                  <SelectItem value="3">Owner</SelectItem>
                   <SelectItem value="5">Labeler</SelectItem>
-                  <SelectItem value="6">Viewer</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                {inviteRoleId === 4 && "Co-Owner can manage the project and invite members."}
+                {inviteRoleId === 3 && "Owner can manage the project and invite members."}
                 {inviteRoleId === 5 && "Labeler can label and annotate project data."}
-                {inviteRoleId === 6 && "Viewer can only view project data."}
               </p>
             </div>
           </div>
