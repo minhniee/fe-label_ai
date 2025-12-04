@@ -259,13 +259,51 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     for (let index = 0; index < segments.length; index++) {
       const segment = segments[index]
 
-      // Combine /job/{jobId} into single breadcrumb (e.g., "Job 99")
+      // Handle /job/{jobId} paths
       if (
         segment === "job" &&
         index + 1 < segments.length &&
         /^\d+$/.test(segments[index + 1])
       ) {
         const jobIdSegment = segments[index + 1]
+        const nextSegment = index + 2 < segments.length ? segments[index + 2] : null
+        
+        // Special case: /job/{jobId}/auto-label should show "Batch" instead of "Job"
+        // because auto-label page is for configuring batch, not reviewing job
+        if (nextSegment === "auto-label") {
+          const batchQuery = new URLSearchParams()
+          batchQuery.set("batchId", jobIdSegment)
+
+          const fileIdsParam = searchParams?.get("fileIds")
+          if (fileIdsParam) {
+            batchQuery.set("fileIds", fileIdsParam)
+          }
+
+          // Build batch href: /{projectSlug}/annotate/batch?batchId=...
+          const projectSlug = segments[0] // e.g., "6-data-h-c-ph-fpt"
+          const batchHref = `/${projectSlug}/annotate/batch?${batchQuery.toString()}`
+          
+          // Batch is NOT the last item, "auto-label" will be added next
+          breadcrumbItems.push({
+            label: "Batch",
+            href: batchHref,
+            isLast: false,
+          })
+
+          // Now add "auto-label" segment immediately
+          const autoLabelIsLast = index + 2 === segments.length - 1
+          breadcrumbItems.push({
+            label: "Auto Label",
+            href: `/${segments.slice(0, index + 3).join("/")}`, // Full path including auto-label
+            isLast: autoLabelIsLast,
+          })
+
+          // Skip "job", jobId, and "auto-label" segments (all 3)
+          index += 3
+          continue
+        }
+
+        // Normal job path: /job/{jobId} or /job/{jobId}/annotating
         const isLast = index + 1 === segments.length - 1
 
         const jobQuery = new URLSearchParams()
@@ -310,8 +348,13 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         const projectSlug = segments[0]
         href = `/projects`
       } else {
-        const segmentWithSpaces = segment.replace(/[-_]/g, " ")
-        label = ROUTE_TITLES[segment] ?? capitalizeWords(segmentWithSpaces)
+        // Special handling for auto-label segment
+        if (segment === "auto-label") {
+          label = "Auto Label"
+        } else {
+          const segmentWithSpaces = segment.replace(/[-_]/g, " ")
+          label = ROUTE_TITLES[segment] ?? capitalizeWords(segmentWithSpaces)
+        }
         href = `/${segments.slice(0, index + 1).join("/")}`
       }
 

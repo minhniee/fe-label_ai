@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter, useParams } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { MoreVertical, ArrowRight, CircleHelp } from "lucide-react";
 import {
   Tooltip,
@@ -37,15 +37,13 @@ export default function AnnotatingSection() {
   const [jobs, setJobs] = useState<AnnotatingJob[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    if (project) {
-      loadAnnotatingJobs();
-    }
-  }, [project]);
-
-  const loadAnnotatingJobs = async () => {
+  const loadAnnotatingJobs = useCallback(async (showLoading = true) => {
+    if (!project) return;
+    
     try {
-      setIsLoading(true);
+      if (showLoading) {
+        setIsLoading(true);
+      }
       const projectId = parseInt(project!.id);
       const [response, projectFiles] = await Promise.all([
         getProjectBatches(projectId, {
@@ -119,11 +117,29 @@ export default function AnnotatingSection() {
       setJobs(jobsWithCounts);
     } catch (error: any) {
       console.error('Failed to load annotating jobs:', error);
-      toast.error('Failed to load jobs');
+      if (showLoading) {
+        toast.error('Failed to load jobs');
+      }
     } finally {
-      setIsLoading(false);
+      if (showLoading) {
+        setIsLoading(false);
+      }
     }
-  };
+  }, [project]);
+
+  useEffect(() => {
+    if (project) {
+      // Initial load with loading indicator
+      loadAnnotatingJobs(true);
+      
+      // Auto-refresh every 5 seconds to update progress (without loading indicator)
+      const interval = setInterval(() => {
+        loadAnnotatingJobs(false);
+      }, 5000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [project, loadAnnotatingJobs]);
 
   const handleJobSelect = (job: AnnotatingJob) => {
     const fileIdsParam = encodeURIComponent(JSON.stringify(job.file_ids || []));
@@ -175,7 +191,7 @@ export default function AnnotatingSection() {
             jobs.map((job) => (
             <div
                 key={job.batch_id}
-                className="border border-input rounded-md p-4 bg-background hover:bg-accent/50 transition-colors cursor-pointer"
+                className="w-full border border-input rounded-md p-4 bg-background hover:bg-accent/50 transition-colors cursor-pointer"
                 onClick={() => handleJobSelect(job)}
                 role="button"
                 tabIndex={0}
@@ -186,16 +202,16 @@ export default function AnnotatingSection() {
                   }
                 }}
             >
-              <div className="flex items-start justify-between mb-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">
+              <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex-1 min-w-0 overflow-hidden">
+                    <p className="text-sm font-medium text-foreground break-words line-clamp-2">
                       {job.name}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-1">
+                    <p className="text-xs text-muted-foreground mt-1 truncate">
                       Labeler: {job.labeler}
                     </p>
                 </div>
-                  <button className="text-muted-foreground hover:text-foreground flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                  <button className="text-muted-foreground hover:text-foreground flex-shrink-0 ml-2" onClick={(e) => e.stopPropagation()}>
                   <MoreVertical className="w-4 h-4" />
                 </button>
               </div>
@@ -217,13 +233,13 @@ export default function AnnotatingSection() {
               </div>
 
               {/* Files info and Start button - side by side */}
-              <div className="flex items-center justify-between mt-3">
-                <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">
+              <div className="flex items-center justify-between gap-2 mt-3">
+                <div className="flex flex-col gap-1 text-xs text-muted-foreground min-w-0 flex-1">
+                  <span className="font-medium text-foreground truncate">
                     {job.total_files} Files
                   </span>
-                  <span>Annotated: {job.annotatedCount}</span>
-                  <span>Unannotated: {job.unannotatedCount}</span>
+                  <span className="truncate">Annotated: {job.annotatedCount}</span>
+                  <span className="truncate">Unannotated: {job.unannotatedCount}</span>
                 </div>
 
                 <button
@@ -232,7 +248,7 @@ export default function AnnotatingSection() {
                     e.stopPropagation();
                     handleJobSelect(job);
                   }}
-                  className="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors text-sm font-medium flex-shrink-0"
+                  className="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors text-sm font-medium flex-shrink-0 whitespace-nowrap"
                 >
                   <span>Start Annotating</span>
                   <ArrowRight className="w-3 h-3" />

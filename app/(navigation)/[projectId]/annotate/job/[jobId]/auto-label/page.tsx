@@ -55,20 +55,16 @@ export default function AutoLabelJobPage() {
   }
 
   const handleBack = () => {
+    // Navigate back to batch page (not job page, since job is only created after auto-labeling completes)
     const backParams = new URLSearchParams()
-    backParams.set("jobId", jobIdParam)
+    backParams.set("batchId", jobIdParam)
 
     if (batchData?.batch_metadata?.file_ids?.length) {
       backParams.set("fileIds", JSON.stringify(batchData.batch_metadata.file_ids))
     }
 
-    const jobName = batchData?.name || jobNameFromQuery
-    if (jobName) {
-      backParams.set("jobName", jobName)
-    }
-
     const query = backParams.toString()
-    router.push(`/${projectSlug}/annotate/job${query ? `?${query}` : ""}`)
+    router.push(`/${projectSlug}/annotate/batch${query ? `?${query}` : ""}`)
   }
 
   const projectIdFromSlug = Number(slugToProjectId(projectSlug))
@@ -80,7 +76,7 @@ export default function AutoLabelJobPage() {
       <div className="flex items-center gap-4 mb-6">
         <Button variant="outline" size="sm" onClick={handleBack}>
           <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Job
+          Back to Batch
         </Button>
         <div>
           <h1 className="text-3xl font-bold">{displayName}</h1>
