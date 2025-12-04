@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import React from "react"
+import React, { useEffect, useState } from "react"
 import { Info, GitCompare, Check, X, CheckCircle2 } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
@@ -28,10 +28,8 @@ export interface DataGridTableProps {
   hoveredCell: HoveredCell | null
   setHoveredCell: (cell: HoveredCell | null) => void
   editingCell: EditingCell | null
-  editingValue: string
   onCellEditStart: (rowId: string, field: string) => void
-  onCellEditChange: (value: string) => void
-  onCellEditEnd: (rowId: string, field: string) => void
+  onCellEditEnd: (rowId: string, field: string, value: string) => void
   onConfirm: (rowId: string) => void
   onReject: (rowId: string) => void
   setCompareRow: (row: RowData | null) => void
@@ -58,9 +56,7 @@ const DataGridRow = React.memo(function DataGridRow({
   hoveredCell,
   setHoveredCell,
   editingCell,
-  editingValue,
   onCellEditStart,
-  onCellEditChange,
   onCellEditEnd,
   onConfirm,
   onReject,
@@ -72,12 +68,26 @@ const DataGridRow = React.memo(function DataGridRow({
 }: DataGridRowProps) {
   const isEditingThisRow = editingCell?.rowId === row._id
 
-  const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>, field: string) => {
+  const [localValue, setLocalValue] = useState<string>("")
+
+  // Sync localValue when starting to edit a cell in this row
+  useEffect(() => {
+    if (isEditingThisRow && editingCell?.field) {
+      const field = editingCell.field
+      setLocalValue(String(row[field] ?? ""))
+    }
+  }, [isEditingThisRow, editingCell, row])
+
+  const handleTextareaKeyDown = (
+    e: React.KeyboardEvent<HTMLTextAreaElement>,
+    field: string,
+    value: string,
+  ) => {
     if (e.key === "Enter" && e.ctrlKey) {
       e.preventDefault()
-      onCellEditEnd(row._id, field)
+      onCellEditEnd(row._id, field, value)
     } else if (e.key === "Escape") {
-      onCellEditEnd(row._id, field)
+      onCellEditEnd(row._id, field, value)
     }
   }
 
@@ -117,12 +127,12 @@ const DataGridRow = React.memo(function DataGridRow({
             {isEditingThisRow && editingCell?.field === contextColumn ? (
               <Textarea
                 autoFocus
-                value={editingValue}
-                onChange={(e) => onCellEditChange(e.target.value)}
-                onBlur={() => onCellEditEnd(row._id, contextColumn)}
-                onKeyDown={(e) => handleTextareaKeyDown(e, contextColumn)}
+                value={localValue}
+                onChange={(e) => setLocalValue(e.target.value)}
+                onBlur={() => onCellEditEnd(row._id, contextColumn, localValue)}
+                onKeyDown={(e) => handleTextareaKeyDown(e, contextColumn, localValue)}
                 className="min-h-20 text-sm p-2 w-full resize-y"
-                rows={Math.min(Math.max(editingValue.split("\n").length, 3), 10)}
+                rows={Math.min(Math.max(localValue.split("\n").length, 3), 10)}
               />
             ) : (
               <span className="break-words whitespace-pre-wrap block" title={String(row[contextColumn] ?? "")}>
@@ -153,12 +163,12 @@ const DataGridRow = React.memo(function DataGridRow({
             {isEditingThisRow && editingCell?.field === col ? (
               <Textarea
                 autoFocus
-                value={editingValue}
-                onChange={(e) => onCellEditChange(e.target.value)}
-                onBlur={() => onCellEditEnd(row._id, col)}
-                onKeyDown={(e) => handleTextareaKeyDown(e, col)}
+                value={localValue}
+                onChange={(e) => setLocalValue(e.target.value)}
+                onBlur={() => onCellEditEnd(row._id, col, localValue)}
+                onKeyDown={(e) => handleTextareaKeyDown(e, col, localValue)}
                 className="min-h-20 font-mono text-sm p-2 w-full resize-y"
-                rows={Math.min(Math.max(editingValue.split("\n").length, 3), 10)}
+                rows={Math.min(Math.max(localValue.split("\n").length, 3), 10)}
               />
             ) : (
               <span className="break-words whitespace-pre-wrap block">{row[col] || "-"}</span>
@@ -193,12 +203,12 @@ const DataGridRow = React.memo(function DataGridRow({
                   {isEditingThisRow && editingCell?.field === resultColumn ? (
                     <Textarea
                       autoFocus
-                      value={editingValue}
-                      onChange={(e) => onCellEditChange(e.target.value)}
-                      onBlur={() => onCellEditEnd(row._id, resultColumn)}
-                      onKeyDown={(e) => handleTextareaKeyDown(e, resultColumn)}
+                      value={localValue}
+                      onChange={(e) => setLocalValue(e.target.value)}
+                      onBlur={() => onCellEditEnd(row._id, resultColumn, localValue)}
+                      onKeyDown={(e) => handleTextareaKeyDown(e, resultColumn, localValue)}
                       className="min-h-20 font-mono text-sm p-2 w-full resize-y"
-                      rows={Math.min(Math.max(editingValue.split("\n").length, 3), 10)}
+                      rows={Math.min(Math.max(localValue.split("\n").length, 3), 10)}
                     />
                   ) : (
                     <span className="break-words whitespace-pre-wrap block">
@@ -348,9 +358,7 @@ export function DataGridTable({
   hoveredCell,
   setHoveredCell,
   editingCell,
-  editingValue,
   onCellEditStart,
-  onCellEditChange,
   onCellEditEnd,
   onConfirm,
   onReject,
@@ -408,9 +416,7 @@ export function DataGridTable({
             hoveredCell={hoveredCell}
             setHoveredCell={setHoveredCell}
             editingCell={editingCell}
-            editingValue={editingValue}
             onCellEditStart={onCellEditStart}
-            onCellEditChange={onCellEditChange}
             onCellEditEnd={onCellEditEnd}
             onConfirm={onConfirm}
             onReject={onReject}

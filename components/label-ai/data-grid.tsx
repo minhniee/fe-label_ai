@@ -62,7 +62,6 @@ export function DataGrid({
     rowId: string
     field: string
   } | null>(null)
-  const [editingValue, setEditingValue] = useState<string>("") // Local state for editing value
   const [versionName, setVersionName] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [hoveredCell, setHoveredCell] = useState<{ rowId: string; field: string } | null>(null)
@@ -251,26 +250,20 @@ export function DataGrid({
     }
   }, [allConfirmed, versionName, datasetName])
 
-  // Handle cell edit start - initialize local editing value
+  // Handle cell edit start
   const handleCellEditStart = useCallback(
     (rowId: string, field: string) => {
       const row = allData.find((r) => r._id === rowId) || filteredData.find((r) => r._id === rowId)
       if (row) {
-        setEditingValue(String(row[field] || ""))
         setEditingCell({ rowId, field })
       }
     },
     [allData, filteredData],
   )
 
-  // Handle cell edit change - only update local state (no parent update)
-  const handleCellEditChange = useCallback((value: string) => {
-    setEditingValue(value)
-  }, [])
-
   // Handle cell edit end - update parent with final value
   const handleCellEditEnd = useCallback(
-    (rowId: string, field: string) => {
+    (rowId: string, field: string, newValue: string) => {
       // Compare with originalData to correctly set _isModified flag
       const originalRow = originalData.find((r) => r._id === rowId)
       const currentRow = allData.find((r) => r._id === rowId)
@@ -279,23 +272,23 @@ export function DataGrid({
       let isActuallyModified = false
       if (originalRow && currentRow) {
         const originalValue = String(originalRow[field] ?? "").trim()
-        const newValue = String(editingValue).trim()
-        isActuallyModified = originalValue !== newValue
+        const trimmedNewValue = String(newValue).trim()
+        isActuallyModified = originalValue !== trimmedNewValue
       } else if (originalRow) {
         const originalValue = String(originalRow[field] ?? "").trim()
-        const newValue = String(editingValue).trim()
-        isActuallyModified = originalValue !== newValue
+        const trimmedNewValue = String(newValue).trim()
+        isActuallyModified = originalValue !== trimmedNewValue
       } else if (currentRow) {
         const currentValue = String(currentRow[field] ?? "").trim()
-        const newValue = String(editingValue).trim()
-        isActuallyModified = currentValue !== newValue
+        const trimmedNewValue = String(newValue).trim()
+        isActuallyModified = currentValue !== trimmedNewValue
       }
 
       const updatedAllData = allData.map((row) =>
         row._id === rowId
           ? {
               ...row,
-              [field]: editingValue,
+              [field]: newValue,
               _isModified: isActuallyModified,
             }
           : row,
@@ -304,9 +297,8 @@ export function DataGrid({
       onDataUpdate(updatedAllData)
 
       setEditingCell(null)
-      setEditingValue("")
     },
-    [allData, originalData, editingValue, onDataUpdate],
+    [allData, originalData, onDataUpdate],
   )
 
   // Helper function to get AI value from various fields
@@ -846,9 +838,7 @@ export function DataGrid({
               hoveredCell={hoveredCell}
               setHoveredCell={setHoveredCell}
               editingCell={editingCell}
-              editingValue={editingValue}
               onCellEditStart={handleCellEditStart}
-              onCellEditChange={handleCellEditChange}
               onCellEditEnd={handleCellEditEnd}
               onConfirm={handleConfirm}
               onReject={handleReject}

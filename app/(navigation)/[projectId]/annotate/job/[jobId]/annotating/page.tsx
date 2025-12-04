@@ -165,10 +165,20 @@ export default function JobLabelAIPage() {
       try {
         if (currentFileId) {
           const storageKey = getDraftStorageKey(projectId, batchId, currentFileId)
-          const modifiedRows = data.filter((row) => row._isModified || (row as any)._is_new)
-          if (modifiedRows.length > 0) {
+          const modifiedRowsWithIndex = data
+            .map((row, index) =>
+              row._isModified || (row as any)._is_new
+                ? {
+                    rowIndex: index,
+                    row,
+                  }
+                : null,
+            )
+            .filter((entry): entry is { rowIndex: number; row: RowData } => entry !== null)
+
+          if (modifiedRowsWithIndex.length > 0) {
             const payload = {
-              rows: modifiedRows,
+              rows: modifiedRowsWithIndex,
               updatedAt: new Date().toISOString(),
             }
             window.localStorage.setItem(storageKey, JSON.stringify(payload))
@@ -345,7 +355,7 @@ export default function JobLabelAIPage() {
       setVisibleColumns([detectedContextCol, detectedResultCol])
       
       // Transform rows to RowData format - ensure all metadata fields are preserved
-      const transformedData: RowData[] = rows.map((row: any, index: number) => {
+      let transformedData: RowData[] = rows.map((row: any, index: number) => {
         // Initialize with default values (same as AI Labeling Mode)
         const rowObj: RowData = {
           _id: `row-${index}`,
@@ -399,15 +409,36 @@ export default function JobLabelAIPage() {
           const draftJson = localStorage.getItem(storageKey)
           if (draftJson) {
             const draft = JSON.parse(draftJson) as {
-              rows?: RowData[]
+              // New format (forward compatible):
+              // rows: Array<{ rowIndex?: number; row: RowData }>
+              // Old format (backward compatible):
+              // rows: RowData[]
+              rows?: Array<RowData | { rowIndex?: number; row: RowData }>
               updatedAt?: string
             }
             if (draft.rows && Array.isArray(draft.rows) && draft.rows.length > 0) {
-              const shouldRestore = window.confirm(
-                "Found unsaved draft labels for this file from a previous session. Do you want to restore them?",
-              )
-              if (shouldRestore) {
-                const draftById = new Map(draft.rows.map((r) => [r._id, r]))
+              // Automatically restore draft without relying on browser confirm dialogs,
+              // which can be blocked in some cases.
+              let appliedCount = 0
+              const first = draft.rows[0] as any
+              const hasRowIndex = first && typeof first.rowIndex === "number" && first.row
+
+              if (hasRowIndex) {
+                ;(draft.rows as any[]).forEach((entry) => {
+                  const rowIndex = entry.rowIndex as number
+                  const draftRow = entry.row as RowData
+                  if (Number.isInteger(rowIndex) && rowIndex >= 0 && rowIndex < transformedData.length) {
+                    transformedData[rowIndex] = {
+                      ...transformedData[rowIndex],
+                      ...draftRow,
+                      _isModified: true,
+                    }
+                    appliedCount++
+                  }
+                })
+              } else {
+                // Backward-compatible: match by _id
+                const draftById = new Map((draft.rows as RowData[]).map((r) => [r._id, r]))
                 for (let i = 0; i < transformedData.length; i++) {
                   const draftRow = draftById.get(transformedData[i]._id)
                   if (draftRow) {
@@ -416,12 +447,38 @@ export default function JobLabelAIPage() {
                       ...draftRow,
                       _isModified: true,
                     }
+                    appliedCount++
                   }
                 }
-                if (draft.updatedAt) {
-                  setLastLocalDraftSavedAt(new Date(draft.updatedAt))
-                }
               }
+
+              // If for some reason nothing was applied (e.g. _id mismatch),
+              // fall back to using draft.rows directly so user never loses work.
+              if (appliedCount === 0) {
+                transformedData = (draft.rows as Array<RowData | { row: RowData }>).map((item, index) => {
+                  const row =
+                    (item as any).row && typeof (item as any).row === "object"
+                      ? ((item as any).row as RowData)
+                      : (item as RowData)
+
+                  const safeId = row._id || `row-${index}`
+
+                  return {
+                    ...row,
+                    _id: safeId,
+                    _isModified: true,
+                  }
+                })
+              }
+
+              if (draft.updatedAt) {
+                setLastLocalDraftSavedAt(new Date(draft.updatedAt))
+              }
+
+              toast({
+                title: "Local draft restored",
+                description: `Restored ${appliedCount || draft.rows.length} unsaved row(s) from your last session.`,
+              })
             }
           }
         } catch (e) {
@@ -690,23 +747,31 @@ export default function JobLabelAIPage() {
     if (typeof window === "undefined" || !currentFileId) return
 
     const storageKey = getDraftStorageKey(projectId, batchId, currentFileId)
-    const modifiedRows = data.filter((row) => row._isModified || (row as any)._is_new)
+    const modifiedRowsWithIndex = data
+      .map((row, index) =>
+        row._isModified || (row as any)._is_new
+          ? {
+              rowIndex: index,
+              row,
+            }
+          : null,
+      )
+      .filter((entry): entry is { rowIndex: number; row: RowData } => entry !== null)
 
-    if (modifiedRows.length === 0) {
-      localStorage.removeItem(storageKey)
-      return
-    }
+    // Nếu hiện tại không có row nào được sửa, **không** động vào draft cũ trong localStorage.
+    // Việc xóa draft chỉ nên làm sau khi Save File thành công, để tránh mất draft khi reload.
+    if (modifiedRowsWithIndex.length > 0) {
+      const payload = {
+        rows: modifiedRowsWithIndex,
+        updatedAt: new Date().toISOString(),
+      }
 
-    const payload = {
-      rows: modifiedRows,
-      updatedAt: new Date().toISOString(),
-    }
-
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(payload))
-      setLastLocalDraftSavedAt(new Date())
-    } catch (e) {
-      console.warn("Failed to save draft to localStorage:", e)
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(payload))
+        setLastLocalDraftSavedAt(new Date())
+      } catch (e) {
+        console.warn("Failed to save draft to localStorage:", e)
+      }
     }
   }, [data, currentFileId, projectId, batchId])
 
