@@ -70,14 +70,19 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
   const [selectedProject, setSelectedProjectState] =
     React.useState<Project | null>(null);
   const [projects, setProjects] = React.useState<Project[]>([]);
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Load user profile data from localStorage
   React.useEffect(() => {
+    if (!mounted) return;
+
     try {
-      const raw =
-        typeof window !== "undefined" ? localStorage.getItem("user") : null;
-      const picture =
-        typeof window !== "undefined" ? localStorage.getItem("picture") : null;
+      const raw = localStorage.getItem("user");
+      const picture = localStorage.getItem("picture");
 
       if (raw) {
         const parsed: any = JSON.parse(raw);
@@ -94,7 +99,7 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
     } catch (error) {
       console.warn("Failed to load user data from localStorage:", error);
     }
-  }, []);
+  }, [mounted]);
 
   // Check if pathname indicates we're inside a project
   const isInsideProject = React.useMemo(() => {
@@ -108,6 +113,8 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
 
   // Load projects and sync selected project with pathname
   React.useEffect(() => {
+    if (!mounted) return;
+
     const loadProjects = async () => {
       try {
         const apiProjects = await viewAllProjects();
@@ -183,10 +190,12 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
     return () =>
       window.removeEventListener("project-changed", handleProjectChange);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname, isInsideProject]);
+  }, [pathname, isInsideProject, mounted]);
 
   // Load user role for navigation filtering
   React.useEffect(() => {
+    if (!mounted) return;
+
     const loadUserRole = async () => {
       try {
         const { getMe } = await import("@/app/api/auth");
@@ -204,9 +213,7 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
             avatar:
               // prefer picture from backend if available
               (data as any).picture ||
-              (typeof window !== "undefined"
-                ? localStorage.getItem("user_picture")
-                : null) ||
+              localStorage.getItem("user_picture") ||
               prev.avatar ||
               "",
           }));
@@ -216,7 +223,7 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
       }
     };
     loadUserRole();
-  }, []);
+  }, [mounted]);
 
   const handleProjectSelect = (project: Project) => {
     setSelectedProject(project);
@@ -275,13 +282,6 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
         isActive: pathname === `${projectPrefix}/schema`,
         requiresProject: true,
       },
-      // {
-      //   title: "Classes",
-      //   url: `${projectPrefix}/classes`,
-      //   icon: ListOrdered,
-      //   isActive: pathname === `${projectPrefix}/classes`,
-      //   requiresProject: true,
-      // },
       {
         title: "Administrator",
         url: "/admin",

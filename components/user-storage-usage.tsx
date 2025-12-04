@@ -35,6 +35,7 @@ import {
   type UserStorageUsage,
   type UserStorageUsageResponse,
 } from "@/app/api/storage";
+import { Skeleton } from "@/components/ui/skeleton";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 Bytes";
@@ -224,12 +225,6 @@ export function UserStorageUsageComponent() {
             </div>
           </div>
 
-          {loading && !data && (
-            <div className="text-sm text-muted-foreground mb-3">
-              Loading storage usage data...
-            </div>
-          )}
-
           {error && (
             <div className="text-sm text-red-600 mb-3">{error}</div>
           )}
@@ -267,7 +262,29 @@ export function UserStorageUsageComponent() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredAndSortedUsers.length === 0 ? (
+                {loading && !data ? (
+                  <>
+                    {[...Array(5)].map((_, i) => (
+                      <TableRow key={i}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <Skeleton className="h-10 w-10 rounded-full" />
+                            <Skeleton className="h-4 w-32" />
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-24" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-16" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-20" />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </>
+                ) : filteredAndSortedUsers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center text-muted-foreground">
                       {searchTerm

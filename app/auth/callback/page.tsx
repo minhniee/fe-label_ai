@@ -1,14 +1,22 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Loader2 } from "lucide-react";
 import { getMe } from "@/app/api/auth";
 
 export default function AuthCallbackPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+
     const accessToken = searchParams.get("access_token");
     const refreshToken = searchParams.get("refresh_token");
     const picture = searchParams.get("picture");
@@ -108,13 +116,15 @@ export default function AuthCallbackPage() {
       // Handle case where no token is provided
       router.replace("/login?error=no_token");
     }
-  }, [router, searchParams]);
+  }, [router, searchParams, mounted]);
+
+  if (!mounted) {
+    return null;
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="flex flex-col items-center space-y-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
+    <div className="min-h-screen flex items-center justify-center bg-background" suppressHydrationWarning>
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
     </div>
   );
 }

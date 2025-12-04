@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { FPTLogo } from "@/components/fpt-logo";
 import { LoginForm } from "@/components/login-form";
@@ -9,14 +9,19 @@ import { getMe } from "@/app/api/auth";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [isChecking, setIsChecking] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const searchParams = useSearchParams();
   const [callbackUrl, setCallbackUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+
     // Extract callback_url and error from query params
-    const searchParams = new URLSearchParams(window.location.search);
     const cbUrl = searchParams.get('callback_url');
     const errorParam = searchParams.get('error');
     
@@ -28,29 +33,22 @@ export default function LoginPage() {
       }
     }
     
+    // Check auth in background - if already logged in, redirect immediately
     const checkAuth = async () => {
       try {
-        // Check if user has valid token
-        const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+        const token = localStorage.getItem("access_token");
         
         if (token) {
-          // Verify token is valid by calling /auth/me
           try {
             const me = await getMe();
-            // User is already authenticated, validate callback_url based on user role
-            setIsAuthenticated(true);
             
-            let redirectUrl = "/projects"; // Default redirect
+            let redirectUrl = "/projects";
             if (cbUrl) {
               const decodedUrl = decodeURIComponent(cbUrl);
-              // Check if callbackUrl is an admin route
               const isAdminRoute = decodedUrl.includes('/admin/');
-              const isAdmin = me?.role_id === 1; // Admin role_id = 1
+              const isAdmin = me?.role_id === 1;
               
-              // Only allow redirect to admin routes if user is admin
               if (isAdminRoute && !isAdmin) {
-                // User is not admin but trying to access admin route, redirect to projects
-                console.warn("Non-admin user attempted to access admin route, redirecting to /projects");
                 redirectUrl = "/projects";
               } else {
                 redirectUrl = decodedUrl;
@@ -58,41 +56,21 @@ export default function LoginPage() {
             }
             
             router.replace(redirectUrl);
-            return;
           } catch (error) {
-            // Token is invalid, clear it and show login form
-            console.log("Token invalid, showing login form");
+            // Token invalid, clear it
             localStorage.removeItem("access_token");
             localStorage.removeItem("refresh_token");
             localStorage.removeItem("user");
             localStorage.removeItem("redirect_after_login");
           }
         }
-        
-        // No token or invalid token, show login form
-        setIsChecking(false);
       } catch (error) {
-        console.error("Auth check error:", error);
-        setIsChecking(false);
+        // Silent fail - just show login form
       }
     };
 
     checkAuth();
-  }, [router]);
-
-  // Show loading while checking authentication
-  if (isChecking || isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          <p className="text-gray-600 text-sm">
-            {isAuthenticated ? "Redirecting to projects..." : "Checking authentication..."}
-          </p>
-        </div>
-      </div>
-    );
-  }
+  }, [router, searchParams, mounted]);
 
   return (
     <div className="min-h-screen flex">

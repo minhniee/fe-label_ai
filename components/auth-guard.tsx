@@ -3,7 +3,9 @@
 import type React from "react"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { Loader2 } from "lucide-react"
 import { getMe, logout as apiLogout } from "@/app/api/auth"
+import { getLoginCallbackUrl } from "@/lib/utils"
 
 interface BackendUser {
   user_id: number
@@ -36,8 +38,8 @@ export function AuthGuard({ children, allowedRoleIds }: AuthGuardProps) {
 
     const redirectToLogin = () => {
       // Preserve the current location so user returns after login
-      const callbackUrl = typeof window !== 'undefined' ? window.location.href : "/"
-      const encoded = encodeURIComponent(callbackUrl)
+      // Use utility function to avoid duplicate callback_url
+      const encoded = typeof window !== 'undefined' ? getLoginCallbackUrl() : encodeURIComponent('/projects')
       if (!cancelled) {
         window.location.href = `/login?callback_url=${encoded}`
       }
@@ -107,7 +109,7 @@ export function AuthGuard({ children, allowedRoleIds }: AuthGuardProps) {
         suppressHydrationWarning
         className="min-h-screen flex items-center justify-center bg-background"
       >
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     )
   }
@@ -155,8 +157,8 @@ export function useAuth() {
         localStorage.removeItem('redirect_after_login')
       } catch {}
       
-      const callbackUrl = window.location.href
-      const encodedCallbackUrl = encodeURIComponent(callbackUrl)
+      // Use utility function to avoid duplicate callback_url
+      const encodedCallbackUrl = getLoginCallbackUrl()
       window.location.href = `/login?callback_url=${encodedCallbackUrl}`
     }
   }

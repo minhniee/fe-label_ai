@@ -43,7 +43,15 @@ export default function ResetPasswordPage() {
     special: false,
   })
 
+  const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+
     // Get reset token from sessionStorage
     const token = sessionStorage.getItem("reset_token")
     if (!token) {
@@ -52,7 +60,7 @@ export default function ResetPasswordPage() {
       return
     }
     setResetToken(token)
-  }, [router])
+  }, [router, mounted])
 
   const validatePassword = (password: string) => {
     setPasswordStrength({
@@ -110,15 +118,8 @@ export default function ResetPasswordPage() {
     }
   }
 
-  if (!resetToken) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          <p className="text-gray-600 text-sm">Loading...</p>
-        </div>
-      </div>
-    )
+  if (!mounted || !resetToken) {
+    return null
   }
 
   return (

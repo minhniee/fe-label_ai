@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
+import { getLoginCallbackUrl } from '@/lib/utils';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 
@@ -140,11 +141,7 @@ function handleAuthError() {
   if (typeof window !== 'undefined') {
     console.error("Unauthorized access - redirecting to login.");
 
-    // 1. Save the current location to redirect back to after login
-    const callbackUrl = window.location.href;
-    const encodedCallbackUrl = encodeURIComponent(callbackUrl);
-
-    // 2. Clear expired tokens and user data
+    // 1. Clear expired tokens and user data
     try {
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
@@ -154,6 +151,9 @@ function handleAuthError() {
     } catch (e) {
         console.error("Failed to clear auth tokens from storage:", e);
     }
+
+    // 2. Get callback URL using utility function to avoid duplicates
+    const encodedCallbackUrl = getLoginCallbackUrl();
 
     // 3. Redirect to login page with the callback_url
     window.location.href = `/login?callback_url=${encodedCallbackUrl}`;

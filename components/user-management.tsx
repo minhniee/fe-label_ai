@@ -75,6 +75,7 @@ import {
   resetUserPassword,
   type User,
 } from "@/app/api/users";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // ===== Roles from DB =====
 // 1: Admin, 2: User, 3: Owner, 4: Co-Owner, 5: Labeler, 6: Viewer
@@ -581,9 +582,6 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
           </div>
         </CardHeader>
         <CardContent>
-          {loading && (
-            <div className="text-sm text-muted-foreground mb-3">Loading...</div>
-          )}
           <Table>
             <TableHeader>
               <TableRow>
@@ -593,7 +591,36 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((user) => (
+              {loading ? (
+                <>
+                  {[...Array(5)].map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Skeleton className="h-10 w-10 rounded-full" />
+                          <div className="space-y-2">
+                            <Skeleton className="h-4 w-32" />
+                            <Skeleton className="h-3 w-48" />
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-6 w-20 rounded-full" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-8 w-8 rounded" />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </>
+              ) : users.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
+                    No users found
+                  </TableCell>
+                </TableRow>
+              ) : (
+                users.map((user) => (
                 <TableRow key={user.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">
@@ -642,7 +669,8 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
                     </DropdownMenu>
                   </TableCell>
                 </TableRow>
-              ))}
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>

@@ -100,7 +100,7 @@ export function LoginForm({
       })
 
       // Validate callbackUrl based on user role
-      let redirectUrl = "/projects"; // Default redirect
+      let redirectUrl = "/projects"; 
       
       if (callbackUrl) {
         // Check if callbackUrl is an admin route

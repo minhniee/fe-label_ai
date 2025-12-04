@@ -52,6 +52,7 @@ import {
   type StorageObjectInfo,
   type StorageBucketInfo,
 } from "@/app/api/storage";
+import { Skeleton } from "@/components/ui/skeleton";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 Bytes";
@@ -377,10 +378,6 @@ export function StorageManagement() {
             </div>
           )}
 
-          {loading && objects.length === 0 && (
-            <div className="text-sm text-muted-foreground mb-3">Loading...</div>
-          )}
-
           {error && (
             <div className="text-sm text-red-600 mb-3">{error}</div>
           )}
@@ -396,6 +393,7 @@ export function StorageManagement() {
                       checked={selectedObjects.size === objects.length && objects.length > 0}
                       onChange={toggleSelectAll}
                       className="rounded"
+                      disabled={loading}
                     />
                   </TableHead>
                   <TableHead>Key (Path)</TableHead>
@@ -406,7 +404,32 @@ export function StorageManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {objects.length === 0 && !loading ? (
+                {loading && objects.length === 0 ? (
+                  <>
+                    {[...Array(5)].map((_, i) => (
+                      <TableRow key={i}>
+                        <TableCell>
+                          <Skeleton className="h-4 w-4 rounded" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-64" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-20" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-32" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-24" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-8 w-8 rounded" />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </>
+                ) : objects.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center text-muted-foreground">
                       No objects found

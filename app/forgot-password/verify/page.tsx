@@ -36,24 +36,31 @@ export default function VerifyResetOTPPage() {
   const [isResending, setIsResending] = useState(false)
   const [error, setError] = useState("")
   const [resendAvailableIn, setResendAvailableIn] = useState(0)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Countdown timer
   useEffect(() => {
-    if (resendAvailableIn > 0) {
-      const timer = setInterval(() => {
-        setResendAvailableIn((prev) => {
-          if (prev <= 1) {
-            clearInterval(timer)
-            return 0
-          }
-          return prev - 1
-        })
-      }, 1000)
-      return () => clearInterval(timer)
-    }
-  }, [resendAvailableIn])
+    if (!mounted || resendAvailableIn <= 0) return;
+
+    const timer = setInterval(() => {
+      setResendAvailableIn((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [resendAvailableIn, mounted])
 
   useEffect(() => {
+    if (!mounted) return;
+
     // Get email from sessionStorage
     const resetEmail = sessionStorage.getItem("reset_password_email")
     if (!resetEmail) {
@@ -62,7 +69,7 @@ export default function VerifyResetOTPPage() {
       return
     }
     setEmail(resetEmail)
-  }, [router])
+  }, [router, mounted])
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -118,15 +125,8 @@ export default function VerifyResetOTPPage() {
     }
   }
 
-  if (!email) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          <p className="text-gray-600 text-sm">Loading...</p>
-        </div>
-      </div>
-    )
+  if (!mounted || !email) {
+    return null
   }
 
   return (
