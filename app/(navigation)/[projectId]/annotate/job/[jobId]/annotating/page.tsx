@@ -66,6 +66,19 @@ export type RowData = {
   [key: string]: any
 }
 
+// Helper to build a stable localStorage key for drafts
+const getDraftStorageKey = (
+  projectId: string | number,
+  batchId?: string,
+  fileId?: number | null,
+) => {
+  const base = `labelai_draft_${projectId}`
+  if (batchId && fileId) return `${base}_batch_${batchId}_file_${fileId}`
+  if (batchId) return `${base}_batch_${batchId}`
+  if (fileId) return `${base}_file_${fileId}`
+  return base
+}
+
 export default function JobLabelAIPage() {
   const params = useParams()
   const searchParams = useSearchParams()
@@ -115,6 +128,12 @@ export default function JobLabelAIPage() {
   const [fileDelimiter, setFileDelimiter] = useState<string>(",")
   const [originalData, setOriginalData] = useState<RowData[]>([])
   const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(false)
+  const [lastLocalDraftSavedAt, setLastLocalDraftSavedAt] = useState<Date | null>(null)
+
+  const hasUnsavedChanges = useMemo(
+    () => data.some((row) => row._isModified || (row as any)._is_new),
+    [data],
+  )
 
   // Sync originalData when data changes significantly
   useEffect(() => {
@@ -134,6 +153,41 @@ export default function JobLabelAIPage() {
       setOriginalData(data.map(({ _isModified, ...rest }) => rest))
     }
   }, [data.length, originalData.length, data, originalData])
+
+  // Warn user when leaving page with unsaved changes and persist a final draft
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    const handler = (e: BeforeUnloadEvent) => {
+      if (!hasUnsavedChanges) return
+
+      // Best-effort: persist latest modified rows synchronously before unload
+      try {
+        if (currentFileId) {
+          const storageKey = getDraftStorageKey(projectId, batchId, currentFileId)
+          const modifiedRows = data.filter((row) => row._isModified || (row as any)._is_new)
+          if (modifiedRows.length > 0) {
+            const payload = {
+              rows: modifiedRows,
+              updatedAt: new Date().toISOString(),
+            }
+            window.localStorage.setItem(storageKey, JSON.stringify(payload))
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to persist draft on beforeunload:", err)
+      }
+
+      e.preventDefault()
+      e.returnValue = ""
+    }
+
+    window.addEventListener("beforeunload", handler)
+
+    return () => {
+      window.removeEventListener("beforeunload", handler)
+    }
+  }, [hasUnsavedChanges, data, currentFileId, projectId, batchId])
 
   const loadBatchFiles = useCallback(async () => {
     try {
@@ -337,7 +391,44 @@ export default function JobLabelAIPage() {
         
         return rowObj
       })
-      
+
+      // Try to restore local draft for this file (if any)
+      if (typeof window !== "undefined") {
+        try {
+          const storageKey = getDraftStorageKey(projectId, batchId, file.file_id)
+          const draftJson = localStorage.getItem(storageKey)
+          if (draftJson) {
+            const draft = JSON.parse(draftJson) as {
+              rows?: RowData[]
+              updatedAt?: string
+            }
+            if (draft.rows && Array.isArray(draft.rows) && draft.rows.length > 0) {
+              const shouldRestore = window.confirm(
+                "Found unsaved draft labels for this file from a previous session. Do you want to restore them?",
+              )
+              if (shouldRestore) {
+                const draftById = new Map(draft.rows.map((r) => [r._id, r]))
+                for (let i = 0; i < transformedData.length; i++) {
+                  const draftRow = draftById.get(transformedData[i]._id)
+                  if (draftRow) {
+                    transformedData[i] = {
+                      ...transformedData[i],
+                      ...draftRow,
+                      _isModified: true,
+                    }
+                  }
+                }
+                if (draft.updatedAt) {
+                  setLastLocalDraftSavedAt(new Date(draft.updatedAt))
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.warn("Failed to restore draft from localStorage:", e)
+        }
+      }
+
       setData(transformedData)
       setOriginalData(transformedData)
       setCurrentPage(0)
@@ -594,6 +685,31 @@ export default function JobLabelAIPage() {
     return [header, ...rows].join("\n")
   }
 
+  // Auto-save modified rows to localStorage as draft
+  useEffect(() => {
+    if (typeof window === "undefined" || !currentFileId) return
+
+    const storageKey = getDraftStorageKey(projectId, batchId, currentFileId)
+    const modifiedRows = data.filter((row) => row._isModified || (row as any)._is_new)
+
+    if (modifiedRows.length === 0) {
+      localStorage.removeItem(storageKey)
+      return
+    }
+
+    const payload = {
+      rows: modifiedRows,
+      updatedAt: new Date().toISOString(),
+    }
+
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(payload))
+      setLastLocalDraftSavedAt(new Date())
+    } catch (e) {
+      console.warn("Failed to save draft to localStorage:", e)
+    }
+  }, [data, currentFileId, projectId, batchId])
+
   const handleSaveFile = async () => {
     if (saving) {
       toast({
@@ -665,6 +781,12 @@ export default function JobLabelAIPage() {
         })
         setData(savedData)
         setOriginalData(savedData)
+
+        // Clear local draft after successful save
+        if (typeof window !== "undefined" && currentFileId) {
+          const storageKey = getDraftStorageKey(projectId, batchId, currentFileId)
+          localStorage.removeItem(storageKey)
+        }
         
         toast({
           title: "Success",
@@ -1108,6 +1230,15 @@ export default function JobLabelAIPage() {
                           </>
                         )}
                       </Button>
+                      {hasUnsavedChanges && (
+                        <p className="text-xs text-orange-600 dark:text-orange-400">
+                          Unsaved changes{lastLocalDraftSavedAt && (
+                            <span className="ml-1 text-[11px] text-muted-foreground">
+                              (draft saved locally {lastLocalDraftSavedAt.toLocaleTimeString()})
+                            </span>
+                          )}
+                        </p>
+                      )}
                       {batchId ? (
                         <Button
                           onClick={handleMarkJobCompleted}
