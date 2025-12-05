@@ -482,3 +482,110 @@ export async function deleteProjectFile(projectId: number, fileId: number): Prom
   }
 }
 
+/**
+ * Cancel/Delete an invitation
+ */
+export async function cancelInvitation(projectId: number, invitationId: number): Promise<{ message: string }> {
+  try {
+    const response = await api.delete<{ message: string }>(`/projects/${projectId}/invitations/${invitationId}`);
+    return response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to cancel invitation';
+    throw new Error(errorMessage);
+  }
+}
+
+/**
+ * Resend an invitation
+ */
+export async function resendInvitation(projectId: number, invitationId: number): Promise<InvitationResponse> {
+  try {
+    const response = await api.post<InvitationResponse>(`/projects/${projectId}/invitations/${invitationId}/resend`);
+    return response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to resend invitation';
+    throw new Error(errorMessage);
+  }
+}
+
+/**
+ * Update collaborator role
+ */
+export async function updateCollaboratorRole(
+  projectId: number,
+  collaboratorId: number,
+  roleId: number
+): Promise<ProjectCollaboratorResponse> {
+  try {
+    const response = await api.put<ProjectCollaboratorResponse>(
+      `/projects/${projectId}/collaborators/${collaboratorId}`,
+      { role_id: roleId }
+    );
+    return response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to update collaborator role';
+    throw new Error(errorMessage);
+  }
+}
+
+/**
+ * Remove collaborator from project
+ */
+export async function removeCollaborator(projectId: number, collaboratorId: number): Promise<{ message: string }> {
+  try {
+    const response = await api.delete<{ message: string }>(`/projects/${projectId}/collaborators/${collaboratorId}`);
+    return response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to remove collaborator';
+    throw new Error(errorMessage);
+  }
+}
+
+/**
+ * Update project API key configuration
+ * Note: This saves to project_metadata only, not to localStorage
+ */
+export async function updateProjectApiKey(
+  projectId: number,
+  apiKey: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    // Get current project to preserve existing metadata
+    const currentProject = await api.get(`/projects/${projectId}`);
+    const currentMetadata = currentProject.data.project_metadata || {};
+    
+    // Update metadata with new API key
+    const updatedMetadata = {
+      ...currentMetadata,
+      api_key: apiKey
+    };
+    
+    // Save to backend project metadata
+    await api.put(`/projects/${projectId}`, {
+      project_metadata: updatedMetadata
+    });
+    
+    return { success: true, message: 'API key updated successfully' };
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || error.message || 'Failed to update API key';
+    throw new Error(errorMessage);
+  }
+}
+
+/**
+ * Get project API key from metadata
+ */
+export async function getProjectApiKey(projectId: number): Promise<string | null> {
+  try {
+    const response = await api.get(`/projects/${projectId}`);
+    const metadata = response.data.project_metadata;
+    if (metadata && typeof metadata === 'object' && 'api_key' in metadata) {
+      return metadata.api_key as string;
+    }
+    return null;
+  } catch (error: any) {
+    console.error('Failed to get project API key:', error);
+    return null;
+  }
+}
+

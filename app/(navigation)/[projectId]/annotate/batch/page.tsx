@@ -1307,34 +1307,44 @@ export default function ProjectBatchPage() {
                     </div>
                   ))}
 
-                  {/* Pending Members - Can be selected */}
-                  {invitations.filter(inv => inv.status === 'pending').map((invite) => (
-                    <div
-                      key={invite.invitation_id}
-                      className={`flex items-center justify-between p-3 border rounded-lg border-orange-200 bg-orange-50 cursor-pointer transition-colors ${selectedMembers.includes(`pending_${invite.invitation_id}`)
-                        ? 'ring-2 ring-primary'
-                        : 'hover:bg-orange-100'
+                  {/* Pending Members - Disabled (not accepted yet) */}
+                  {invitations.filter(inv => inv.status === 'pending').map((invite) => {
+                    const isDisabled = true; // All pending invitations are disabled until they accept
+                    return (
+                      <div
+                        key={invite.invitation_id}
+                        className={`flex items-center justify-between p-3 border rounded-lg border-orange-200 bg-orange-50 transition-colors ${
+                          isDisabled
+                            ? 'opacity-50 cursor-not-allowed'
+                            : selectedMembers.includes(`pending_${invite.invitation_id}`)
+                            ? 'ring-2 ring-primary cursor-pointer'
+                            : 'hover:bg-orange-100 cursor-pointer'
                         }`}
-                      onClick={() => handleMemberToggle(`pending_${invite.invitation_id}`)}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium">{invite.email}</p>
-                            <Badge variant="outline" className="text-xs">{getRoleName(invite.role_id)}</Badge>
+                        onClick={() => {
+                          if (!isDisabled) {
+                            handleMemberToggle(`pending_${invite.invitation_id}`);
+                          }
+                        }}
+                      >
+                        <div className="flex items-center gap-3 flex-1">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium">{invite.email}</p>
+                              <Badge variant="outline" className="text-xs">{getRoleName(invite.role_id)}</Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Invitation not accepted yet
+                            </p>
                           </div>
-                          <p className="text-sm text-muted-foreground">
-                            <Badge variant="secondary" className="text-xs">Pending Invitation</Badge>
-                          </p>
                         </div>
+                        {!isDisabled && selectedMembers.includes(`pending_${invite.invitation_id}`) && (
+                          <Badge variant="secondary">
+                            {totalRows > 0 ? `${rowsPerMember} câu` : `${filesPerMember} files`}
+                          </Badge>
+                        )}
                       </div>
-                      {selectedMembers.includes(`pending_${invite.invitation_id}`) && (
-                        <Badge variant="secondary">
-                          {totalRows > 0 ? `${rowsPerMember} câu` : `${filesPerMember} files`}
-                        </Badge>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 

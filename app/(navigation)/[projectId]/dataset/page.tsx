@@ -56,11 +56,13 @@ import {
   getDatasetVersions,
   exportDatasetVersion,
   downloadDatasetVersionFile,
+  uploadFileToDataset,
   getVersionFilesByDataset,
   type Dataset,
   type DatasetVersion,
 } from "@/app/api/dataset";
 import { toast } from "sonner";
+import { uploadFilesToProject } from "@/app/api/project";
 import { createProjectBatch, splitProjectFile, updateBatch } from "@/app/api/batch";
 
 export default function ProjectDatasetPage() {
@@ -92,6 +94,9 @@ export default function ProjectDatasetPage() {
   const [versionsLoading, setVersionsLoading] = useState<
     Record<number, boolean>
   >({});
+  const [uploadingDatasetId, setUploadingDatasetId] = useState<number | null>(
+    null
+  );
   const fileInputsRef = useRef<Record<number, HTMLInputElement | null>>({});
   const [selectedVersionMap, setSelectedVersionMap] = useState<
     Record<number, number | null>
@@ -232,6 +237,19 @@ export default function ProjectDatasetPage() {
       toast.error("Only CSV files are supported for upload");
       event.target.value = "";
       return;
+    }
+
+    setUploadingDatasetId(datasetId);
+    try {
+      await uploadFileToDataset(datasetId, file, "text/csv");
+      toast.success("File uploaded and new version created!");
+      await fetchDatasetVersions(datasetId);
+    } catch (error: any) {
+      console.error("Failed to upload file:", error);
+      toast.error(error.message || "Failed to upload file");
+    } finally {
+      setUploadingDatasetId(null);
+      event.target.value = "";
     }
   };
 
@@ -842,8 +860,23 @@ export default function ProjectDatasetPage() {
                                   <RefreshCw className="h-4 w-4 mr-2" />
                                   {isLoadingVersions
                                     ? "Refreshing..."
-                                    : "Refresh"}
+                                    : "Refresh versions"}
                                 </Button>
+                                {/* <Button
+                                  variant="ghost"
+                                  className="w-full justify-start"
+                                  onClick={() =>
+                                    triggerFileInput(dataset.dataset_id)
+                                  }
+                                  disabled={
+                                    uploadingDatasetId === dataset.dataset_id
+                                  }
+                                >
+                                  <Upload className="h-4 w-4 mr-2" />
+                                  {uploadingDatasetId === dataset.dataset_id
+                                    ? "Uploading..."
+                                    : "Upload CSV"}
+                                </Button> */}
                                 <Button
                                   variant="ghost"
                                   className="w-full justify-start"

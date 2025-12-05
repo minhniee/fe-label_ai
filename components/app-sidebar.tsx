@@ -14,6 +14,7 @@ import {
   ListOrdered,
   FileText,
   Upload,
+  Settings2,
   Bot,
   FolderOpen,
   type LucideIcon,
@@ -303,6 +304,13 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
         isActive: pathname === `${projectPrefix}/comparison-tool`,
         requiresProject: true,
       },
+      {
+        title: "Configuration",
+        url: `${projectPrefix}/config`,
+        icon: Settings,
+        isActive: pathname === `${projectPrefix}/config`,
+        requiresProject: true,
+      },
     ];
   }, [pathname, selectedProject]);
 
@@ -346,9 +354,13 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
   // Group items: Tool
   const toolGroupTitles = new Set(["Chatbot", "Comparison Tool"]);
 
+  // Group settings: Settings
+  const toolSettingTitles = new Set(["Configuration"]);
+
   const dataItems = flatItems.filter((i) => dataGroupTitles.has(i.title));
   const adminItems = flatItems.filter((i) => adminGroupTitles.has(i.title));
   const toolItems = flatItems.filter((i) => toolGroupTitles.has(i.title));
+  const settingItems = flatItems.filter((i) => toolSettingTitles.has(i.title));
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -375,6 +387,8 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
             <NavMain groupTitle="Data" items={dataItems} />
             {/* Platform group  */}
             <NavMain groupTitle="Tool" items={toolItems} />
+            {/* Settings group  */}
+            <NavMain groupTitle="Settings" items={settingItems} />
           </>
         ) : (
           <>

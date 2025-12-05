@@ -624,11 +624,20 @@ export default function ProjectJobPage() {
   const getAllAvailableUsers = () => {
     const allUsers: any[] = [];
     
+    // Get assigned pending emails from batch metadata
+    const assignedPendingEmails = batchData?.batch_metadata?.assigned_pending_emails || [];
+    
     // Add collaborators
     collaborators.forEach(collab => {
-      const disabled = batchAssignments.some(
+      // Check if user is already assigned in batchAssignments
+      const isAssignedInBatch = batchAssignments.some(
         assignment => assignment.user_id === collab.user_id
       );
+      
+      // Check if this is the currently assigned user
+      const isCurrentlyAssigned = assignedUser?.user_id === collab.user_id;
+      
+      const disabled = isAssignedInBatch || isCurrentlyAssigned;
 
       allUsers.push({
         type: 'collaborator',
@@ -641,14 +650,23 @@ export default function ProjectJobPage() {
       });
     });
 
-    // Add pending invitations
+    // Add pending invitations (all disabled - they haven't accepted invitation yet)
     pendingInvitations.forEach(invite => {
+      // Check if this email is already assigned (in pending emails list)
+      const isAssignedPending = assignedPendingEmails.includes(invite.email);
+      
+      // Check if this is the currently assigned user (by email)
+      const isCurrentlyAssigned = assignedUser?.email === invite.email && assignedUser?.is_pending;
+      
+      // Disable all pending invitations (they haven't accepted yet) OR if already assigned
+      const disabled = true; // All pending invitations are disabled until they accept
+      
       allUsers.push({
         type: 'pending',
         email: invite.email,
         role_id: invite.role_id,
-            invitation_id: invite.invitation_id,
-            disabled: false
+        invitation_id: invite.invitation_id,
+        disabled
       });
     });
 
@@ -978,6 +996,13 @@ export default function ProjectJobPage() {
                                 <p className="font-medium text-sm">
                                   {user.email || user.username}
                                 </p>
+                                {user.disabled && (
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    {user.type === 'pending' 
+                                      ? "Invitation not accepted yet"
+                                      : "Already assigned to this job"}
+                                  </p>
+                                )}
                               </div>
                               <div className="flex items-center gap-2">
                                 {user.type === 'pending' && (
