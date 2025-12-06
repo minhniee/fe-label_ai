@@ -882,6 +882,32 @@ export default function JobLabelAIPage() {
       return
     }
 
+    // Auto-save file before completing if there are unsaved changes and currentFileId exists
+    if (currentFileId) {
+      const hasUnsavedChanges = data.some(row => row._isModified || row._is_new)
+      if (hasUnsavedChanges) {
+        // Wait for any ongoing save to complete
+        while (saving) {
+          await new Promise(resolve => setTimeout(resolve, 100))
+        }
+        
+        try {
+          await handleSaveFile()
+          // Wait a bit for save to complete and state to update
+          await new Promise(resolve => setTimeout(resolve, 500))
+        } catch (error) {
+          // If save fails, ask user if they want to continue
+          const shouldContinue = window.confirm(
+            "Failed to save file. Do you want to continue marking job as completed anyway? " +
+            "Unsaved changes will not be included."
+          )
+          if (!shouldContinue) {
+            return
+          }
+        }
+      }
+    }
+
     try {
       await completeBatch(parseInt(batchId))
       toast({

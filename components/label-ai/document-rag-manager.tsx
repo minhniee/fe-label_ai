@@ -45,9 +45,9 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
   const [isIndexing, setIsIndexing] = useState(false)
   const [deletingDocId, setDeletingDocId] = useState<number | null>(null)
   const [showSettings, setShowSettings] = useState(false)
-  const [embeddingProvider, setEmbeddingProvider] = useState("local")
+  const [embeddingProvider, setEmbeddingProvider] = useState("gemini")
   const [embeddingApiKey, setEmbeddingApiKey] = useState("")
-  const [embeddingModel, setEmbeddingModel] = useState("")
+  const [embeddingModel, setEmbeddingModel] = useState("models/text-embedding-004")
   const { toast } = useToast()
 
   // Use refs to avoid dependency issues with callbacks
@@ -111,22 +111,52 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
     loadDocuments()
   }, [loadDocuments])
 
+  // Load RAG settings from localStorage on mount
+  useEffect(() => {
+    try {
+      const savedRAGSettings = localStorage.getItem("rag_settings")
+      if (savedRAGSettings) {
+        const settings = JSON.parse(savedRAGSettings)
+        if (settings.provider) {
+          setEmbeddingProvider(settings.provider)
+        }
+        if (settings.apiKey) {
+          setEmbeddingApiKey(settings.apiKey)
+        }
+        if (settings.model) {
+          setEmbeddingModel(settings.model)
+        }
+      }
+    } catch (error) {
+      // Ignore localStorage errors
+    }
+  }, [])
+
+  // Save RAG settings to localStorage when they change
+  useEffect(() => {
+    try {
+      const ragSettings = {
+        provider: embeddingProvider,
+        apiKey: embeddingApiKey || "",
+        model: embeddingModel || "",
+      }
+      localStorage.setItem("rag_settings", JSON.stringify(ragSettings))
+    } catch (error) {
+      // Ignore localStorage errors
+    }
+  }, [embeddingProvider, embeddingApiKey, embeddingModel])
+
   // Reset model when provider changes
   useEffect(() => {
-    // Reset model when provider changes to avoid invalid combinations
-    if (embeddingProvider === "local") {
-      setEmbeddingModel("")
-    } else {
-      // Set default model for non-local providers if not set
-      const defaultModels: Record<string, string> = {
-        openai: "text-embedding-3-small",
-        gemini: "models/text-embedding-004",
-        qwen: "text-embedding-v2"
-      }
-      // Only set default if model is empty (to avoid overwriting user selection)
-      if (embeddingModel === "" && defaultModels[embeddingProvider]) {
-        setEmbeddingModel(defaultModels[embeddingProvider])
-      }
+    // Set default model for providers if not set
+    const defaultModels: Record<string, string> = {
+      openai: "text-embedding-3-small",
+      gemini: "models/text-embedding-004",
+      qwen: "text-embedding-v2"
+    }
+    // Only set default if model is empty (to avoid overwriting user selection)
+    if (embeddingModel === "" && defaultModels[embeddingProvider]) {
+      setEmbeddingModel(defaultModels[embeddingProvider])
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [embeddingProvider])
@@ -207,24 +237,22 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
     // Nếu không chọn gì, backend sẽ index toàn bộ tài liệu của project (hành vi cũ).
     const documentIdsToIndex = selectedDocumentIds.length > 0 ? selectedDocumentIds : undefined
 
-    // Validate embedding config for non-local providers
-    if (embeddingProvider !== "local") {
-      if (!embeddingApiKey) {
-        toast({
-          title: "Validation Error",
-          description: "API Key is required for non-local embedding providers",
-          variant: "destructive",
-        })
-        return
-      }
-      if (!embeddingModel) {
-        toast({
-          title: "Validation Error",
-          description: "Model is required for non-local embedding providers",
-          variant: "destructive",
-        })
-        return
-      }
+    // Validate embedding config
+    if (!embeddingApiKey) {
+      toast({
+        title: "Validation Error",
+        description: "API Key is required",
+        variant: "destructive",
+      })
+      return
+    }
+    if (!embeddingModel) {
+      toast({
+        title: "Validation Error",
+        description: "Model is required",
+        variant: "destructive",
+      })
+      return
     }
 
     setIsIndexing(true)
@@ -483,7 +511,6 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="local">Local (SentenceTransformer)</SelectItem>
                   <SelectItem value="openai">OpenAI</SelectItem>
                   <SelectItem value="gemini">Google Gemini</SelectItem>
                   <SelectItem value="qwen">Qwen</SelectItem>
@@ -491,42 +518,38 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
               </Select>
             </div>
 
-            {embeddingProvider !== "local" && (
-              <>
-                <div>
-                  <Label>API Key *</Label>
-                  <Input
-                    type="password"
-                    value={embeddingApiKey}
-                    onChange={(e) => setEmbeddingApiKey(e.target.value)}
-                    placeholder="Enter API key"
-                    required
-                  />
-                </div>
-                <div>
-                  <Label>Model *</Label>
-                  <Select 
-                    value={embeddingModel} 
-                    onValueChange={setEmbeddingModel}
-                    required
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select model" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {getModelOptions(embeddingProvider).map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {!embeddingModel && (
-                    <p className="text-xs text-destructive mt-1">Please select a model</p>
-                  )}
-                </div>
-              </>
-            )}
+            <div>
+              <Label>API Key *</Label>
+              <Input
+                type="password"
+                value={embeddingApiKey}
+                onChange={(e) => setEmbeddingApiKey(e.target.value)}
+                placeholder="Enter API key"
+                required
+              />
+            </div>
+            <div>
+              <Label>Model *</Label>
+              <Select 
+                value={embeddingModel} 
+                onValueChange={setEmbeddingModel}
+                required
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select model" />
+                </SelectTrigger>
+                <SelectContent>
+                  {getModelOptions(embeddingProvider).map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!embeddingModel && (
+                <p className="text-xs text-destructive mt-1">Please select a model</p>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button onClick={() => setShowSettings(false)}>Close</Button>
