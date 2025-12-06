@@ -429,7 +429,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
           </CardContent>
         </Card>
 
-        <Card className=" ">
+        {/* <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Co-Owner</CardTitle>
             <Briefcase className="h-4 w-4 text-muted-foreground" />
@@ -438,7 +438,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
             <div className="text-2xl font-bold">{countBy("co-owner")}</div>
             <p className="text-xs text-muted-foreground">Co-Owners</p>
           </CardContent>
-        </Card>
+        </Card> */}
 
         <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -451,7 +451,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
           </CardContent>
         </Card>
 
-        <Card className=" ">
+        {/* <Card className=" ">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Viewer</CardTitle>
             <Eye className="h-4 w-4 text-muted-foreground" />
@@ -460,7 +460,7 @@ export function UserManagement({ currentUserId }: UserManagementProps) {
             <div className="text-2xl font-bold">{countBy("viewer")}</div>
             <p className="text-xs text-muted-foreground">Viewers</p>
           </CardContent>
-        </Card>
+        </Card> */}
       </div>
 
       {/* Confirm Delete Dialog */}
