@@ -317,9 +317,8 @@ export default function ProjectJobPage() {
     try {
       // Map role names to role_ids
       const roleMap: Record<string, number> = {
-        "Co-Owner": 4,
+        "Owner": 3,
         "Labeler": 5,
-        "Viewer": 6,
       };
 
       await createInvitation(parseInt(project.id), {
@@ -610,12 +609,8 @@ export default function ProjectJobPage() {
 
   const getRoleName = (roleId: number) => {
     const roleNames: Record<number, string> = {
-      1: "Owner",
-      2: "Co-Owner",
-      3: "Manager",
-      4: "Reviewer",
+      3: "Owner",
       5: "Labeler",
-      6: "Viewer",
     };
     return roleNames[roleId] || "Unknown";
   };
@@ -918,9 +913,8 @@ export default function ProjectJobPage() {
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="Co-Owner">Co-Owner</SelectItem>
+                                <SelectItem value="Owner">Owner</SelectItem>
                                 <SelectItem value="Labeler">Labeler</SelectItem>
-                                <SelectItem value="Viewer">Viewer</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
