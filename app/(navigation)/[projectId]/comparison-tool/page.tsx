@@ -51,21 +51,32 @@ export default function ProjectComparisonToolPage() {
 
   const [loadingSlot, setLoadingSlot] = useState<ComparisonSlot | null>(null);
 
-  const loadDatasets = useCallback(async () => {
+  const loadDatasets = useCallback(async (projectId: number) => {
     setIsLoadingDatasets(true);
     try {
-      const response = await getDatasets();
+      const response = await getDatasets(projectId);
       setDatasets(response);
+      // Auto-select the dataset if there's only one or if project has dataset_id
+      if (response.length === 1) {
+        setSelectedDatasetId(response[0].dataset_id);
+      } else if (project?.dataset_id) {
+        const projectDataset = response.find(d => d.dataset_id === project.dataset_id);
+        if (projectDataset) {
+          setSelectedDatasetId(projectDataset.dataset_id);
+        }
+      }
     } catch (error: any) {
       toast.error(error.message || "Failed to load datasets");
     } finally {
       setIsLoadingDatasets(false);
     }
-  }, []);
+  }, [project?.dataset_id]);
 
   useEffect(() => {
-    loadDatasets();
-  }, [loadDatasets]);
+    if (project?.id) {
+      loadDatasets(parseInt(project.id));
+    }
+  }, [project?.id, loadDatasets]);
 
   useEffect(() => {
     if (!selectedDatasetId) {
@@ -90,10 +101,14 @@ export default function ProjectComparisonToolPage() {
     fetchVersions();
   }, [selectedDatasetId]);
 
+  // Auto-select dataset when project has dataset_id and datasets are loaded
   useEffect(() => {
-    if (!project?.dataset_id) return;
-    setSelectedDatasetId((prev) => prev ?? project.dataset_id!);
-  }, [project?.dataset_id]);
+    if (!project?.dataset_id || datasets.length === 0) return;
+    const projectDataset = datasets.find(d => d.dataset_id === project.dataset_id);
+    if (projectDataset && !selectedDatasetId) {
+      setSelectedDatasetId(projectDataset.dataset_id);
+    }
+  }, [project?.dataset_id, datasets, selectedDatasetId]);
 
   const versionOptions = useMemo(() => {
     return [...versions].sort((a, b) => b.version_number - a.version_number);
@@ -105,7 +120,9 @@ export default function ProjectComparisonToolPage() {
   );
 
   const handleReloadDatasets = () => {
-    loadDatasets();
+    if (project?.id) {
+      loadDatasets(parseInt(project.id));
+    }
   };
 
   const handleLoadVersion = async (slot: ComparisonSlot) => {
@@ -258,40 +275,52 @@ export default function ProjectComparisonToolPage() {
           <CardContent className="space-y-6">
             <div className="space-y-2">
               <Label className="text-xs uppercase text-muted-foreground">Dataset</Label>
-              <Select
-                disabled={isLoadingDatasets}
-                value={selectedDatasetId ? String(selectedDatasetId) : undefined}
-                onValueChange={(value) => {
-                  const datasetId = Number(value);
-                  setSelectedDatasetId(datasetId);
-                  setSelectedOriginalVersion(null);
-                  setSelectedModifiedVersion(null);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={isLoadingDatasets ? "Loading datasets..." : "Select dataset"}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {datasets.length === 0 ? (
-                    <SelectItem value="__empty" disabled>
-                      {isLoadingDatasets ? "Loading..." : "No datasets available"}
-                    </SelectItem>
-                  ) : (
-                    datasets.map((dataset) => (
-                      <SelectItem key={dataset.dataset_id} value={String(dataset.dataset_id)}>
-                        {dataset.name}
-                      </SelectItem>
-                    ))
+              {datasets.length === 0 && !isLoadingDatasets ? (
+                <div className="rounded-lg border border-dashed bg-muted/20 p-3 text-sm text-muted-foreground">
+                  <p>No dataset available for this project.</p>
+                  {!project?.dataset_id && (
+                    <p className="mt-1 text-xs">This project doesn't have a dataset linked yet.</p>
                   )}
-                </SelectContent>
-              </Select>
-              {!selectedDatasetId && (
+                </div>
+              ) : datasets.length === 1 ? (
+                <div className="rounded-lg border bg-muted/20 p-3 text-sm">
+                  <p className="font-medium text-foreground">{selectedDataset?.name || datasets[0]?.name}</p>
+                  <p className="text-muted-foreground">Project dataset</p>
+                </div>
+              ) : (
+                <Select
+                  disabled={isLoadingDatasets}
+                  value={selectedDatasetId ? String(selectedDatasetId) : undefined}
+                  onValueChange={(value) => {
+                    const datasetId = Number(value);
+                    setSelectedDatasetId(datasetId);
+                    setSelectedOriginalVersion(null);
+                    setSelectedModifiedVersion(null);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={isLoadingDatasets ? "Loading datasets..." : "Select dataset"}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {datasets.length === 0 ? (
+                      <SelectItem value="__empty" disabled>
+                        {isLoadingDatasets ? "Loading..." : "No datasets available"}
+                      </SelectItem>
+                    ) : (
+                      datasets.map((dataset) => (
+                        <SelectItem key={dataset.dataset_id} value={String(dataset.dataset_id)}>
+                          {dataset.name}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              )}
+              {!selectedDatasetId && isLoadingDatasets && (
                 <p className="text-sm text-muted-foreground">
-                  {project?.dataset_id
-                    ? "Using the dataset linked to this project once it is loaded."
-                    : "Select any dataset to fetch its versions."}
+                  Loading project dataset...
                 </p>
               )}
             </div>

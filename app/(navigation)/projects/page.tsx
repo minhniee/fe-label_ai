@@ -97,6 +97,16 @@ export default function ProjectsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Helper function to check if a file is a chunk (created from split operation)
+  const isChunkFile = (fileName: string): boolean => {
+    if (!fileName) return false;
+    // Chunk files have pattern: {original_name}_chunk_{number}
+    // Check for "_chunk_" followed by a number pattern in filename
+    // This matches backend pattern: file_name_chunk_{chunk_number}
+    const chunkPattern = /_chunk_\d+/i;
+    return chunkPattern.test(fileName);
+  };
+
   const loadProjects = async () => {
     try {
       const apiProjects = await viewAllProjects();
@@ -114,12 +124,18 @@ export default function ProjectsPage() {
       setProjects(convertedProjects);
 
       // Load file counts for each project
+      // Only count original files, not chunk files created from split operations
       const fileCounts: Record<string, number> = {};
       await Promise.all(
         convertedProjects.map(async (project) => {
           try {
             const files = await getProjectFiles(parseInt(project.id));
-            fileCounts[project.id] = files.length;
+            // Filter out chunk files - only count original uploaded files
+            const originalFiles = files.filter(file => {
+              const fileName = file.file_name || file.filename || '';
+              return !isChunkFile(fileName);
+            });
+            fileCounts[project.id] = originalFiles.length;
           } catch (error) {
             console.error(`Failed to load files for project ${project.id}:`, error);
             fileCounts[project.id] = 0;
