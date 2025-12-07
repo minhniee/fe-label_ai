@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useParams, useSearchParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -125,10 +125,14 @@ export default function JobLabelAIPage() {
   const [hasProjectDocuments, setHasProjectDocuments] = useState(false)
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<number[]>([])
   const [saving, setSaving] = useState(false)
+  const [enableDocumentRAG, setEnableDocumentRAG] = useState(false)
+  const [enableReferenceDocuments, setEnableReferenceDocuments] = useState(false)
   const [fileDelimiter, setFileDelimiter] = useState<string>(",")
   const [originalData, setOriginalData] = useState<RowData[]>([])
   const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(false)
   const [lastLocalDraftSavedAt, setLastLocalDraftSavedAt] = useState<Date | null>(null)
+  const [hasAutoOpenedQuickActions, setHasAutoOpenedQuickActions] = useState(false)
+  const loadingFileRef = useRef<number | null>(null)
 
   const hasUnsavedChanges = useMemo(
     () => data.some((row) => row._isModified || (row as any)._is_new),
@@ -233,7 +237,7 @@ export default function JobLabelAIPage() {
     } finally {
       setLoading(false)
     }
-  }, [batchId, fileIdsParam, projectId, jobName, toast])
+  }, [batchId, fileIdsParam, projectId, jobName])
 
   useEffect(() => {
     if (batchId && fileIdsParam && projectId) {
@@ -242,7 +246,13 @@ export default function JobLabelAIPage() {
   }, [batchId, fileIdsParam, projectId, loadBatchFiles])
 
   const loadFileData = async (file: any, fileIndex: number) => {
+    // Prevent duplicate calls for the same file
+    if (loadingFileRef.current === file.file_id) {
+      return
+    }
+    
     try {
+      loadingFileRef.current = file.file_id
       setLoading(true)
       setCurrentFileIndex(fileIndex)
       setCurrentFileId(file.file_id)
@@ -492,7 +502,7 @@ export default function JobLabelAIPage() {
       
       toast({
         title: "File loaded",
-        description: `Loaded ${file.filename} with ${transformedData.length} rows`,
+        description: `Loaded ${file.filename || file.file_name || 'file'} with ${transformedData.length} rows`,
       })
     } catch (error) {
       console.error("Failed to load file:", error)
@@ -503,6 +513,7 @@ export default function JobLabelAIPage() {
       })
     } finally {
       setLoading(false)
+      loadingFileRef.current = null
     }
   }
 
@@ -741,6 +752,18 @@ export default function JobLabelAIPage() {
     
     return [header, ...rows].join("\n")
   }
+
+  // Auto-open Quick Actions popover when data is loaded for the first time
+  useEffect(() => {
+    if (data.length > 0 && !hasAutoOpenedQuickActions && !isQuickActionsOpen) {
+      // Small delay to ensure UI is ready
+      const timer = setTimeout(() => {
+        setIsQuickActionsOpen(true)
+        setHasAutoOpenedQuickActions(true)
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [data.length, hasAutoOpenedQuickActions, isQuickActionsOpen])
 
   // Auto-save modified rows to localStorage as draft
   useEffect(() => {
@@ -1100,6 +1123,39 @@ export default function JobLabelAIPage() {
                         </div>
                       </div>
 
+                      {!manualMode && (
+                        <>
+                          <div className="space-y-2 pb-3 border-b">
+                            <Label htmlFor="sidebar-document-rag" className="text-xs font-medium text-muted-foreground">
+                              AI Features
+                            </Label>
+                            <div className="flex items-center gap-2">
+                              <Switch 
+                                id="sidebar-document-rag" 
+                                checked={enableDocumentRAG} 
+                                onCheckedChange={setEnableDocumentRAG} 
+                              />
+                              <Label htmlFor="sidebar-document-rag" className="text-sm cursor-pointer">
+                                Document RAG (NotebookLM Style)
+                              </Label>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2 pb-3 border-b">
+                            <div className="flex items-center gap-2">
+                              <Switch 
+                                id="sidebar-reference-docs" 
+                                checked={enableReferenceDocuments} 
+                                onCheckedChange={setEnableReferenceDocuments} 
+                              />
+                              <Label htmlFor="sidebar-reference-docs" className="text-sm cursor-pointer">
+                                Reference Documents
+                              </Label>
+                            </div>
+                          </div>
+                        </>
+                      )}
+
                       <div className="space-y-2 pb-3 border-b">
                         <Label className="text-xs font-medium text-muted-foreground">Search</Label>
                         <div className="space-y-2">
@@ -1391,14 +1447,16 @@ export default function JobLabelAIPage() {
 
               {!manualMode && (
                 <>
-                  <DocumentRAGManager
-                    projectId={parseInt(projectId)}
-                    onEmbeddingConfigChange={setEmbeddingConfig}
-                    onDocumentsChange={setHasProjectDocuments}
-                    onSelectedDocumentsChange={setSelectedDocumentIds}
-                  />
+                  {enableDocumentRAG && (
+                    <DocumentRAGManager
+                      projectId={parseInt(projectId)}
+                      onEmbeddingConfigChange={setEmbeddingConfig}
+                      onDocumentsChange={setHasProjectDocuments}
+                      onSelectedDocumentsChange={setSelectedDocumentIds}
+                    />
+                  )}
 
-                  {!hasProjectDocuments && (
+                  {enableReferenceDocuments && !hasProjectDocuments && (
                     <ReferenceUploader
                       onReferenceUpdate={(content) => {
                         setReferenceContext(content)
