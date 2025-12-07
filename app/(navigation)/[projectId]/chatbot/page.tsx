@@ -145,14 +145,14 @@ export default function ProjectChatbotPage() {
         const responseTimes = data.chats
           .map((chat: any) => chat.response_time)
           .filter((time: any) => time != null && time > 0);
-        
+
         if (responseTimes.length > 0) {
           const avgResponseTime = (
             responseTimes.reduce((sum: number, time: number) => sum + time, 0) / responseTimes.length
           ).toFixed(2);
           setStats((prev) => ({ ...prev, responseTime: `${avgResponseTime}s` }));
         }
-        
+
         // Group chats into conversations based on time gaps (5 minutes)
         const groupedConversations: Conversation[] = [];
         let currentGroup: ChatHistory[] = [];
@@ -352,7 +352,7 @@ export default function ProjectChatbotPage() {
     setIsDatasetReloading(true);
     try {
       const response = await switchChatbotDataset(datasetId, { projectId: projectId ?? undefined });
-      
+
       // Show fine-tuning status first if triggered
       if (response.fine_tune_triggered) {
         toast({
@@ -360,13 +360,13 @@ export default function ProjectChatbotPage() {
           description: response.fine_tune_reason || "Fine-tuning job has been started automatically",
         });
       }
-      
+
       // Then show reload success
       toast({
         title: "Dataset reloaded",
         description: `${response.message} (Questions: ${response.total_questions})`,
       });
-      
+
       await loadStats();
       await loadFineTuneStatus();
     } catch (error: any) {
@@ -867,10 +867,10 @@ export default function ProjectChatbotPage() {
             <div>
               <h1 className="text-2xl font-bold flex items-center gap-2">
                 <Bot className="w-6 h-6" />
-                RAG Chatbot
+                LABEL-AI Chatbot
               </h1>
               <p className="text-sm text-muted-foreground mt-1">
-                Interact with your project&apos;s labeled data
+                AI-powered assistant with fine-tuning capabilities for intelligent data insights
               </p>
             </div>
             <div className="flex gap-4">
@@ -895,7 +895,7 @@ export default function ProjectChatbotPage() {
                 </div>
                 <div className="text-xs text-muted-foreground">Response</div>
               </div>
-              
+
               {/* Fine-Tuning Status */}
               {datasetId && (
                 <div className="text-center min-w-[80px]">
@@ -913,10 +913,10 @@ export default function ProjectChatbotPage() {
                       {isLoadingFineTuneStatus ? (
                         "Loading"
                       ) : fineTuneStatus?.active_job ? (
-                        fineTuneStatus.active_job.status === "running" ? "Training" : 
-                        fineTuneStatus.active_job.status === "pending" ? "Queued" :
-                        fineTuneStatus.active_job.status === "validating_files" ? "Validating" :
-                        fineTuneStatus.active_job.status
+                        fineTuneStatus.active_job.status === "running" ? "Training" :
+                          fineTuneStatus.active_job.status === "pending" ? "Queued" :
+                            fineTuneStatus.active_job.status === "validating_files" ? "Validating" :
+                              fineTuneStatus.active_job.status
                       ) : fineTuneStatus?.has_model ? (
                         "Ready"
                       ) : (
@@ -932,7 +932,7 @@ export default function ProjectChatbotPage() {
               )}
             </div>
           </div>
-          
+
           {/* Fine-Tuning Details (Error messages, action buttons, etc.) */}
           {datasetId && fineTuneStatus && (
             <div className="mt-2 space-y-1">
