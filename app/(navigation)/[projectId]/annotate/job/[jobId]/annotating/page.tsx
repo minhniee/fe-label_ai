@@ -9,7 +9,7 @@ import { ModelSelector } from "@/components/label-ai/model-selector"
 import { ColumnSelector } from "@/components/label-ai/column-selector"
 import { ReferenceUploader } from "@/components/label-ai/reference-uploader"
 import { DocumentRAGManager } from "@/components/label-ai/document-rag-manager"
-import { Loader2, ArrowLeft, Save, CheckCircle2, Settings2, Search, X } from "lucide-react"
+import { Loader2, ArrowLeft, Save, CheckCircle2, Settings2, Search, X, History } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useDebounce } from "@/hooks/use-debounce"
 import { Switch } from "@/components/ui/switch"
@@ -29,6 +29,24 @@ import { DataManager } from "@/components/label-ai/data-manager"
 import { ColumnManager } from "@/components/label-ai/column-manager"
 import { DatasetSelector } from "@/components/label-ai/dataset-selector"
 import { ErrorBoundary } from "@/components/error-boundary"
+import { Badge } from "@/components/ui/badge"
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { getAnnotationHistory, AnnotationHistoryEntry } from "@/app/api/annotation"
 import { getDatasetVersionData } from "@/app/api/labelai"
 import { getVersionFiles, uploadFileToDataset } from "@/app/api/dataset"
 import { getProjectFiles, generateDatasetFromProject } from "@/app/api/project"
@@ -129,6 +147,10 @@ export default function JobLabelAIPage() {
   const [originalData, setOriginalData] = useState<RowData[]>([])
   const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(false)
   const [lastLocalDraftSavedAt, setLastLocalDraftSavedAt] = useState<Date | null>(null)
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyEntries, setHistoryEntries] = useState<AnnotationHistoryEntry[]>([])
+  const [historyError, setHistoryError] = useState<string | null>(null)
 
   const hasUnsavedChanges = useMemo(
     () => data.some((row) => row._isModified || (row as any)._is_new),
@@ -240,6 +262,31 @@ export default function JobLabelAIPage() {
       loadBatchFiles()
     }
   }, [batchId, fileIdsParam, projectId, loadBatchFiles])
+
+  const fetchHistory = useCallback(
+    async (fileId?: number) => {
+      const targetFileId = fileId ?? currentFileId
+      if (!targetFileId) return
+
+      setHistoryLoading(true)
+      setHistoryError(null)
+      try {
+        const entries = await getAnnotationHistory(targetFileId, { limit: 50 })
+        setHistoryEntries(entries)
+      } catch (error: any) {
+        const message = error?.message || "Failed to load label history"
+        setHistoryError(message)
+        toast({
+          title: "Error",
+          description: message,
+          variant: "destructive",
+        })
+      } finally {
+        setHistoryLoading(false)
+      }
+    },
+    [currentFileId, toast],
+  )
 
   const loadFileData = async (file: any, fileIndex: number) => {
     try {
@@ -872,6 +919,19 @@ export default function JobLabelAIPage() {
     }
   }
 
+  const handleOpenHistory = async () => {
+    if (!currentFileId) {
+      toast({
+        title: "No file selected",
+        description: "Select a file to view its label history.",
+        variant: "destructive",
+      })
+      return
+    }
+    setIsHistoryOpen(true)
+    await fetchHistory(currentFileId)
+  }
+
   const handleMarkJobCompleted = async () => {
     if (!batchId) {
       toast({
@@ -1152,6 +1212,25 @@ export default function JobLabelAIPage() {
                                 </>
                               )}
                             </Button>
+                          <Button
+                            onClick={handleOpenHistory}
+                            disabled={historyLoading}
+                            className="w-full gap-2"
+                            variant="outline"
+                            size="sm"
+                          >
+                            {historyLoading ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Loading history...
+                              </>
+                            ) : (
+                              <>
+                                <History className="h-4 w-4" />
+                                View History
+                              </>
+                            )}
+                          </Button>
                             {batchId ? (
                               <Button
                                 onClick={handleMarkJobCompleted}
@@ -1602,6 +1681,185 @@ export default function JobLabelAIPage() {
             </div>
           )}
         </main>
+
+        <Drawer
+          open={isHistoryOpen}
+          onOpenChange={(open) => {
+            setIsHistoryOpen(open)
+            if (open && currentFileId) {
+              fetchHistory(currentFileId)
+            }
+          }}
+          direction="right"
+        >
+          <DrawerContent className="h-full data-[vaul-drawer-direction=right]:w-1/2 data-[vaul-drawer-direction=right]:sm:max-w-none">
+            <DrawerHeader>
+              <DrawerTitle>Label History</DrawerTitle>
+              <DrawerDescription>
+                Recent save and confirmation events for the current file.
+              </DrawerDescription>
+            </DrawerHeader>
+            <div className="px-6 pb-6 space-y-4">
+              <div className="flex items-center justify-between">
+                {/* <p className="text-sm text-muted-foreground">
+                  File ID: {currentFileId ?? "-"}
+                </p> */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fetchHistory()}
+                  disabled={historyLoading || !currentFileId}
+                  className="gap-2"
+                >
+                  {historyLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Refreshing
+                    </>
+                  ) : (
+                    <>
+                      <History className="h-4 w-4" />
+                      Refresh
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              <div className="border rounded-lg">
+                <ScrollArea className="h-[70vh]">
+                  <div className="p-4 space-y-3">
+                    {historyLoading ? (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Loading history...
+                      </div>
+                    ) : historyError ? (
+                      <p className="text-sm text-destructive">{historyError}</p>
+                    ) : historyEntries.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No history found for this file yet.</p>
+                    ) : (
+                      historyEntries.map((entry) => (
+                        <Card key={entry.history_id || entry.event_id} className="shadow-none">
+                          <div className="p-4 space-y-3">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div className="space-y-1">
+                                <p className="text-xs text-muted-foreground">Time</p>
+                                <p className="font-medium">
+                                  {entry.occurred_at ? new Date(entry.occurred_at).toLocaleString() : "Unknown"}
+                                </p>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Badge variant="secondary">{entry.username || "Unknown"}</Badge>
+                                <Badge variant="outline" className="font-mono text-xs">
+                                  {entry.action}
+                                </Badge>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                              {entry.change_summary && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Summary</p>
+                                  <p className="whitespace-pre-wrap">{entry.change_summary}</p>
+                                </div>
+                              )}
+                              {entry.annotation_count !== undefined && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Annotations</p>
+                                  <p>{entry.annotation_count}</p>
+                                </div>
+                              )}
+                              {entry.annotation_status && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Status</p>
+                                  <p className="capitalize">{entry.annotation_status}</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {entry.csv_diff && (
+                            <div className="border-t p-4 space-y-3">
+                              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                {entry.csv_diff.rows_changed !== undefined && (
+                                  <Badge variant="secondary">
+                                    {entry.csv_diff.rows_changed} rows changed
+                                  </Badge>
+                                )}
+                                {entry.csv_diff.rows_added !== undefined && entry.csv_diff.rows_added > 0 && (
+                                  <Badge variant="outline">+{entry.csv_diff.rows_added} rows</Badge>
+                                )}
+                                {entry.csv_diff.rows_deleted !== undefined && entry.csv_diff.rows_deleted > 0 && (
+                                  <Badge variant="outline">-{entry.csv_diff.rows_deleted} rows</Badge>
+                                )}
+                                {entry.csv_diff.summary?.columns_affected?.length ? (
+                                  <span>
+                                    Columns: {entry.csv_diff.summary.columns_affected.slice(0, 3).join(", ")}
+                                    {entry.csv_diff.summary.columns_affected.length > 3 &&
+                                      ` +${entry.csv_diff.summary.columns_affected.length - 3} more`}
+                                  </span>
+                                ) : null}
+                              </div>
+
+                              {entry.csv_diff.changes && entry.csv_diff.changes.length > 0 ? (
+                                <div className="space-y-3">
+                                  {entry.csv_diff.changes.map((change, idx) => (
+                                    <div
+                                      key={`${change.row_index}-${idx}`}
+                                      className="rounded-md border bg-muted/40 p-3 space-y-3"
+                                    >
+                                      <div className="flex items-center gap-2 text-sm font-medium">
+                                        <Badge variant="secondary">Row {change.row_index}</Badge>
+                                        <span className="text-xs text-muted-foreground">
+                                          {Object.keys(change.columns || {}).length} column(s) changed
+                                        </span>
+                                      </div>
+                                      <div className="space-y-3">
+                                        {Object.entries(change.columns || {}).map(([col, values]) => (
+                                          <div
+                                            key={col}
+                                            className="grid grid-cols-1 md:grid-cols-2 gap-3"
+                                          >
+                                            <div className="space-y-1">
+                                              <p className="text-xs text-muted-foreground flex items-center gap-2">
+                                                <Badge variant="destructive" className="h-5 px-2">Old</Badge>
+                                                {col}
+                                              </p>
+                                              <div className="rounded border bg-background px-3 py-2 text-sm break-all">
+                                                {String(values?.old ?? "") || <span className="text-muted-foreground">empty</span>}
+                                              </div>
+                                            </div>
+                                            <div className="space-y-1">
+                                              <p className="text-xs text-muted-foreground flex items-center gap-2">
+                                                <Badge className="h-5 px-2 bg-emerald-100 text-emerald-700 border border-emerald-200">
+                                                  New
+                                                </Badge>
+                                                {col}
+                                              </p>
+                                              <div className="rounded border bg-background px-3 py-2 text-sm break-all">
+                                                {String(values?.new ?? "") || <span className="text-muted-foreground">empty</span>}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-sm text-muted-foreground">No detailed cell changes available.</p>
+                              )}
+                            </div>
+                          )}
+                        </Card>
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+            </div>
+          </DrawerContent>
+        </Drawer>
 
         <Dialog open={showCompleteDialog} onOpenChange={setShowCompleteDialog}>
           <DialogContent>
