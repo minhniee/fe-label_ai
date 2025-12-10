@@ -1603,9 +1603,9 @@ export default function JobLabelAIPage() {
               <DataManager
                 data={data}
                 columns={columns}
-                onAddRow={handleAddRow}
-                onAddColumn={handleAddColumn}
-                onGenerateMore={handleGenerateMore}
+                onAddRowAction={handleAddRow}
+                onAddColumnAction={handleAddColumn}
+                onGenerateMoreAction={handleGenerateMore}
                 contextColumn={contextColumn}
                 apiKey={embeddingConfig.apiKey}
                 model={embeddingConfig.model || "gemini-2.5-flash"}

@@ -406,6 +406,29 @@ export async function parseReference(file: File) {
 }
 
 /**
+ * Estimate maximum rows that can be generated from a document
+ */
+export async function estimateMaxRows(data: {
+  reference_context: string
+  columns: string
+  api_key?: string
+  topic?: string
+}) {
+  try {
+    const response = await api.post(`/gen-ai/estimate-max-rows`, {
+      reference_context: data.reference_context,
+      columns: data.columns,
+      api_key: data.api_key || "",
+      topic: data.topic || "",
+    })
+    return response.data
+  } catch (error: any) {
+    const errorMessage = error?.response?.data?.error || error?.response?.data?.detail || error.message || "Failed to estimate max rows"
+    throw new Error(errorMessage)
+  }
+}
+
+/**
  * Test API key
  */
 export async function testApiKey(apiKey: string, model: string = "gemini-2.5-flash") {

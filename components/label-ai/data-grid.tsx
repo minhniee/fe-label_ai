@@ -304,7 +304,8 @@ export function DataGrid({
   // Helper function to get AI value from various fields
   // Used by both handleConfirm and Compare Result dialog to ensure consistency
   const getAIValue = (row: RowData): string | null => {
-    const statusValues = ["true", "false", "correct", "wrong", "ambiguous", "needs_label"]
+    // Status values used for badges; allow boolean strings ("true"/"false") as valid data
+    const statusValues = ["correct", "wrong", "ambiguous", "needs_label"]
     const aiSuggestion = row._ai_suggestion
     const isStatusValue = aiSuggestion && statusValues.includes(String(aiSuggestion).toLowerCase())
     
@@ -362,13 +363,13 @@ export function DataGrid({
       // This ensures we use the correct_answer field when user accepts
       const aiSuggestion = row._ai_suggestion
       const aiType = (row._ai_type || "").toString().toLowerCase()
-      const isStatusValue = aiSuggestion && ["true", "false", "correct", "wrong", "ambiguous", "needs_label"].includes(String(aiSuggestion).toLowerCase())
+      const isStatusValue = aiSuggestion && ["correct", "wrong", "ambiguous", "needs_label"].includes(String(aiSuggestion).toLowerCase())
       
       let valueToFill: string | null | undefined = row._corrected_value
       
       // Check if _corrected_value is a valid value (not empty, not null, not a status string)
       const correctedValueStr = String(valueToFill || "").trim().toLowerCase()
-      const isCorrectedValueStatus = ["true", "false", "correct", "wrong", "ambiguous", "needs_label"].includes(correctedValueStr)
+      const isCorrectedValueStatus = ["correct", "wrong", "ambiguous", "needs_label"].includes(correctedValueStr)
       const hasValidCorrectedValue = valueToFill && valueToFill !== "" && !isCorrectedValueStatus
       
       // Priority 1: Use _corrected_value if it's valid (this contains correct_answer from AI)
@@ -542,13 +543,13 @@ export function DataGrid({
       }
       // Use same logic as handleConfirm for consistency
       const aiSuggestion = row._ai_suggestion
-      const isStatusValue = aiSuggestion && ["true", "false", "correct", "wrong", "ambiguous", "needs_label"].includes(String(aiSuggestion).toLowerCase())
+      const isStatusValue = aiSuggestion && ["correct", "wrong", "ambiguous", "needs_label"].includes(String(aiSuggestion).toLowerCase())
       
       let valueToFill: string | null | undefined = row._corrected_value
       
       // Check if _corrected_value is a valid value (not empty, not null, not a status string)
       const correctedValueStr = String(valueToFill || "").trim().toLowerCase()
-      const isCorrectedValueStatus = ["true", "false", "correct", "wrong", "ambiguous", "needs_label"].includes(correctedValueStr)
+      const isCorrectedValueStatus = ["correct", "wrong", "ambiguous", "needs_label"].includes(correctedValueStr)
       const hasValidCorrectedValue = valueToFill && valueToFill !== "" && !isCorrectedValueStatus
       
       // Priority 1: Use _corrected_value if it's valid (this contains correct_answer from AI)
