@@ -1,7 +1,12 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import { getLoginCallbackUrl } from '@/lib/utils';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
+// Resolve API base:
+// 1) NEXT_PUBLIC_API_BASE (set in env at build/runtime)
+// 2) Fallback to window.location.origin (useful behind same-domain proxy)
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE ||
+  (typeof window !== "undefined" ? window.location.origin : "");
 
 // Create a single, configured axios instance
 const api: AxiosInstance = axios.create({
