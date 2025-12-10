@@ -56,7 +56,9 @@ import { slugToProjectId } from "@/types/project"
 import axios from "axios"
 import { detectContextColumn, detectResultColumn, parseCSVFromText } from "@/lib/label-ai-utils"
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE ||
+  (typeof window !== "undefined" ? window.location.origin : "")
 
 // Helper to get file content from annotation API
 const getFileContentFromAnnotation = async (fileId: number) => {
