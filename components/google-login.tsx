@@ -4,8 +4,10 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://127.0.0.1:8000";
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE ||
+  (typeof window !== "undefined" ? window.location.origin : "");
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== "undefined" ? window.location.origin : "");
 
 export default function GoogleLoginButton() {
   const [loading, setLoading] = useState(false);
@@ -38,7 +40,8 @@ export default function GoogleLoginButton() {
 
     setLoading(true);
 
-    const url = new URL(`${API_BASE}/auth/login_by_google`);
+    const base = API_BASE || window.location.origin;
+    const url = new URL(`${base}/auth/login_by_google`);
     window.location.href = url.toString();
   };
 
