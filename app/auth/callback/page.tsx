@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import LoadingScreen from "@/components/loading-screen";
 import { getMe } from "@/app/api/auth";
+import { toast } from "sonner";
 
 export default function AuthCallbackPage() {
   const router = useRouter();
@@ -59,16 +60,27 @@ export default function AuthCallbackPage() {
       const handleRedirect = async () => {
         // Get user info to validate redirect URL
         let userRoleId: number | null = null;
+        let displayName: string | null = null;
         try {
           const me = await getMe();
           userRoleId = me?.role_id || null;
           // Update localStorage with user info
           if (me) {
             localStorage.setItem("user", JSON.stringify(me));
+            displayName =
+              (me as any).username ||
+              ((me as any).email && (me as any).email.split("@")[0]) ||
+              null;
           }
         } catch (e) {
           console.error("Failed to get user info:", e);
         }
+
+        // Show welcome toast (neutral, 3s)
+        const resolvedName = displayName || "user";
+        toast(`Welcomeback, ${resolvedName}!`, {
+          duration: 3000,
+        });
 
         // Check for saved redirect URL from Google login
         const redirectAfterLogin = localStorage.getItem("redirect_after_login");
@@ -97,14 +109,17 @@ export default function AuthCallbackPage() {
           const isAdmin = userRoleId === 1; // Admin role_id = 1
           
           // Only allow redirect to admin routes if user is admin
-          if (isAdminRoute && !isAdmin) {
-            // User is not admin but trying to access admin route, redirect to projects
-            console.warn("Non-admin user attempted to access admin route, redirecting to /projects");
-            router.replace("/projects");
-          } else {
-            // Safe to redirect to saved URL
-            router.replace(redirectPath);
-          }
+          const redirectNow = () => {
+            if (isAdminRoute && !isAdmin) {
+              // User is not admin but trying to access admin route, redirect to projects
+              console.warn("Non-admin user attempted to access admin route, redirecting to /projects");
+              router.replace("/projects");
+            } else {
+              // Safe to redirect to saved URL
+              router.replace(redirectPath);
+            }
+          };
+          redirectNow();
         } else {
           // Default redirect to projects
           router.replace("/projects");

@@ -20,7 +20,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Eye, EyeOff } from "lucide-react"
 import { loginUser, persistAuth } from "@/app/api/auth"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import GoogleLoginButton from "@/components/google-login"
 import Link from "next/link"
 
@@ -35,7 +35,6 @@ export function LoginForm({
   error,
   ...props
 }: LoginFormProps) {
-  const { toast } = useToast()
   const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -67,10 +66,9 @@ export function LoginForm({
           errorMessage = `Authentication error: ${error}`;
       }
       
-      toast({
-        title: "Authentication Failed",
+      toast("Authentication Failed", {
         description: errorMessage,
-        variant: "destructive",
+        duration: 3000,
       });
       
       // Clean up the URL by removing the error parameter
@@ -89,16 +87,22 @@ export function LoginForm({
     try {
       const token = await loginUser(formData.identifier, formData.password)
       persistAuth(token)
+
+      const userEmail =
+        (token as any)?.user?.email ||
+        (token as any)?.user?.username ||
+        formData.identifier
+      const displayName =
+        typeof userEmail === "string" && userEmail.includes("@")
+          ? userEmail.split("@")[0]
+          : userEmail || "user"
       
       // Clear any old redirect_after_login from previous sessions
       try {
         localStorage.removeItem('redirect_after_login')
       } catch {}
       
-      toast({
-        title: "Login successful",
-        description: "Welcome back!",
-      })
+      toast(`Welcomeback, ${displayName}!`, { duration: 3000 })
 
       // Validate callbackUrl based on user role
       let redirectUrl = "/projects"; 
@@ -122,15 +126,14 @@ export function LoginForm({
         }
       }
       
-      window.location.href = redirectUrl;
+      window.location.href = redirectUrl
     } catch (error: any) {
       // Show inline error below username field for bad credentials
       const message = error?.message || "Invalid username or password"
       setLoginError(message)
-      toast({
-        title: "Login failed",
+      toast("Login failed", {
         description: message,
-        variant: "destructive",
+        duration: 3000,
       })
     } finally {
       setIsLoading(false)
