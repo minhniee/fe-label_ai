@@ -11,26 +11,30 @@ type LegacyToastProps = {
   variant?: 'default' | 'destructive'
 }
 
-function toast({ title, description, variant }: LegacyToastProps) {
-  if (variant === 'destructive') {
-    return sonnerToast.error(title ?? 'Error', { description })
-  }
-  // Default toast shows info icon to align with configured icons (no JSX in .ts file)
-  return sonnerToast(title ?? '', { description, icon: React.createElement(InfoIcon, { className: 'size-4' }) })
+// Neutral (white) toast helper — ignore variant colors to keep consistent style
+const neutralToast = (message: string, opts?: { description?: string }) =>
+  sonnerToast(message, {
+    description: opts?.description,
+    // Keep neutral background/text; icons optional
+    icon: React.createElement(InfoIcon, { className: 'size-4 text-muted-foreground' }),
+  })
+
+function toast({ title, description }: LegacyToastProps) {
+  return neutralToast(title ?? '', { description })
 }
 
-// Expose typed helpers so existing and new calls get icons
+// Expose typed helpers but keep neutral styling
 toast.success = (message: string, opts?: { description?: string }) =>
-  sonnerToast.success(message, { description: opts?.description })
+  neutralToast(message, { description: opts?.description })
 
 toast.info = (message: string, opts?: { description?: string }) =>
-  sonnerToast.info(message, { description: opts?.description })
+  neutralToast(message, { description: opts?.description })
 
 toast.warning = (message: string, opts?: { description?: string }) =>
-  sonnerToast.warning(message, { description: opts?.description })
+  neutralToast(message, { description: opts?.description })
 
 toast.error = (message: string, opts?: { description?: string }) =>
-  sonnerToast.error(message, { description: opts?.description })
+  neutralToast(message, { description: opts?.description })
 
 toast.loading = (message: string, opts?: { description?: string }) =>
   sonnerToast.loading(message, { description: opts?.description })

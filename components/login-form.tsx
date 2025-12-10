@@ -39,6 +39,7 @@ export function LoginForm({
   const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [loginError, setLoginError] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     identifier: "",
     password: "",
@@ -123,9 +124,12 @@ export function LoginForm({
       
       window.location.href = redirectUrl;
     } catch (error: any) {
+      // Show inline error below username field for bad credentials
+      const message = error?.message || "Invalid username or password"
+      setLoginError(message)
       toast({
         title: "Login failed",
-        description: error.message || "Invalid credentials",
+        description: message,
         variant: "destructive",
       })
     } finally {
@@ -164,6 +168,11 @@ export function LoginForm({
                   required
                   disabled={isLoading}
                 />
+                {loginError && (
+                  <p className="text-sm text-destructive mt-1">
+                    {loginError}
+                  </p>
+                )}
               </Field>
               <Field>
                 <div className="flex items-center">
