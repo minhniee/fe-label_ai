@@ -58,6 +58,11 @@ api.interceptors.request.use(
   }
 );
 
+const isAuthPath = (url?: string | null) => {
+  if (!url) return false
+  return url.includes("/auth/login") || url.includes("/auth/register") || url.includes("/auth/forgot") || url.includes("/auth/verify")
+}
+
 // Optional: Add a response interceptor for global error handling
 api.interceptors.response.use(
   (response) => {
@@ -69,6 +74,11 @@ api.interceptors.response.use(
     
     // Any status codes that falls outside the range of 2xx cause this function to trigger
     if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
+      // For auth endpoints (e.g., login), just bubble up the 401 to show proper message
+      if (isAuthPath(originalRequest.url)) {
+        return Promise.reject(error);
+      }
+
       // Skip refresh for auth endpoints to avoid infinite loop
       if (originalRequest.url?.includes('/auth/refresh') || originalRequest.url?.includes('/auth/login')) {
         return handleAuthError();
