@@ -60,6 +60,8 @@ export function ModelSelector({
   const [isTestingKey, setIsTestingKey] = useState(false)
   const [keyStatus, setKeyStatus] = useState<"idle" | "valid" | "invalid">("idle")
   const [multiColumnConfig, setMultiColumnConfig] = useState<any[]>([])
+  const [labelStartTime, setLabelStartTime] = useState<number | null>(null)
+  const [elapsedTime, setElapsedTime] = useState<number>(0)
   const { toast } = useToast()
 
   // Load API key from localStorage on mount
@@ -69,6 +71,20 @@ export function ModelSelector({
       setApiKey(savedApiKey)
     }
   }, [])
+
+  // Timer effect: update elapsed time while labeling
+  useEffect(() => {
+    if (!isLabeling || labelStartTime === null) {
+      return
+    }
+
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - labelStartTime
+      setElapsedTime(elapsed)
+    }, 100) // Update every 100ms for smooth display
+
+    return () => clearInterval(interval)
+  }, [isLabeling, labelStartTime])
 
   const effectiveModel = providedModel ?? model
   const effectiveApiKey = providedApiKey ?? apiKey
@@ -155,6 +171,9 @@ export function ModelSelector({
     }
 
     setIsLabeling(true)
+    const startTime = Date.now()
+    setLabelStartTime(startTime)
+    setElapsedTime(0)
 
     try {
       if (onLabel) {
@@ -165,10 +184,13 @@ export function ModelSelector({
           contextColumn,
           referenceContext
         )
+        const endTime = Date.now()
+        const duration = endTime - startTime
+        setElapsedTime(duration)
         onDataUpdate(labeled)
         toast({
           title: "Labeling complete",
-          description: `Successfully labeled ${labeled.length} rows with ${effectiveModel}`,
+          description: `Successfully labeled ${labeled.length} rows with ${effectiveModel} in ${(duration / 1000).toFixed(2)}s`,
         })
       } else {
         const documentIdsToSend = documentIds !== undefined ? (documentIds.length > 0 ? documentIds : []) : undefined
@@ -191,17 +213,24 @@ export function ModelSelector({
           document_ids: documentIdsToSend,
         })
 
+        const endTime = Date.now()
+        const duration = endTime - startTime
+        setElapsedTime(duration)
+
         if (result.success) {
           onDataUpdate(result.data)
           toast({
             title: "Labeling complete",
-            description: `Successfully labeled ${result.data.length} rows with ${effectiveModel}`,
+            description: `Successfully labeled ${result.data.length} rows with ${effectiveModel} in ${(duration / 1000).toFixed(2)}s`,
           })
         } else {
           throw new Error(result.error)
         }
       }
     } catch (error) {
+      const endTime = Date.now()
+      const duration = endTime - startTime
+      setElapsedTime(duration)
       console.error("Error labeling data:", error)
       toast({
         title: "Labeling failed",
@@ -213,6 +242,7 @@ export function ModelSelector({
       })
     } finally {
       setIsLabeling(false)
+      setLabelStartTime(null)
     }
   }
 
@@ -284,19 +314,31 @@ export function ModelSelector({
             </div>
           </div>
 
-          <Button onClick={handleLabel} disabled={isLabeling} className="gap-2" size="lg">
-            {isLabeling ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Labeling...
-              </>
-            ) : (
-              <>
-                <Sparkles className="h-4 w-4" />
-                Label This Page
-              </>
+          <div className="flex flex-col items-end gap-2">
+            <Button onClick={handleLabel} disabled={isLabeling} className="gap-2" size="lg">
+              {isLabeling ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Labeling...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4" />
+                  Label This Page
+                </>
+              )}
+            </Button>
+            {isLabeling && (
+              <p className="text-xs text-muted-foreground font-mono">
+                Elapsed time: {elapsedTime > 0 ? `${(elapsedTime / 1000).toFixed(1)}s` : "0.0s"}
+              </p>
             )}
-          </Button>
+            {!isLabeling && elapsedTime > 0 && (
+              <p className="text-xs text-muted-foreground font-mono">
+                Completed in {(elapsedTime / 1000).toFixed(1)}s
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="mt-4 p-4 bg-secondary/50 rounded-lg">

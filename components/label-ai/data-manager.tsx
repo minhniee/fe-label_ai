@@ -18,9 +18,9 @@ import { getApiKeyFromStorage, saveApiKeyToStorage } from "@/lib/label-ai-utils"
 interface DataManagerProps {
   data: RowData[]
   columns: string[]
-  onAddRow: (row: RowData) => void
-  onAddColumn: (columnName: string) => void
-  onGenerateMore: (rows: RowData[]) => void
+  onAddRowAction: (row: RowData) => void
+  onAddColumnAction: (columnName: string) => void
+  onGenerateMoreAction: (rows: RowData[]) => void
   contextColumn: string
   apiKey?: string
   model?: string
@@ -34,9 +34,9 @@ interface DataManagerProps {
 export function DataManager({
   data,
   columns,
-  onAddRow,
-  onAddColumn,
-  onGenerateMore,
+  onAddRowAction,
+  onAddColumnAction,
+  onGenerateMoreAction,
   contextColumn,
   apiKey,
   model = "gemini-2.5-flash",
@@ -60,12 +60,22 @@ export function DataManager({
   // Check if RAG documents are available
   const hasRAGDocuments = projectId && documentIds && documentIds.length > 0
 
+  // Models that cannot be used for text generation
+  const isEmbeddingModel = (modelName: string) =>
+    modelName.toLowerCase().includes("embedding")
+
+  const sanitizeModel = (inputModel?: string) => {
+    if (!inputModel) return "gemini-2.5-flash"
+    return isEmbeddingModel(inputModel) ? "gemini-2.5-flash" : inputModel
+  }
+
   // Load API key from localStorage or props
   useEffect(() => {
     const savedApiKey = getApiKeyFromStorage()
+    const savedModel = sanitizeModel(model || getApiKeyFromStorage() ? model : undefined)
     const finalApiKey = apiKey || savedApiKey || ""
     setEffectiveApiKey(finalApiKey)
-    setEffectiveModel(model || "gemini-2.5-flash")
+    setEffectiveModel(sanitizeModel(model))
   }, [apiKey, model])
   const handleSaveApiKey = () => {
     const trimmed = effectiveApiKey.trim()
@@ -138,7 +148,7 @@ export function DataManager({
       _confirmed: false,
       ...newRowData,
     }
-    onAddRow(row)
+    onAddRowAction(row)
     setNewRowData({})
     setShowAddRow(false)
     toast({
@@ -166,7 +176,7 @@ export function DataManager({
       return
     }
 
-    onAddColumn(newColumnName)
+    onAddColumnAction(newColumnName)
     setNewColumnName("")
     setShowAddColumn(false)
     toast({
@@ -177,6 +187,7 @@ export function DataManager({
 
   const handleGenerateMore = async () => {
     const finalApiKey = (effectiveApiKey || getApiKeyFromStorage()).trim()
+    const finalModel = sanitizeModel(effectiveModel)
     
     if (!finalApiKey) {
       toast({
@@ -184,6 +195,16 @@ export function DataManager({
         description: "Please provide an API key to generate data. You can enter it in the Model Selector section above.",
         variant: "destructive",
       })
+      return
+    }
+
+    if (isEmbeddingModel(finalModel)) {
+      toast({
+        title: "Unsupported model",
+        description: "Embedding models (text-embedding-*) cannot generate rows. Switched to gemini-2.5-flash automatically.",
+        variant: "destructive",
+      })
+      setEffectiveModel("gemini-2.5-flash")
       return
     }
 
@@ -238,7 +259,7 @@ export function DataManager({
           _confirmed: false,
           ...row,
         }))
-        onGenerateMore(newRows)
+        onGenerateMoreAction(newRows)
         setGenerateCount("5")
         setGeneratePrompt("")
         setShowGenerateDialog(false)
