@@ -29,7 +29,7 @@ export default function AuthCallbackPage() {
       return;
     }
 
-    if (accessToken) {
+    if (accessToken) {  
       try {
         localStorage.setItem("access_token", accessToken);
         if (refreshToken) {

@@ -29,6 +29,11 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const enableVercelAnalytics =
+    typeof process !== "undefined" &&
+    !!process.env.NEXT_PUBLIC_VERCEL_ANALYTICS_ID &&
+    process.env.NEXT_PUBLIC_VERCEL_ANALYTICS_ID.trim() !== "";
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body
@@ -37,7 +42,9 @@ export default function RootLayout({
       >
         <QueryProvider>
           <Suspense fallback={null}>{children}</Suspense>
-          <Analytics />
+          {/* Only run Vercel Analytics when an ID is provided (Vercel hosting). 
+              On self-hosted domains the script 404s. */}
+          {enableVercelAnalytics && <Analytics />}
           <SonnerToaster />
         </QueryProvider>
       </body>
