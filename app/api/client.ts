@@ -1,16 +1,24 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import { getLoginCallbackUrl } from '@/lib/utils';
 
-// Resolve API base:
-// 1) NEXT_PUBLIC_API_BASE (set in env at build/runtime)
-// 2) Fallback to window.location.origin (useful behind same-domain proxy)
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE ||
-  (typeof window !== "undefined" ? window.location.origin : "");
+// Get API base dynamically at runtime
+// This allows building without requiring env variables
+function getApiBase(): string {
+  // 1) Try NEXT_PUBLIC_API_BASE (can be set at build or runtime)
+  if (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_API_BASE) {
+    return process.env.NEXT_PUBLIC_API_BASE;
+  }
+  // 2) Fallback to window.location.origin (client-side only)
+  if (typeof window !== "undefined") {
+    return window.location.origin;
+  }
+  // 3) Server-side fallback (should not happen for client components)
+  return "";
+}
 
 // Create a single, configured axios instance
 const api: AxiosInstance = axios.create({
-  baseURL: API_BASE,
+  baseURL: getApiBase(),
   headers: {
     'Content-Type': 'application/json',
   },

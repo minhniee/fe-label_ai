@@ -8,8 +8,20 @@ import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { projectToSlug, setSelectedProject, type Project } from '@/types/project';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://127.0.0.1:8000";
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+// Get values at runtime, not build time
+function getApiBase(): string {
+  if (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_API_BASE) {
+    return process.env.NEXT_PUBLIC_API_BASE;
+  }
+  return typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1:8000";
+}
+
+function getSiteUrl(): string {
+  if (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_SITE_URL) {
+    return process.env.NEXT_PUBLIC_SITE_URL;
+  }
+  return typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+}
 
 export default function AcceptInvitePage() {
   const router = useRouter();
@@ -116,7 +128,7 @@ export default function AcceptInvitePage() {
     const state = crypto.getRandomValues(new Uint32Array(1))[0].toString(16);
     sessionStorage.setItem('oauth_state', state);
 
-    const url = new URL(`${API_BASE}/auth/login_by_google`);
+    const url = new URL(`${getApiBase()}/auth/login_by_google`);
     window.location.href = url.toString();
   };
 

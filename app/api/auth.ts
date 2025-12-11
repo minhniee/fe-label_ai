@@ -219,39 +219,76 @@ export interface ResetPasswordResponse {
 }
 
 export async function requestPasswordReset(email: string): Promise<ForgotPasswordResponse> {
+  console.log('🔐 [FORGOT_PASSWORD_REQUEST] Starting password reset request for email:', email);
   try {
     const response = await api.post<ForgotPasswordResponse>('/auth/forgot-password/request', {
       email,
     });
+    console.log('✅ [FORGOT_PASSWORD_REQUEST] Password reset request successful:', {
+      status: response.data.status,
+      expireIn: response.data.expireIn,
+      resendAvailableIn: response.data.resendAvailableIn
+    });
     return response.data;
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to request password reset';
+    console.error('❌ [FORGOT_PASSWORD_REQUEST] Password reset request failed:', {
+      email,
+      error: errorMessage,
+      status: error.response?.status
+    });
     throw new Error(errorMessage);
   }
 }
 
 export async function verifyResetOTP(email: string, otp: string): Promise<VerifyResetOTPResponse> {
+  console.log('🔐 [FORGOT_PASSWORD_VERIFY_OTP] Starting OTP verification:', {
+    email,
+    otpLength: otp.length
+  });
   try {
     const response = await api.post<VerifyResetOTPResponse>('/auth/forgot-password/verify-otp', {
       email,
       otp,
     });
+    console.log('✅ [FORGOT_PASSWORD_VERIFY_OTP] OTP verification successful:', {
+      email,
+      success: response.data.success,
+      hasResetToken: !!response.data.resetToken
+    });
     return response.data;
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'OTP verification failed';
+    console.error('❌ [FORGOT_PASSWORD_VERIFY_OTP] OTP verification failed:', {
+      email,
+      error: errorMessage,
+      status: error.response?.status
+    });
     throw new Error(errorMessage);
   }
 }
 
 export async function resetPassword(resetToken: string, newPassword: string): Promise<ResetPasswordResponse> {
+  console.log('🔐 [FORGOT_PASSWORD_RESET] Starting password reset:', {
+    tokenLength: resetToken.length,
+    passwordLength: newPassword.length
+  });
   try {
     const response = await api.post<ResetPasswordResponse>('/auth/forgot-password/reset-password', {
       resetToken,
       newPassword,
     });
+    console.log('✅ [FORGOT_PASSWORD_RESET] Password reset successful:', {
+      success: response.data.success,
+      message: response.data.message
+    });
     return response.data;
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to reset password';
+    console.error('❌ [FORGOT_PASSWORD_RESET] Password reset failed:', {
+      error: errorMessage,
+      status: error.response?.status
+    });
     throw new Error(errorMessage);
   }
 }

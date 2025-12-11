@@ -4,10 +4,20 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE ||
-  (typeof window !== "undefined" ? window.location.origin : "");
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== "undefined" ? window.location.origin : "");
+// Get values at runtime, not build time
+function getApiBase(): string {
+  if (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_API_BASE) {
+    return process.env.NEXT_PUBLIC_API_BASE;
+  }
+  return typeof window !== "undefined" ? window.location.origin : "";
+}
+
+function getSiteUrl(): string {
+  if (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_SITE_URL) {
+    return process.env.NEXT_PUBLIC_SITE_URL;
+  }
+  return typeof window !== "undefined" ? window.location.origin : "";
+}
 
 export default function GoogleLoginButton() {
   const [loading, setLoading] = useState(false);
@@ -40,7 +50,7 @@ export default function GoogleLoginButton() {
 
     setLoading(true);
 
-    const base = API_BASE || window.location.origin;
+    const base = getApiBase() || window.location.origin;
     const url = new URL(`${base}/auth/login_by_google`);
     window.location.href = url.toString();
   };
