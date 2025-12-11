@@ -3,22 +3,31 @@ import { getLoginCallbackUrl } from '@/lib/utils';
 
 // Get API base dynamically at runtime
 // This allows building without requiring env variables
+// Priority: 1) NEXT_PUBLIC_API_BASE env var > 2) window.location.origin (client) > 3) localhost default
 function getApiBase(): string {
   // 1) Try NEXT_PUBLIC_API_BASE (can be set at build or runtime)
+  // This is the preferred method for production deployment
   if (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_API_BASE) {
-    return process.env.NEXT_PUBLIC_API_BASE;
+    const apiBase = process.env.NEXT_PUBLIC_API_BASE.trim();
+    if (apiBase) {
+      return apiBase;
+    }
   }
   // 2) Fallback to window.location.origin (client-side only)
+  // This works for same-origin API (if API is on same domain as frontend)
   if (typeof window !== "undefined") {
     return window.location.origin;
   }
-  // 3) Server-side fallback (should not happen for client components)
-  return "";
+  // 3) Server-side fallback - use default localhost API
+  // This ensures the build works even without env vars (development only)
+  // NOTE: In production, you MUST set NEXT_PUBLIC_API_BASE environment variable
+  return "http://localhost:8000";
 }
 
 // Create a single, configured axios instance
+// baseURL will be computed dynamically per request to handle runtime changes
 const api: AxiosInstance = axios.create({
-  baseURL: getApiBase(),
+  baseURL: getApiBase(), // Set initial value, but will be updated dynamically per request
   headers: {
     'Content-Type': 'application/json',
   },
@@ -45,6 +54,13 @@ const processQueue = (error: any, token: string | null = null) => {
 // Add a request interceptor to attach the JWT token to every request
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    // Set baseURL dynamically for each request to handle runtime env changes
+    // This ensures we always use the latest value, even if env vars change
+    const apiBase = getApiBase();
+    if (apiBase) {
+      config.baseURL = apiBase;
+    }
+    
     // Check if running on the client side
     if (typeof window !== 'undefined') {
       try {

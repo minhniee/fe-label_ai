@@ -59,9 +59,16 @@ import { detectContextColumn, detectResultColumn, parseCSVFromText } from "@/lib
 // Get API base at runtime, not build time
 function getApiBase(): string {
   if (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_API_BASE) {
-    return process.env.NEXT_PUBLIC_API_BASE;
+    const apiBase = process.env.NEXT_PUBLIC_API_BASE.trim();
+    if (apiBase) {
+      return apiBase;
+    }
   }
-  return typeof window !== "undefined" ? window.location.origin : "";
+  if (typeof window !== "undefined") {
+    return window.location.origin;
+  }
+  // Fallback default for server-side rendering
+  return "http://localhost:8000";
 }
 
 // Helper to get file content from annotation API

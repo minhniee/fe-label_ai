@@ -7,16 +7,30 @@ import { Loader2 } from 'lucide-react';
 // Get values at runtime, not build time
 function getApiBase(): string {
   if (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_API_BASE) {
-    return process.env.NEXT_PUBLIC_API_BASE;
+    const apiBase = process.env.NEXT_PUBLIC_API_BASE.trim();
+    if (apiBase) {
+      return apiBase;
+    }
   }
-  return typeof window !== "undefined" ? window.location.origin : "";
+  if (typeof window !== "undefined") {
+    return window.location.origin;
+  }
+  // Fallback default for server-side rendering
+  return "http://localhost:8000";
 }
 
 function getSiteUrl(): string {
   if (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_SITE_URL) {
-    return process.env.NEXT_PUBLIC_SITE_URL;
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL.trim();
+    if (siteUrl) {
+      return siteUrl;
+    }
   }
-  return typeof window !== "undefined" ? window.location.origin : "";
+  if (typeof window !== "undefined") {
+    return window.location.origin;
+  }
+  // Fallback default for server-side rendering
+  return "http://localhost:3000";
 }
 
 export default function GoogleLoginButton() {

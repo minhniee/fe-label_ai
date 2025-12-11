@@ -5,7 +5,17 @@ COPY package*.json ./
 RUN npm install
 
 COPY . .
+
+ARG NEXT_PUBLIC_API_BASE
+ARG NEXT_PUBLIC_SITE_URL
+
+
+ENV NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE}
+ENV NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}
+
+
 RUN npm run build
+
 EXPOSE 3000
 
 CMD ["npm","run","start"]
