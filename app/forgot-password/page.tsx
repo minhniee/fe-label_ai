@@ -52,7 +52,10 @@ export default function ForgotPasswordPage() {
     e.preventDefault()
     setError("")
 
+    console.log('🔐 [FORGOT_PASSWORD_PAGE] Form submitted with email:', email)
+
     if (!email.trim()) {
+      console.warn('⚠️  [FORGOT_PASSWORD_PAGE] Email validation failed: empty email')
       setError("Please enter your email address")
       return
     }
@@ -60,22 +63,31 @@ export default function ForgotPasswordPage() {
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(email)) {
+      console.warn('⚠️  [FORGOT_PASSWORD_PAGE] Email validation failed: invalid format')
       setError("Please enter a valid email address")
       return
     }
 
+    const normalizedEmail = email.trim().toLowerCase()
+    console.log('✅ [FORGOT_PASSWORD_PAGE] Email validation passed:', normalizedEmail)
+
     setIsSubmitting(true)
     try {
-      const response = await requestPasswordReset(email.trim().toLowerCase())
+      console.log('📤 [FORGOT_PASSWORD_PAGE] Sending password reset request...')
+      const response = await requestPasswordReset(normalizedEmail)
+      console.log('✅ [FORGOT_PASSWORD_PAGE] Password reset request successful:', response)
+      
       setIsSuccess(true)
       setResendAvailableIn(response.resendAvailableIn)
       toast.success("Password reset code has been sent to your email")
       
       // Store email in sessionStorage for next step
       if (typeof window !== "undefined") {
-        sessionStorage.setItem("reset_password_email", email.trim().toLowerCase())
+        sessionStorage.setItem("reset_password_email", normalizedEmail)
+        console.log('💾 [FORGOT_PASSWORD_PAGE] Email stored in sessionStorage:', normalizedEmail)
       }
     } catch (err: any) {
+      console.error('❌ [FORGOT_PASSWORD_PAGE] Password reset request failed:', err)
       setError(err?.message || "Failed to send password reset code. Please try again.")
     } finally {
       setIsSubmitting(false)
@@ -83,11 +95,14 @@ export default function ForgotPasswordPage() {
   }
 
   const handleResend = async () => {
+    console.log('🔄 [FORGOT_PASSWORD_PAGE] Resend requested, available in:', resendAvailableIn)
     if (resendAvailableIn > 0) {
+      console.warn('⚠️  [FORGOT_PASSWORD_PAGE] Resend rate limited, wait:', resendAvailableIn)
       toast.error(`Please wait ${resendAvailableIn} seconds before requesting another code`)
       return
     }
 
+    console.log('📤 [FORGOT_PASSWORD_PAGE] Resending password reset code...')
     await handleSubmit(new Event("submit") as any)
   }
 

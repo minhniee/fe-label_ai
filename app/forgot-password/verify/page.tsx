@@ -61,20 +61,29 @@ export default function VerifyResetOTPPage() {
   useEffect(() => {
     if (!mounted) return;
 
+    console.log('🔐 [FORGOT_PASSWORD_VERIFY] Component mounted, checking sessionStorage...')
     // Get email from sessionStorage
     const resetEmail = sessionStorage.getItem("reset_password_email")
     if (!resetEmail) {
+      console.warn('⚠️  [FORGOT_PASSWORD_VERIFY] No email found in sessionStorage, redirecting to forgot password page')
       // No email found, redirect to forgot password
       router.push("/forgot-password")
       return
     }
+    console.log('✅ [FORGOT_PASSWORD_VERIFY] Email found in sessionStorage:', resetEmail)
     setEmail(resetEmail)
   }, [router, mounted])
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault()
     
+    console.log('🔐 [FORGOT_PASSWORD_VERIFY] OTP verification form submitted:', {
+      email,
+      otpLength: otp.length
+    })
+    
     if (otp.length !== 6) {
+      console.warn('⚠️  [FORGOT_PASSWORD_VERIFY] Invalid OTP length:', otp.length)
       setError("Please enter a 6-digit code")
       return
     }
@@ -83,14 +92,23 @@ export default function VerifyResetOTPPage() {
     setError("")
 
     try {
+      console.log('📤 [FORGOT_PASSWORD_VERIFY] Sending OTP verification request...')
       const response = await verifyResetOTP(email, otp)
+      console.log('✅ [FORGOT_PASSWORD_VERIFY] OTP verification successful:', {
+        success: response.success,
+        hasResetToken: !!response.resetToken
+      })
+      
       // Store reset token in sessionStorage
       if (typeof window !== "undefined") {
         sessionStorage.setItem("reset_token", response.resetToken)
+        console.log('💾 [FORGOT_PASSWORD_VERIFY] Reset token stored in sessionStorage')
       }
       toast.success("Code verified successfully!")
+      console.log('🔄 [FORGOT_PASSWORD_VERIFY] Redirecting to reset password page...')
       router.push("/forgot-password/reset")
     } catch (err: any) {
+      console.error('❌ [FORGOT_PASSWORD_VERIFY] OTP verification failed:', err)
       setError(err?.message || "Invalid verification code. Please try again.")
       setOtp("") // Clear OTP on error
     } finally {
@@ -99,12 +117,15 @@ export default function VerifyResetOTPPage() {
   }
 
   const handleResend = async () => {
+    console.log('🔄 [FORGOT_PASSWORD_VERIFY] Resend requested, available in:', resendAvailableIn)
     if (resendAvailableIn > 0) {
+      console.warn('⚠️  [FORGOT_PASSWORD_VERIFY] Resend rate limited, wait:', resendAvailableIn)
       toast.error(`Please wait ${resendAvailableIn} seconds before requesting another code`)
       return
     }
 
     if (!email) {
+      console.warn('⚠️  [FORGOT_PASSWORD_VERIFY] Email not found, redirecting to forgot password page')
       toast.error("Email not found. Please start over.")
       router.push("/forgot-password")
       return
@@ -114,11 +135,15 @@ export default function VerifyResetOTPPage() {
     setError("")
 
     try {
+      console.log('📤 [FORGOT_PASSWORD_VERIFY] Resending password reset code...')
       const response = await requestPasswordReset(email)
+      console.log('✅ [FORGOT_PASSWORD_VERIFY] Resend successful:', response)
       setResendAvailableIn(response.resendAvailableIn)
       toast.success("Verification code has been resent to your email.")
       setOtp("") // Clear current OTP
+      console.log('🧹 [FORGOT_PASSWORD_VERIFY] OTP cleared from input')
     } catch (err: any) {
+      console.error('❌ [FORGOT_PASSWORD_VERIFY] Resend failed:', err)
       setError(err?.message || "Failed to resend code. Please try again.")
     } finally {
       setIsResending(false)

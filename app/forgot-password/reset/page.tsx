@@ -52,13 +52,16 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     if (!mounted) return;
 
+    console.log('🔐 [FORGOT_PASSWORD_RESET] Component mounted, checking sessionStorage...')
     // Get reset token from sessionStorage
     const token = sessionStorage.getItem("reset_token")
     if (!token) {
+      console.warn('⚠️  [FORGOT_PASSWORD_RESET] No reset token found in sessionStorage, redirecting to forgot password page')
       // No token found, redirect to forgot password
       router.push("/forgot-password")
       return
     }
+    console.log('✅ [FORGOT_PASSWORD_RESET] Reset token found in sessionStorage, length:', token.length)
     setResetToken(token)
   }, [router, mounted])
 
@@ -85,33 +88,46 @@ export default function ResetPasswordPage() {
     e.preventDefault()
     setError("")
 
+    console.log('🔐 [FORGOT_PASSWORD_RESET] Form submitted, validating password...')
+
     // Validate password strength
     if (!isPasswordValid()) {
+      console.warn('⚠️  [FORGOT_PASSWORD_RESET] Password validation failed: does not meet strength requirements')
       setError("Password does not meet strength requirements")
       return
     }
 
     // Validate password match
     if (formData.newPassword !== formData.confirmPassword) {
+      console.warn('⚠️  [FORGOT_PASSWORD_RESET] Password validation failed: passwords do not match')
       setError("Passwords do not match")
       return
     }
 
     if (!resetToken) {
+      console.warn('⚠️  [FORGOT_PASSWORD_RESET] Reset token not found, redirecting to forgot password page')
       setError("Reset token not found. Please start over.")
       router.push("/forgot-password")
       return
     }
 
+    console.log('✅ [FORGOT_PASSWORD_RESET] Password validation passed, submitting reset request...')
+
     setIsSubmitting(true)
     try {
       await resetPassword(resetToken, formData.newPassword)
+      console.log('✅ [FORGOT_PASSWORD_RESET] Password reset successful')
+      
       // Clear sessionStorage
       sessionStorage.removeItem("reset_token")
       sessionStorage.removeItem("reset_password_email")
+      console.log('🧹 [FORGOT_PASSWORD_RESET] SessionStorage cleared')
+      
       toast.success("Password reset successfully! You can now login.")
+      console.log('🔄 [FORGOT_PASSWORD_RESET] Redirecting to login page...')
       router.push("/login")
     } catch (err: any) {
+      console.error('❌ [FORGOT_PASSWORD_RESET] Password reset failed:', err)
       setError(err?.message || "Failed to reset password. Please try again.")
     } finally {
       setIsSubmitting(false)

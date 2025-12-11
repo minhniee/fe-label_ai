@@ -56,9 +56,13 @@ import { slugToProjectId } from "@/types/project"
 import axios from "axios"
 import { detectContextColumn, detectResultColumn, parseCSVFromText } from "@/lib/label-ai-utils"
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE ||
-  (typeof window !== "undefined" ? window.location.origin : "")
+// Get API base at runtime, not build time
+function getApiBase(): string {
+  if (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_API_BASE) {
+    return process.env.NEXT_PUBLIC_API_BASE;
+  }
+  return typeof window !== "undefined" ? window.location.origin : "";
+}
 
 // Helper to get file content from annotation API
 const getFileContentFromAnnotation = async (fileId: number) => {
@@ -70,7 +74,7 @@ const getFileContentFromAnnotation = async (fileId: number) => {
     headers["Authorization"] = `Bearer ${token}`
   }
   
-  const response = await axios.get(`${API_BASE}/annotations/files/${fileId}/content`, {
+  const response = await axios.get(`${getApiBase()}/annotations/files/${fileId}/content`, {
     headers,
     withCredentials: true,
   })
@@ -900,7 +904,7 @@ export default function JobLabelAIPage() {
       }
       
       const response = await axios.put(
-        `${API_BASE}/annotations/files/${currentFileId}/content`,
+        `${getApiBase()}/annotations/files/${currentFileId}/content`,
         {
           content: csvContent,
           headers: columns.filter(col => !col.startsWith("_"))
