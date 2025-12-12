@@ -43,8 +43,6 @@
     "@tanstack/react-query-devtools": "^5.90.2",
     "@tanstack/react-table": "^8.21.3",
     "@vercel/analytics": "latest",
-    "ag-grid-community": "^34.2.0",
-    "ag-grid-react": "^34.2.0",
     "ai": "^5.0.71",
     "autoprefixer": "^10.4.20",
     "axios": "^1.12.2",

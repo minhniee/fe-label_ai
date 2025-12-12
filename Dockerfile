@@ -6,6 +6,8 @@ RUN npm install
 
 COPY . .
 
+RUN mv ./entrypoint.sh /usr/local/bin/entrypoint.sh
+
 ARG NEXT_PUBLIC_API_BASE
 ARG NEXT_PUBLIC_SITE_URL
 
@@ -18,4 +20,5 @@ RUN npm run build
 
 EXPOSE 3000
 
+ENTRYPOINT ["entrypoint.sh"]
 CMD ["npm","run","start"]
