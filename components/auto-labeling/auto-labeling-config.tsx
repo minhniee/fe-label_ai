@@ -38,6 +38,8 @@ export function AutoLabelingConfig({
   const [loading, setLoading] = useState(false)
   const [loadingColumns, setLoadingColumns] = useState(false)
   const [availableColumns, setAvailableColumns] = useState<string[]>([])
+  const [labelStartTime, setLabelStartTime] = useState<number | null>(null)
+  const [elapsedTime, setElapsedTime] = useState<number>(0)
   
   const [model, setModel] = useState(initialConfig?.model || "gemini-2.5-flash")
   const [apiKey, setApiKey] = useState(initialConfig?.api_key || "")
@@ -66,6 +68,20 @@ export function AutoLabelingConfig({
       setApiKey(savedApiKey)
     }
   }, [initialConfig?.api_key])
+
+  // Timer effect: update elapsed time while loading
+  useEffect(() => {
+    if (!loading || labelStartTime === null) {
+      return
+    }
+
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - labelStartTime
+      setElapsedTime(elapsed)
+    }, 100) // Update every 100ms for smooth display
+
+    return () => clearInterval(interval)
+  }, [loading, labelStartTime])
 
   // Load RAG settings from localStorage on mount
   useEffect(() => {
@@ -215,6 +231,10 @@ export function AutoLabelingConfig({
     }
 
     setLoading(true)
+    const startTime = Date.now()
+    setLabelStartTime(startTime)
+    setElapsedTime(0)
+
     try {
       const config: AutoLabelingConfig = {
         model,
@@ -231,6 +251,10 @@ export function AutoLabelingConfig({
 
       const result = await onConfigSubmit(config)
       
+      const endTime = Date.now()
+      const duration = endTime - startTime
+      setElapsedTime(duration)
+      
       // Show warning if documents were selected but no context found
       if (result && typeof result === 'object' && 'warning' in result && result.warning) {
         toast({
@@ -241,10 +265,13 @@ export function AutoLabelingConfig({
       } else {
         toast({
           title: "Auto-Labeling Started",
-          description: "The batch is now being labeled automatically. Check the status below.",
+          description: `The batch is now being labeled automatically in ${(duration / 1000).toFixed(2)}s. Check the status below.`,
         })
       }
     } catch (error: any) {
+      const endTime = Date.now()
+      const duration = labelStartTime ? endTime - labelStartTime : 0
+      setElapsedTime(duration)
       toast({
         title: "Failed to Start Auto-Labeling",
         description: error.message || "An error occurred while starting auto-labeling",
@@ -252,6 +279,7 @@ export function AutoLabelingConfig({
       })
     } finally {
       setLoading(false)
+      setLabelStartTime(null)
     }
   }
 
@@ -663,27 +691,39 @@ export function AutoLabelingConfig({
 
           {/* Submit Button */}
           <div className="pt-4 border-t">
-            <Button
-              type="submit"
-              disabled={disabled || loading || !apiKey.trim() || !contextColumn.trim()}
-              className="w-full"
-              size="lg"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Starting Auto-Labeling...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  Start Auto-Labeling
-                </>
+            <div className="space-y-2">
+              <Button
+                type="submit"
+                disabled={disabled || loading || !apiKey.trim() || !contextColumn.trim()}
+                className="w-full"
+                size="lg"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Starting Auto-Labeling...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Start Auto-Labeling
+                  </>
+                )}
+              </Button>
+              {loading && (
+                <p className="text-xs text-center text-muted-foreground font-mono">
+                  Elapsed time: {elapsedTime > 0 ? `${(elapsedTime / 1000).toFixed(1)}s` : "0.0s"}
+                </p>
               )}
-            </Button>
-            <p className="text-xs text-center text-muted-foreground mt-2">
-              The labeling process will run in the background. Check the Status tab to monitor progress.
-            </p>
+              {!loading && elapsedTime > 0 && (
+                <p className="text-xs text-center text-muted-foreground font-mono">
+                  Started in {(elapsedTime / 1000).toFixed(1)}s
+                </p>
+              )}
+              <p className="text-xs text-center text-muted-foreground mt-2">
+                The labeling process will run in the background. Check the Status tab to monitor progress.
+              </p>
+            </div>
           </div>
         </form>
       </CardContent>
