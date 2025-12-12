@@ -8,10 +8,7 @@ COPY . .
 
 RUN mv ./entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
-<<<<<<< HEAD
-=======
 
->>>>>>> 4bfa83a79849bce74245a4ab019ed63cc6b7da87
 ARG NEXT_PUBLIC_API_BASE
 ARG NEXT_PUBLIC_SITE_URL
 
