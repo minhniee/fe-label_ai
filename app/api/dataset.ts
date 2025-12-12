@@ -115,7 +115,7 @@ export async function getDatasets(projectId?: number) {
   try {
     const params = projectId ? { project_id: projectId } : {}
     console.log("[API getDatasets] Calling with params:", params, "projectId:", projectId);
-    const response = await api.get<Dataset[]>(`/datasets`, {
+    const response = await api.get<Dataset[]>(`/datasets/`, {
       params
     })
     console.log("[API getDatasets] Response:", response.data?.length, "datasets");
@@ -142,7 +142,7 @@ export async function getDataset(datasetId: number): Promise<Dataset> {
 // Create dataset
 export async function createDataset(name: string, description?: string) {
   try {
-    const response = await api.post<Dataset>(`/datasets`, 
+    const response = await api.post<Dataset>(`/datasets/`, 
       { name, description: description || "" }, 
       {
       }
