@@ -36,6 +36,8 @@ export default function VerifyOTPPage() {
   const [isResending, setIsResending] = useState(false)
   const [error, setError] = useState("")
   const [mounted, setMounted] = useState(false)
+  const [codeExpiresIn, setCodeExpiresIn] = useState(0)
+  const [blockTimeLeft, setBlockTimeLeft] = useState(0)
 
   useEffect(() => {
     setMounted(true);
@@ -46,6 +48,17 @@ export default function VerifyOTPPage() {
 
     // Get email from sessionStorage
     const pendingEmail = sessionStorage.getItem("pending_email")
+    const expiresAtRaw = sessionStorage.getItem("otp_expires_at")
+    if (expiresAtRaw) {
+      const expiresAt = parseInt(expiresAtRaw, 10)
+      const remaining = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000))
+      setCodeExpiresIn(remaining || 0)
+    } else {
+      // Default 3 minutes if not present
+      setCodeExpiresIn(180)
+      sessionStorage.setItem("otp_expires_at", (Date.now() + 180000).toString())
+    }
+
     if (!pendingEmail) {
       // No pending email, redirect to register
       router.push("/register")
@@ -54,11 +67,45 @@ export default function VerifyOTPPage() {
     setEmail(pendingEmail)
   }, [router, mounted])
 
+  // Countdown timers
+  useEffect(() => {
+    if (codeExpiresIn <= 0) return
+    const timer = setInterval(() => {
+      setCodeExpiresIn((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [codeExpiresIn])
+
+  useEffect(() => {
+    if (blockTimeLeft <= 0) return
+    const timer = setInterval(() => {
+      setBlockTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [blockTimeLeft])
+
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault()
     
     if (otp.length !== 6) {
       setError("Please enter a 6-digit code")
+      return
+    }
+
+    if (codeExpiresIn <= 0) {
+      toast.error("Verification code has expired. Please resend a new code.")
       return
     }
 
@@ -69,9 +116,16 @@ export default function VerifyOTPPage() {
       await verifyOTP(email, otp)
       // Clear pending email
       sessionStorage.removeItem("pending_email")
+      sessionStorage.removeItem("otp_expires_at")
       toast.success("Email verified successfully! You can now login.")
       router.push("/login")
     } catch (err: any) {
+      const message = err?.message || "Invalid verification code. Please try again."
+      const lower = message.toLowerCase()
+      if (lower.includes("too many incorrect attempts") || lower.includes("blocked")) {
+        setBlockTimeLeft(300)
+        toast.error("Too many incorrect attempts. Please wait 5 minutes before retrying.")
+      }
       setError(err?.message || "Invalid verification code. Please try again.")
       setOtp("") // Clear OTP on error
     } finally {
@@ -93,6 +147,11 @@ export default function VerifyOTPPage() {
       await resendOTP(email)
       toast.success("Verification code has been resent to your email.")
       setOtp("") // Clear current OTP
+      setCodeExpiresIn(180)
+      sessionStorage.setItem("otp_expires_at", (Date.now() + 180000).toString())
+      if (blockTimeLeft > 0) {
+        setBlockTimeLeft(0)
+      }
     } catch (err: any) {
       setError(err?.message || "Failed to resend code. Please try again.")
     } finally {
@@ -150,7 +209,11 @@ export default function VerifyOTPPage() {
                     </InputOTP>
                   </div>
                   <FieldDescription className="text-center">
-                    Enter the 6-digit code sent to your email.
+                    {blockTimeLeft > 0
+                      ? `Too many attempts. Please wait ${Math.floor(blockTimeLeft / 60)}:${(blockTimeLeft % 60).toString().padStart(2, "0")} before trying again.`
+                      : codeExpiresIn > 0
+                      ? `Code expires in ${Math.floor(codeExpiresIn / 60)}:${(codeExpiresIn % 60).toString().padStart(2, "0")}.`
+                      : "Verification code has expired. Please resend to get a new code."}
                   </FieldDescription>
                   {error && (
                     <p className="text-sm text-destructive mt-2">{error}</p>
@@ -159,7 +222,7 @@ export default function VerifyOTPPage() {
 
                 <FieldGroup>
                   <Field>
-                    <Button type="submit" className="w-full" disabled={isVerifying || otp.length !== 6}>
+                    <Button type="submit" className="w-full" disabled={isVerifying || otp.length !== 6 || codeExpiresIn <= 0 || blockTimeLeft > 0}>
                       {isVerifying ? "Verifying..." : "Verify"}
                     </Button>
                     <FieldDescription className="text-center mt-4">
@@ -167,7 +230,7 @@ export default function VerifyOTPPage() {
                       <button
                         type="button"
                         onClick={handleResend}
-                        disabled={isResending}
+                        disabled={isResending || blockTimeLeft > 0}
                         className="text-primary hover:text-primary/80 underline-offset-4 hover:underline disabled:opacity-50"
                       >
                         {isResending ? "Resending..." : "Resend"}

@@ -161,6 +161,8 @@ export default function RegisterPage() {
 
       // Store email temporarily for OTP verification
       sessionStorage.setItem("pending_email", formData.email)
+      // Track OTP expiry (3 minutes)
+      sessionStorage.setItem("otp_expires_at", (Date.now() + 180000).toString())
       
       // Redirect to OTP verification page
       router.push("/verify-otp")

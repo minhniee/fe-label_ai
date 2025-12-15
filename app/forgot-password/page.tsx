@@ -30,6 +30,7 @@ export default function ForgotPasswordPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState("")
   const [resendAvailableIn, setResendAvailableIn] = useState(0)
+  const [codeExpireIn, setCodeExpireIn] = useState(0)
   const [isSuccess, setIsSuccess] = useState(false)
 
   // Countdown timer
@@ -47,6 +48,21 @@ export default function ForgotPasswordPage() {
       return () => clearInterval(timer)
     }
   }, [resendAvailableIn])
+
+  useEffect(() => {
+    if (codeExpireIn > 0) {
+      const timer = setInterval(() => {
+        setCodeExpireIn((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer)
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+      return () => clearInterval(timer)
+    }
+  }, [codeExpireIn])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -79,11 +95,13 @@ export default function ForgotPasswordPage() {
       
       setIsSuccess(true)
       setResendAvailableIn(response.resendAvailableIn)
+      setCodeExpireIn(response.expireIn ?? 180)
       toast.success("Password reset code has been sent to your email")
       
       // Store email in sessionStorage for next step
       if (typeof window !== "undefined") {
         sessionStorage.setItem("reset_password_email", normalizedEmail)
+        sessionStorage.setItem("reset_password_expires_at", (Date.now() + (response.expireIn ?? 180) * 1000).toString())
         console.log('💾 [FORGOT_PASSWORD_PAGE] Email stored in sessionStorage:', normalizedEmail)
       }
     } catch (err: any) {
@@ -132,7 +150,7 @@ export default function ForgotPasswordPage() {
             <CardContent className="space-y-4">
               <div className="text-center space-y-2">
                 <p className="text-sm text-muted-foreground">
-                  The code will expire in 5 minutes.
+                  The code will expire in {codeExpireIn > 0 ? `${Math.floor(codeExpireIn / 60)}:${(codeExpireIn % 60).toString().padStart(2, "0")}` : "3:00"} minutes.
                 </p>
                 {resendAvailableIn > 0 && (
                   <p className="text-sm text-muted-foreground">

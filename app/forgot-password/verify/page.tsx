@@ -37,6 +37,8 @@ export default function VerifyResetOTPPage() {
   const [error, setError] = useState("")
   const [resendAvailableIn, setResendAvailableIn] = useState(0)
   const [mounted, setMounted] = useState(false)
+  const [codeExpiresIn, setCodeExpiresIn] = useState(0)
+  const [blockTimeLeft, setBlockTimeLeft] = useState(0)
 
   useEffect(() => {
     setMounted(true);
@@ -59,11 +61,48 @@ export default function VerifyResetOTPPage() {
   }, [resendAvailableIn, mounted])
 
   useEffect(() => {
+    if (codeExpiresIn <= 0) return;
+    const timer = setInterval(() => {
+      setCodeExpiresIn((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [codeExpiresIn])
+
+  useEffect(() => {
+    if (blockTimeLeft <= 0) return;
+    const timer = setInterval(() => {
+      setBlockTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [blockTimeLeft])
+
+  useEffect(() => {
     if (!mounted) return;
 
     console.log('🔐 [FORGOT_PASSWORD_VERIFY] Component mounted, checking sessionStorage...')
     // Get email from sessionStorage
     const resetEmail = sessionStorage.getItem("reset_password_email")
+    const expiresAtRaw = sessionStorage.getItem("reset_password_expires_at")
+    if (expiresAtRaw) {
+      const expiresAt = parseInt(expiresAtRaw, 10)
+      const remaining = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000))
+      setCodeExpiresIn(remaining || 0)
+    } else {
+      setCodeExpiresIn(180)
+      sessionStorage.setItem("reset_password_expires_at", (Date.now() + 180000).toString())
+    }
     if (!resetEmail) {
       console.warn('⚠️  [FORGOT_PASSWORD_VERIFY] No email found in sessionStorage, redirecting to forgot password page')
       // No email found, redirect to forgot password
@@ -88,6 +127,11 @@ export default function VerifyResetOTPPage() {
       return
     }
 
+    if (codeExpiresIn <= 0) {
+      toast.error("Verification code has expired. Please resend a new code.")
+      return
+    }
+
     setIsVerifying(true)
     setError("")
 
@@ -102,6 +146,7 @@ export default function VerifyResetOTPPage() {
       // Store reset token in sessionStorage
       if (typeof window !== "undefined") {
         sessionStorage.setItem("reset_token", response.resetToken)
+        sessionStorage.removeItem("reset_password_expires_at")
         console.log('💾 [FORGOT_PASSWORD_VERIFY] Reset token stored in sessionStorage')
       }
       toast.success("Code verified successfully!")
@@ -109,7 +154,13 @@ export default function VerifyResetOTPPage() {
       router.push("/forgot-password/reset")
     } catch (err: any) {
       console.error('❌ [FORGOT_PASSWORD_VERIFY] OTP verification failed:', err)
-      setError(err?.message || "Invalid verification code. Please try again.")
+      const message = err?.message || "Invalid verification code. Please try again."
+      const lower = message.toLowerCase()
+      if (lower.includes("too many incorrect attempts") || lower.includes("blocked")) {
+        setBlockTimeLeft(300)
+        toast.error("Too many incorrect attempts. Please wait 5 minutes before retrying.")
+      }
+      setError(message)
       setOtp("") // Clear OTP on error
     } finally {
       setIsVerifying(false)
@@ -139,6 +190,8 @@ export default function VerifyResetOTPPage() {
       const response = await requestPasswordReset(email)
       console.log('✅ [FORGOT_PASSWORD_VERIFY] Resend successful:', response)
       setResendAvailableIn(response.resendAvailableIn)
+      setCodeExpiresIn(response.expireIn ?? 180)
+      sessionStorage.setItem("reset_password_expires_at", (Date.now() + (response.expireIn ?? 180) * 1000).toString())
       toast.success("Verification code has been resent to your email.")
       setOtp("") // Clear current OTP
       console.log('🧹 [FORGOT_PASSWORD_VERIFY] OTP cleared from input')
@@ -199,7 +252,11 @@ export default function VerifyResetOTPPage() {
                     </InputOTP>
                   </div>
                   <FieldDescription className="text-center">
-                    Enter the 6-digit code sent to your email.
+                    {blockTimeLeft > 0
+                      ? `Too many attempts. Please wait ${Math.floor(blockTimeLeft / 60)}:${(blockTimeLeft % 60).toString().padStart(2, "0")} before trying again.`
+                      : codeExpiresIn > 0
+                      ? `Code expires in ${Math.floor(codeExpiresIn / 60)}:${(codeExpiresIn % 60).toString().padStart(2, "0")}.`
+                      : "Verification code has expired. Please resend to get a new code."}
                   </FieldDescription>
                   {error && (
                     <p className="text-sm text-destructive mt-2 text-center">{error}</p>
@@ -211,7 +268,7 @@ export default function VerifyResetOTPPage() {
                     <Button
                       type="submit"
                       className="w-full"
-                      disabled={isVerifying || otp.length !== 6}
+                      disabled={isVerifying || otp.length !== 6 || codeExpiresIn <= 0 || blockTimeLeft > 0}
                     >
                       {isVerifying ? "Verifying..." : "Verify"}
                     </Button>
@@ -220,7 +277,7 @@ export default function VerifyResetOTPPage() {
                       <button
                         type="button"
                         onClick={handleResend}
-                        disabled={isResending || resendAvailableIn > 0}
+                        disabled={isResending || resendAvailableIn > 0 || blockTimeLeft > 0}
                         className="text-primary hover:text-primary/80 underline-offset-4 hover:underline disabled:opacity-50"
                       >
                         {isResending
