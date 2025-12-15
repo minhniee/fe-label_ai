@@ -46,16 +46,20 @@ export function AutoLabelingConfig({
   const [contextColumn, setContextColumn] = useState(initialConfig?.context_column || "")
   const [resultColumn, setResultColumn] = useState(initialConfig?.result_column || "")
   const [referenceContext, setReferenceContext] = useState(initialConfig?.reference_context || "")
-  const [embeddingProvider, setEmbeddingProvider] = useState(initialConfig?.embedding_provider || "gemini")
+  const [embeddingProvider, setEmbeddingProvider] = useState(initialConfig?.embedding_provider || "local")
   const [embeddingApiKey, setEmbeddingApiKey] = useState(initialConfig?.embedding_api_key || "")
-  const [embeddingModel, setEmbeddingModel] = useState(initialConfig?.embedding_model || "")
+  const [embeddingModel, setEmbeddingModel] = useState(initialConfig?.embedding_model || "keepitreal/vietnamese-sbert")
   const [documentIds, setDocumentIds] = useState<number[]>(initialConfig?.document_ids || [])
   const [promptType, setPromptType] = useState(initialConfig?.prompt_type || "auto_labeling")
   const [embeddingConfig, setEmbeddingConfig] = useState<{
     provider: string
     apiKey?: string
     model?: string
-  }>({ provider: embeddingProvider })
+  }>({
+    provider: embeddingProvider,
+    apiKey: embeddingApiKey || undefined,
+    model: embeddingModel || "keepitreal/vietnamese-sbert",
+  })
   const [hasDocuments, setHasDocuments] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [autoDetectedContext, setAutoDetectedContext] = useState<string | null>(null)
@@ -89,8 +93,7 @@ export function AutoLabelingConfig({
       const savedRAGSettings = localStorage.getItem("rag_settings")
       if (savedRAGSettings) {
         const settings = JSON.parse(savedRAGSettings)
-        // Convert "local" to "gemini" if found
-        const provider = settings.provider === "local" ? "gemini" : (settings.provider || "gemini")
+        const provider = settings.provider || "local"
         if (!initialConfig?.embedding_provider && provider) {
           setEmbeddingProvider(provider)
           setEmbeddingConfig((prev) => ({ ...prev, provider }))
@@ -293,6 +296,20 @@ export function AutoLabelingConfig({
         <CardDescription>
           Configure AI model and settings to automatically label all files in this batch
         </CardDescription>
+        <div className="mt-3 grid grid-cols-1 gap-2 text-xs md:grid-cols-3">
+          <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2">
+            <Badge variant="secondary">Bước 1</Badge>
+            <span>Chọn model & API key</span>
+          </div>
+          <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2">
+            <Badge variant="secondary">Bước 2</Badge>
+            <span>Chọn cột Context/Result</span>
+          </div>
+          <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2">
+            <Badge variant="secondary">Bước 3</Badge>
+            <span>Thêm tài liệu (tùy chọn)</span>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -584,6 +601,16 @@ export function AutoLabelingConfig({
                   onDocumentsChange={handleDocumentsChange}
                   onSelectedDocumentsChange={handleSelectedDocumentsChange}
                 />
+                <div className="text-xs text-muted-foreground flex items-center gap-2">
+                  <CheckCircle2 className="h-3 w-3 text-green-500" />
+                  <span>
+                    {hasDocuments
+                      ? documentIds.length > 0
+                        ? `Đang chọn ${documentIds.length} tài liệu để RAG`
+                        : "Đã có tài liệu. Chọn tài liệu để bật RAG."
+                      : "Chưa có tài liệu. Tải lên để dùng RAG."}
+                  </span>
+                </div>
               </div>
             </>
           )}
@@ -606,8 +633,16 @@ export function AutoLabelingConfig({
               )}
             </button>
 
-            {showAdvanced && !hasDocuments && (
+            {showAdvanced && (
               <div className="space-y-4 p-4 border rounded-md bg-muted/30">
+                {hasDocuments && (
+                  <div className="text-xs text-muted-foreground bg-background border rounded-md p-3 flex items-start gap-2">
+                    <AlertCircle className="h-3.5 w-3.5 text-amber-500 mt-0.5" />
+                    <span>
+                      Bạn đã chọn tài liệu RAG. Có thể chỉnh provider/model nếu muốn override mặc định.
+                    </span>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <Label htmlFor="embeddingProvider">Embedding Provider</Label>
@@ -631,6 +666,12 @@ export function AutoLabelingConfig({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="local">
+                        <div className="flex items-center gap-2">
+                          <span>Local (SentenceTransformers)</span>
+                          <Badge variant="secondary" className="text-xs">No API key</Badge>
+                        </div>
+                      </SelectItem>
                       <SelectItem value="gemini">
                         <div className="flex items-center gap-2">
                           <span>Google Gemini</span>
@@ -638,33 +679,54 @@ export function AutoLabelingConfig({
                         </div>
                       </SelectItem>
                       <SelectItem value="openai">OpenAI</SelectItem>
-                      <SelectItem value="google">Google</SelectItem>
+                      <SelectItem value="qwen">Qwen</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="embeddingApiKey">Embedding API Key *</Label>
+                  <Label htmlFor="embeddingApiKey">Embedding API Key {embeddingConfig.provider !== "local" && "*"}</Label>
                   <Input
                     id="embeddingApiKey"
                     type="password"
-                    placeholder={embeddingConfig.provider === "gemini" ? "Enter Gemini API key" : embeddingConfig.provider === "openai" ? "Enter OpenAI API key" : "Enter Google API key"}
+                    placeholder={
+                      embeddingConfig.provider === "local"
+                        ? "Not required for local embeddings"
+                        : embeddingConfig.provider === "gemini"
+                          ? "Enter Gemini API key"
+                          : embeddingConfig.provider === "openai"
+                            ? "Enter OpenAI API key"
+                            : "Enter API key"
+                    }
                     value={embeddingConfig.apiKey || ""}
                     onChange={(e) => {
                       const newApiKey = e.target.value
                       setEmbeddingConfig((prev) => ({ ...prev, apiKey: newApiKey }))
                       setEmbeddingApiKey(newApiKey)
                     }}
-                    disabled={disabled || loading}
-                    required
+                    disabled={disabled || loading || embeddingConfig.provider === "local"}
+                    required={embeddingConfig.provider !== "local"}
                   />
+                  {embeddingConfig.provider === "local" && (
+                    <p className="text-xs text-muted-foreground">
+                      Local embeddings run on your machine; no API key needed.
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="embeddingModel">Embedding Model *</Label>
                   <Input
                     id="embeddingModel"
-                    placeholder={embeddingConfig.provider === "gemini" ? "e.g., models/text-embedding-004" : embeddingConfig.provider === "openai" ? "e.g., text-embedding-3-small" : "e.g., text-embedding-004"}
+                    placeholder={
+                      embeddingConfig.provider === "local"
+                        ? "e.g., keepitreal/vietnamese-sbert"
+                        : embeddingConfig.provider === "gemini"
+                          ? "e.g., models/text-embedding-004"
+                          : embeddingConfig.provider === "openai"
+                            ? "e.g., text-embedding-3-small"
+                            : "e.g., text-embedding-v2"
+                    }
                     value={embeddingConfig.model || ""}
                     onChange={(e) => {
                       const newModel = e.target.value

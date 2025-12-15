@@ -45,9 +45,9 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
   const [isIndexing, setIsIndexing] = useState(false)
   const [deletingDocId, setDeletingDocId] = useState<number | null>(null)
   const [showSettings, setShowSettings] = useState(false)
-  const [embeddingProvider, setEmbeddingProvider] = useState("gemini")
+  const [embeddingProvider, setEmbeddingProvider] = useState("local")
   const [embeddingApiKey, setEmbeddingApiKey] = useState("")
-  const [embeddingModel, setEmbeddingModel] = useState("models/text-embedding-004")
+  const [embeddingModel, setEmbeddingModel] = useState("keepitreal/vietnamese-sbert")
   const { toast } = useToast()
 
   // Use refs to avoid dependency issues with callbacks
@@ -150,6 +150,7 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
   useEffect(() => {
     // Set default model for providers if not set
     const defaultModels: Record<string, string> = {
+      local: "keepitreal/vietnamese-sbert",
       openai: "text-embedding-3-small",
       gemini: "models/text-embedding-004",
       qwen: "text-embedding-v2"
@@ -238,10 +239,11 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
     const documentIdsToIndex = selectedDocumentIds.length > 0 ? selectedDocumentIds : undefined
 
     // Validate embedding config
-    if (!embeddingApiKey) {
+    // API key is only required for non-local providers
+    if (embeddingProvider !== "local" && !embeddingApiKey) {
       toast({
         title: "Validation Error",
-        description: "API Key is required",
+        description: "API Key is required for this provider",
         variant: "destructive",
       })
       return
@@ -314,6 +316,12 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
 
   const getModelOptions = (provider: string) => {
     switch (provider) {
+      case "local":
+        return [
+          { value: "keepitreal/vietnamese-sbert", label: "Vietnamese SBERT" },
+          { value: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2", label: "Multilingual MiniLM L12" },
+          { value: "sentence-transformers/all-MiniLM-L6-v2", label: "MiniLM L6" },
+        ]
       case "openai":
         return [
           { value: "text-embedding-3-small", label: "text-embedding-3-small" },
@@ -331,7 +339,7 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
       default:
         return [
           { value: "keepitreal/vietnamese-sbert", label: "Vietnamese SBERT" },
-          { value: "paraphrase-multilingual-MiniLM-L12-v2", label: "Multilingual MiniLM" },
+          { value: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2", label: "Multilingual MiniLM L12" },
         ]
     }
   }
@@ -511,6 +519,7 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="local">Local (SentenceTransformers)</SelectItem>
                   <SelectItem value="openai">OpenAI</SelectItem>
                   <SelectItem value="gemini">Google Gemini</SelectItem>
                   <SelectItem value="qwen">Qwen</SelectItem>
@@ -519,14 +528,20 @@ export function DocumentRAGManager({ projectId, onEmbeddingConfigChange, onDocum
             </div>
 
             <div>
-              <Label>API Key *</Label>
+              <Label>API Key {embeddingProvider !== "local" && "*"}</Label>
               <Input
                 type="password"
                 value={embeddingApiKey}
                 onChange={(e) => setEmbeddingApiKey(e.target.value)}
-                placeholder="Enter API key"
-                required
+                placeholder={embeddingProvider === "local" ? "Not required for local embeddings" : "Enter API key"}
+                required={embeddingProvider !== "local"}
+                disabled={embeddingProvider === "local"}
               />
+              {embeddingProvider === "local" && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Local embeddings run on your machine - no API key needed
+                </p>
+              )}
             </div>
             <div>
               <Label>Model *</Label>
