@@ -423,9 +423,19 @@ export function DataGrid({
       if (extraCorrectedValues && typeof extraCorrectedValues === 'object') {
         Object.keys(extraCorrectedValues).forEach((colName) => {
           const correctedValue = extraCorrectedValues[colName]
-          if (correctedValue !== null && correctedValue !== undefined) {
+          const currentValue = r[colName]
+
+          // Only apply auto-corrections to empty cells to avoid overwriting visible/user data
+          const isEmpty =
+            currentValue === null ||
+            currentValue === undefined ||
+            String(currentValue).trim() === ""
+
+          if (isEmpty && correctedValue !== null && correctedValue !== undefined) {
             updatedRow[colName] = String(correctedValue).trim()
-            console.log(`[handleConfirm] Row ${rowId}: Updating extra column '${colName}' with value '${correctedValue}'`)
+            console.log(
+              `[handleConfirm] Row ${rowId}: Updating empty extra column '${colName}' with value '${correctedValue}'`,
+            )
           }
         })
       }
@@ -601,7 +611,14 @@ export function DataGrid({
         if (extraCorrectedValues && typeof extraCorrectedValues === 'object') {
           Object.keys(extraCorrectedValues).forEach((colName) => {
             const correctedValue = extraCorrectedValues[colName]
-            if (correctedValue !== null && correctedValue !== undefined) {
+            const currentValue = row[colName]
+            const isEmpty =
+              currentValue === null ||
+              currentValue === undefined ||
+              String(currentValue).trim() === ""
+
+            // Avoid overwriting existing user/visible column values; only fill blanks
+            if (isEmpty && correctedValue !== null && correctedValue !== undefined) {
               updatedRow[colName] = String(correctedValue).trim()
             }
           })
