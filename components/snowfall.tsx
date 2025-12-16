@@ -50,7 +50,7 @@ export function SnowfallOverlay({
       flake.y = Math.random() * -height;
       // Bigger base size for more visible snowflakes
       flake.size = Math.random() * 4 + 3; // 3px - 7px base
-      flake.velY = Math.random() * 1.2 + 1.2;
+      flake.velY = Math.random() * 0.8 + 0.7; // Slower fall speed
       flake.opacity = Math.random() * 0.5 + 0.35;
     };
 
@@ -111,14 +111,42 @@ export function SnowfallOverlay({
         }
       }
 
-      // Draw bottom pile
+      // Smooth the snow pile for natural bumpy surface (not too smooth, keep some texture)
+      const smoothPile = (pile: number[]): number[] => {
+        const smoothed = [...pile];
+        const smoothRadius = 3; // Slightly wider smoothing for more natural look
+        for (let x = 0; x < width; x++) {
+          let sum = 0;
+          let count = 0;
+          for (let dx = -smoothRadius; dx <= smoothRadius; dx++) {
+            const nx = x + dx;
+            if (nx >= 0 && nx < width) {
+              // Weight center more for natural bumpy feel
+              const weight = dx === 0 ? 2 : 1;
+              sum += pile[nx] * weight;
+              count += weight;
+            }
+          }
+          if (count > 0) {
+            smoothed[x] = sum / count;
+          }
+        }
+        return smoothed;
+      };
+
+      const smoothedSnowPile = smoothPile(snowPileRef.current);
+
+      // Draw bottom pile - only at lower portion of screen with smooth bumpy surface
       ctx.fillStyle = color;
       ctx.beginPath();
       ctx.moveTo(0, height);
+      // Draw smooth line with natural bumps
       for (let x = 0; x < width; x++) {
-        ctx.lineTo(x, height - snowPileRef.current[x]);
+        ctx.lineTo(x, height - smoothedSnowPile[x]);
       }
       ctx.lineTo(width, height);
+      ctx.lineTo(0, height);
+      ctx.closePath();
       ctx.fill();
 
       // Draw form pile if form exists
@@ -146,12 +174,24 @@ export function SnowfallOverlay({
 
         let collided = false;
 
-        // Check collision with bottom pile
-        if (f.y >= height - snowPileRef.current[xi]) {
-          if (snowPileRef.current[xi] < maxSnowHeight) {
+        // Check collision with bottom pile - only accumulate in lower portion (bottom 200px)
+        const bottomAccumulationZone = 200;
+        const pileHeight = snowPileRef.current[xi] || 0;
+        const pileTopY = height - pileHeight;
+        
+        // Only accumulate if flake reaches bottom or existing pile, and within accumulation zone
+        if (f.y >= pileTopY && pileHeight < maxSnowHeight) {
+          // Only accumulate if we're in the bottom zone
+          const currentPileY = height - pileHeight;
+          if (currentPileY >= height - bottomAccumulationZone || f.y >= height - bottomAccumulationZone) {
             for (let k = -rangeSpread; k <= rangeSpread; k++) {
               const nx = xi + k;
-              if (nx >= 0 && nx < width) snowPileRef.current[nx] += f.size * 0.4;
+              if (nx >= 0 && nx < width) {
+                const currentHeight = snowPileRef.current[nx] || 0;
+                if (currentHeight < maxSnowHeight) {
+                  snowPileRef.current[nx] += f.size * 0.4;
+                }
+              }
             }
           }
           collided = true;
