@@ -276,13 +276,13 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
         isActive: pathname === `${projectPrefix}/dataset`,
         requiresProject: true,
       },
-      {
-        title: "Schema",
-        url: `${projectPrefix}/schema`,
-        icon: FileCode,
-        isActive: pathname === `${projectPrefix}/schema`,
-        requiresProject: true,
-      },
+      // {
+      //   title: "Schema",
+      //   url: `${projectPrefix}/schema`,
+      //   icon: FileCode,
+      //   isActive: pathname === `${projectPrefix}/schema`,
+      //   requiresProject: true,
+      // },
       {
         title: "Administrator",
         url: "/admin",
@@ -345,7 +345,7 @@ export function AppSidebar({ onLogout, ...props }: AppSidebarProps) {
     "Upload Data",
     "Annotate",
     "Dataset",
-    "Schema",
+    // "Schema",
   ]);
 
   // Group items: Admin

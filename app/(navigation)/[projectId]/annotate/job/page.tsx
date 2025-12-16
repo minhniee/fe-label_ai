@@ -99,6 +99,19 @@ export default function ProjectJobPage() {
     }
   }, [batchId, project]);
 
+  // Listen for page refresh event to reload team data
+  useEffect(() => {
+    const handlePageRefresh = () => {
+      if (project) {
+        loadPendingInvitations();
+        loadCollaborators();
+      }
+    };
+
+    window.addEventListener('page-refresh', handlePageRefresh);
+    return () => window.removeEventListener('page-refresh', handlePageRefresh);
+  }, [project]);
+
   // Derive current assignment display whenever assignments/collaborators change
   useEffect(() => {
     if (!batchData) {
@@ -484,9 +497,10 @@ export default function ProjectJobPage() {
       setSelectedReassignUserId(null);
       setSelectedReassignEmail(null);
       
+      // Refresh server components to reflect new assignment
+      router.refresh();
+      
       // Reload job data and audit logs to show history
-      // Add a small delay to ensure database commit is complete
-      await new Promise(resolve => setTimeout(resolve, 100));
       await loadJobData();
       
       const finalBatch = await getBatch(parseInt(batchId!));

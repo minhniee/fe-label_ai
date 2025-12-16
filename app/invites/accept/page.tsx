@@ -74,16 +74,21 @@ export default function AcceptInvitePage() {
           // Save project to localStorage for navigation
           setSelectedProject(project);
           
+          // Refresh server components to reflect new team member
+          router.refresh();
+          
           // Create slug and redirect to project annotate page
           const slug = projectToSlug(project);
           router.push(`/${slug}/annotate`);
         } else {
           // If project not found, redirect to projects page
+          router.refresh();
           router.push('/projects');
         }
       } catch (fetchError) {
         console.error("Failed to fetch project details:", fetchError);
         // Fallback: redirect to projects page
+        router.refresh();
         router.push('/projects');
       }
     } catch (err: any) {

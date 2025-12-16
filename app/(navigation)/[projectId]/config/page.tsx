@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +55,7 @@ import { toast } from "sonner";
 import { UserPlus, Mail, MoreVertical, X, Send, Loader2, Key } from "lucide-react";
 
 export default function ProjectConfigPage() {
+  const router = useRouter();
   const params = useParams();
   const { project } = useProjectFromSlug();
   const projectId = project?.id;
@@ -100,6 +101,19 @@ export default function ProjectConfigPage() {
     }
   }, [projectId]);
 
+  // Listen for page refresh event to reload team data
+  useEffect(() => {
+    const handlePageRefresh = () => {
+      if (projectId) {
+        loadInvitations();
+        loadCollaborators();
+      }
+    };
+
+    window.addEventListener('page-refresh', handlePageRefresh);
+    return () => window.removeEventListener('page-refresh', handlePageRefresh);
+  }, [projectId]);
+
   const loadCurrentUser = async () => {
     try {
       const user = await getMe();
@@ -115,6 +129,8 @@ export default function ProjectConfigPage() {
     try {
       const invitations = await listPendingInvitations(parseInt(projectId));
       setPendingInvitations(invitations);
+      // Refresh server components to reflect invitation changes
+      router.refresh();
     } catch (error: any) {
       console.error("Failed to load invitations:", error);
       toast.error("Failed to load invitations");
@@ -129,6 +145,8 @@ export default function ProjectConfigPage() {
     try {
       const collabs = await getProjectCollaborators(parseInt(projectId));
       setCollaborators(collabs);
+      // Refresh server components to reflect team member changes
+      router.refresh();
     } catch (error: any) {
       console.error("Failed to load collaborators:", error);
       toast.error("Failed to load team members");

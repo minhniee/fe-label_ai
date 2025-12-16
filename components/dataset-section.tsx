@@ -88,6 +88,9 @@ export default function DatasetSection() {
         .filter(Boolean) as DatasetJob[];
 
       setJobs(jobsWithCounts);
+      
+      // Refresh server components to reflect job changes
+      router.refresh();
     } catch (error: any) {
       console.error("Failed to load dataset jobs:", error);
       toast.error("Failed to load dataset jobs");

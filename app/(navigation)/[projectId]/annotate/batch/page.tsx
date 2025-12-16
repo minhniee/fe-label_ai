@@ -280,6 +280,18 @@ export default function ProjectBatchPage() {
     }
   }, [selectedOption, project]);
 
+  // Listen for page refresh event to reload team data
+  useEffect(() => {
+    const handlePageRefresh = () => {
+      if (project && selectedOption === "team") {
+        loadTeamData();
+      }
+    };
+
+    window.addEventListener('page-refresh', handlePageRefresh);
+    return () => window.removeEventListener('page-refresh', handlePageRefresh);
+  }, [project, selectedOption]);
+
   // Function to read CSV file and count rows from URL
   // Calculate rows per member
   const rowsPerMember = selectedMembers.length > 0 && totalRows > 0
@@ -612,6 +624,9 @@ export default function ProjectBatchPage() {
             try {
               await deleteBatch(parseInt(batchId));
               console.log(`Original batch ${batchId} deleted after distributing files`);
+              
+              // Refresh server components immediately after deleting batch
+              router.refresh();
             } catch (error: any) {
               console.error(`Failed to delete original batch ${batchId}:`, error);
               // Don't show error to user as distribution was successful
@@ -629,6 +644,8 @@ export default function ProjectBatchPage() {
               user_ids: actualUserIds,
             });
             toast.success(`Batch assigned to ${actualUserIds.length} team member(s)`);
+            // Refresh server components to reflect new assignments
+            router.refresh();
           } catch (error: any) {
             console.error("Failed to assign batch:", error);
             toast.error(error.message || "Failed to assign batch");
@@ -657,6 +674,9 @@ export default function ProjectBatchPage() {
         } else if (totalAssigned > 0) {
           toast.success(`Batch assigned to ${totalAssigned} team member(s)`);
         }
+
+        // Refresh server components to reflect new assignments and batch deletions
+        router.refresh();
 
         // Redirect to annotate page to see all jobs
         router.push(`/${projectSlug}/annotate`);

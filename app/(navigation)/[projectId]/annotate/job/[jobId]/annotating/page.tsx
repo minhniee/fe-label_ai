@@ -936,6 +936,9 @@ export default function JobLabelAIPage() {
           localStorage.removeItem(storageKey)
         }
         
+        // Refresh server components to reflect saved changes
+        router.refresh()
+        
         toast({
           title: "Success",
           description: `File saved successfully. ${modifiedRows.length} rows saved.`,

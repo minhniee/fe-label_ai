@@ -115,6 +115,9 @@ export default function AnnotatingSection() {
       ) as AnnotatingJob[];
       
       setJobs(jobsWithCounts);
+      
+      // Refresh server components to reflect job changes
+      router.refresh();
     } catch (error: any) {
       console.error('Failed to load annotating jobs:', error);
       if (showLoading) {
@@ -125,7 +128,7 @@ export default function AnnotatingSection() {
         setIsLoading(false);
       }
     }
-  }, [project]);
+  }, [project, router]);
 
   useEffect(() => {
     if (project) {

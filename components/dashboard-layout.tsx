@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "./ui/empty"
-import { Bell, Check, X } from "lucide-react"
+import { Bell, Check, X, RefreshCw } from "lucide-react"
 import { 
   getNotifications, 
   markNotificationRead, 
@@ -65,6 +65,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [notifications, setNotifications] = React.useState<NotificationResponse[]>([])
   const [unreadCount, setUnreadCount] = React.useState(0)
   const [loadingNotifications, setLoadingNotifications] = React.useState(false)
+  const [isRefreshing, setIsRefreshing] = React.useState(false)
   const [open, setOpen] = React.useState(false)
   const [storedProject, setStoredProjectState] = React.useState<Project | null>(null)
 
@@ -190,10 +191,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               }
               
               setSelectedProject(project)
+              
+              // Refresh server components to reflect new team member
+              router.refresh()
+              
               const slug = projectToSlug(project)
               router.push(`/${slug}/annotate`)
               toast.success("Invitation accepted! Welcome to the project.")
             } else {
+              router.refresh()
               router.push("/projects")
               toast.success("Invitation accepted!")
             }
@@ -392,7 +398,31 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               </BreadcrumbList>
             </Breadcrumb>
 
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-2">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                aria-label="Refresh" 
+                onClick={async () => {
+                  setIsRefreshing(true)
+                  
+                  // Dispatch custom event to notify all components to reload their data
+                  if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('page-refresh'))
+                  }
+                  
+                  router.refresh()
+                  // Also refresh notifications
+                  await fetchNotifications()
+                  // Small delay to show loading state
+                  setTimeout(() => setIsRefreshing(false), 500)
+                }}
+                disabled={isRefreshing}
+                className="relative"
+                title="Refresh page data"
+              >
+                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              </Button>
               <Popover open={open} onOpenChange={setOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="ghost" size="icon" aria-label="Notifications" className="relative">

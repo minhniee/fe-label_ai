@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useProjectFromSlug } from "@/hooks/use-project-from-slug";
 import { 
   // We only use backend for validation and some optional views;
@@ -37,6 +38,7 @@ import { useUserPermissions } from "@/hooks/use-user-permissions";
 import { Drawer, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle, DrawerDescription } from "@/components/ui/drawer";
 
 export default function ProjectSchemaPage() {
+  const router = useRouter();
   const { project } = useProjectFromSlug();
   const { canCreate, canUpdate, canDelete } = useUserPermissions();
   const [schemas, setSchemas] = useState<SchemaResponse[]>([]);
@@ -335,6 +337,8 @@ export default function ProjectSchemaPage() {
     try {
       await uploadSchemaFile(selectedSchema.schema_id, uploadFile, fileType);
       toast.success("File uploaded successfully");
+      // Refresh server components
+      router.refresh();
       setUploadFile(null);
       handleLoadFiles(selectedSchema.schema_id);
     } catch (error: any) {
@@ -346,6 +350,8 @@ export default function ProjectSchemaPage() {
     try {
       await deleteSchemaFile(fileId);
       toast.success("File deleted successfully");
+      // Refresh server components
+      router.refresh();
       if (selectedSchema) {
         handleLoadFiles(selectedSchema.schema_id);
       }

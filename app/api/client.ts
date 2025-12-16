@@ -101,6 +101,11 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
     
+    // Handle 403 Forbidden errors (user removed from project, no permission, etc.)
+    if (error.response?.status === 403) {
+      return handleForbiddenError();
+    }
+
     // Any status codes that falls outside the range of 2xx cause this function to trigger
     if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       // For auth endpoints (e.g., login), just bubble up the 401 to show proper message
@@ -198,6 +203,31 @@ function handleAuthError() {
     window.location.href = `/login?callback_url=${encodedCallbackUrl}`;
   }
   return Promise.reject(new Error('Unauthorized'));
+}
+
+function handleForbiddenError() {
+  // Handle 403 Forbidden errors (user removed from project, no permission, etc.)
+  if (typeof window !== 'undefined') {
+    console.error("Forbidden access - redirecting to projects page.");
+    
+    // Check if we're currently on a project page
+    const currentPath = window.location.pathname;
+    const isProjectPage = /^\/\d+-/.test(currentPath);
+    
+    if (isProjectPage) {
+      // User was removed from project or lost access
+      // Clear selected project from localStorage
+      try {
+        localStorage.removeItem('selectedProject');
+      } catch (e) {
+        console.error("Failed to clear selected project:", e);
+      }
+      
+      // Redirect to projects page
+      window.location.href = '/projects';
+    }
+  }
+  return Promise.reject(new Error('Forbidden'));
 }
 
 export default api;

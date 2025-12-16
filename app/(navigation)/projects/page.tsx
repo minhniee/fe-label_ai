@@ -215,6 +215,9 @@ export default function ProjectsPage() {
       // Reload projects
       await loadProjects();
       
+      // Refresh server components
+      router.refresh();
+      
       // Reset form and close dialog
       setNewProjectName("");
       setNewProjectDescription("");
@@ -251,6 +254,9 @@ export default function ProjectsPage() {
       
       // Reload projects
       await loadProjects();
+      
+      // Refresh server components
+      router.refresh();
       
       // Reset and close dialog
       setIsEditDialogOpen(false);
@@ -297,6 +303,9 @@ export default function ProjectsPage() {
       await createInvitation(parseInt(invitingProject.id), payload);
       toast.success(`Invitation sent to ${inviteEmail.trim()} successfully!`);
       
+      // Refresh server components
+      router.refresh();
+      
       // Close dialog and reset
       setIsInviteDialogOpen(false);
       setInvitingProject(null);
@@ -320,6 +329,9 @@ export default function ProjectsPage() {
       
       // Reload projects
       await loadProjects();
+      
+      // Refresh server components
+      router.refresh();
       
       // Close dialog
       setIsDeleteDialogOpen(false);

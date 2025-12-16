@@ -77,6 +77,9 @@ export default function UnassignedSection() {
         .filter(Boolean) as Batch[]
 
       setBatches(unassignedBatches)
+      
+      // Refresh server components to reflect batch changes
+      router.refresh()
     } catch (error: any) {
       console.error('Failed to load unassigned batches:', error)
       toast.error('Failed to load batches')
