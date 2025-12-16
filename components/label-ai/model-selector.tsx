@@ -265,6 +265,7 @@ export function ModelSelector({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="gemini-2.5-flash">Gemini Flash 2.5</SelectItem>
+                <SelectItem value="gemini-2.5-flash-lite">Gemini Flash 2.5 Lite</SelectItem>
                 <SelectItem value="gpt-4o">GPT-4o</SelectItem>
               </SelectContent>
             </Select>

@@ -123,8 +123,18 @@ export async function labelData(data: {
   embedding_api_key?: string
   embedding_model?: string
   document_ids?: number[]
+  prompt_type?: "fact_checking" | "auto_labeling"  // NEW: prompt type từ FE
 }) {
   try {
+    // Nếu có documents được chọn, mặc định dùng "auto_labeling"
+    // Nếu không có documents, mặc định dùng "fact_checking" (legacy mode)
+    const defaultPromptType = (data.document_ids && data.document_ids.length > 0) 
+      ? "auto_labeling" 
+      : "fact_checking"
+    
+    const promptTypeToSend = data.prompt_type || defaultPromptType
+    console.log(`[FE API] Sending labelData request with prompt_type='${promptTypeToSend}' (from FE, not backend override)`)
+    
     const response = await api.post(`/ai-labeling/label`, {
       rows: data.rows,
       model: data.model,
@@ -138,6 +148,7 @@ export async function labelData(data: {
       embedding_api_key: data.embedding_api_key,
       embedding_model: data.embedding_model,
       document_ids: data.document_ids,
+      prompt_type: promptTypeToSend,  // CHỈ DÙNG giá trị từ FE, backend sẽ không override
     })
     return response.data
   } catch (error: any) {
