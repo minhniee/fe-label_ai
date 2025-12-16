@@ -5,11 +5,14 @@ interface FPTLogoProps {
   size?: "sm" | "md" | "lg";
   showText?: boolean;
   href?: string;
+  /** If false, logo is not clickable and does not navigate */
+  clickable?: boolean;
 }
 
 export function FPTLogo({
   size = "md",
   href = "/projects",
+  clickable = true,
 }: FPTLogoProps) {
   const dimension = {
     sm: 100,
@@ -17,10 +20,12 @@ export function FPTLogo({
     lg: 140,
   }[size];
 
-  return (
-    <Link
-      href={href}
-      className="flex items-center gap-3 group cursor-pointer select-none"
+  const content = (
+    <div
+      className={
+        "flex items-center gap-3 select-none " +
+        (clickable ? "group cursor-pointer" : "cursor-default")
+      }
     >
       <Image
         src="/favicon.ico"
@@ -29,6 +34,16 @@ export function FPTLogo({
         height={dimension}
         priority
       />
+    </div>
+  );
+
+  if (!clickable) {
+    return content;
+  }
+
+  return (
+    <Link href={href}>
+      {content}
     </Link>
   );
 }

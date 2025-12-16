@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
+import { SnowfallOverlay } from "@/components/snowfall";
 import { FPTLogo } from "@/components/fpt-logo";
 import { LoginForm } from "@/components/login-form";
 import { getMe } from "@/app/api/auth";
@@ -73,16 +74,18 @@ export default function LoginPage() {
   }, [router, searchParams, mounted]);
 
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex relative overflow-hidden">
+      <SnowfallOverlay />
       {/* Left side - Login form (50%) */}
       <div className="w-1/2 relative flex flex-col justify-center p-8 bg-white">
         <div className="w-full max-w-md mx-auto">
           {/* Logo and Title */}
-          <div className="absolute top-8 left-1/2 -translate-x-1/2 text-center">
+          <div className="absolute top-8 left-1/2 -translate-x-1/2 text-center pointer-events-none">
             <div className="flex items-center justify-center mb-2">
               <FPTLogo
                 size="lg"
                 showText={true}
+                clickable={false}
               />
             </div>
             <p className="text-muted-foreground text-sm animate-fadeIn [animation-delay:200ms] opacity-0">
@@ -91,7 +94,7 @@ export default function LoginPage() {
           </div>
 
           {/* Login Form */}
-          <div className="mt-32">
+          <div className="mt-32" data-login-form>
             <LoginForm callbackUrl={callbackUrl} error={error} />
           </div>
         </div>
