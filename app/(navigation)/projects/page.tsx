@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Search, SlidersHorizontal, FolderPlus, Plus, MoreVertical, FileText, Pencil, UserPlus, Trash2 } from "lucide-react";
+import { Search, SlidersHorizontal, FolderPlus, Plus, MoreVertical, FileText, Pencil, UserPlus, Trash2, Sun, Moon } from "lucide-react";
+import quotesy from "quotesy";
 import { setSelectedProject, projectToSlug, type Project } from "@/types/project";
 import { 
   createProject, 
@@ -68,6 +69,10 @@ export default function ProjectsPage() {
   const [projectFileCounts, setProjectFileCounts] = useState<Record<string, number>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("date-edited");
+  const [displayName, setDisplayName] = useState<string>("");
+  const [quote, setQuote] = useState<string>("");
+  const [quoteAuthor, setQuoteAuthor] = useState<string>("");
+  const [isDaytime, setIsDaytime] = useState<boolean>(true);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
@@ -91,6 +96,46 @@ export default function ProjectsPage() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRoleId, setInviteRoleId] = useState<number>(5); // Default to Labeler
   const [isInviting, setIsInviting] = useState(false);
+
+  // Load user display name and fetch quote from quotesy (npm package)
+  useEffect(() => {
+    try {
+      const storedUser = typeof window !== "undefined" ? localStorage.getItem("user") : null;
+      if (storedUser) {
+        const user = JSON.parse(storedUser) as { username?: string; email?: string };
+        const nameFromUsername = user.username;
+        const nameFromEmail =
+          user.email && user.email.includes("@") ? user.email.split("@")[0] : undefined;
+        setDisplayName(nameFromUsername || nameFromEmail || "there");
+      } else {
+        setDisplayName("there");
+      }
+    } catch {
+      setDisplayName("there");
+    }
+
+    // Fetch random quote via quotesy; fallback to a static quote on error
+    try {
+      const random = quotesy.random();
+      setQuote(random?.text || "Quality labels are quiet, but their impact on your models is loud.");
+      setQuoteAuthor(random?.author || "");
+    } catch {
+      setQuote("Quality labels are quiet, but their impact on your models is loud.");
+      setQuoteAuthor("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Update icon based on current time (AM -> sun, PM -> moon)
+  useEffect(() => {
+    const computeDaytime = () => {
+      const hour = new Date().getHours();
+      setIsDaytime(hour >= 6 && hour < 18);
+    };
+    computeDaytime();
+    const id = setInterval(computeDaytime, 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     loadProjects();
@@ -345,11 +390,51 @@ export default function ProjectsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-foreground">Projects</h1>
-        <div className="flex items-center gap-2">
+    <div className="space-y-8">
+      {/* Welcome Hero Card */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-6 sm:px-8 sm:py-7 lg:px-10 lg:py-8 flex flex-col lg:flex-row items-stretch gap-6">
+        <div className="flex-1 flex flex-col justify-center gap-3">
+          <div className="inline-flex items-center gap-2 text-sm font-medium text-blue-600">
+            {isDaytime ? (
+              <Sun className="h-6 w-6 text-amber-400" />
+            ) : (
+              <Moon className="h-6 w-6 text-indigo-400" />
+            )}
+            <span>Welcome to Label-AI system</span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-slate-800 tracking-tight">
+            Hi, <span className="text-sky-700 font-semibold">{displayName}</span>
+          </h1>
+          {quote && (
+            <div className="mt-3 max-w-xl">
+              <div className="rounded-2xl bg-white shadow-sm px-4 py-3 flex items-start gap-3">
+                <span className="text-blue-500 text-lg leading-none">❝</span>
+                <div className="flex-1 space-y-1">
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    {quote}
+                  </p>
+                  {quoteAuthor && (
+                    <p className="text-xs text-muted-foreground">— {quoteAuthor}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="hidden sm:flex items-center justify-center lg:w-48">
+          <div className="h-28 w-28 lg:h-32 lg:w-32 rounded-full bg-gradient-to-br from-sky-200 to-indigo-300 opacity-70" />
+        </div>
+      </div>
+
+      {/* Header + Actions */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="space-y-1">
+          <h2 className="text-2xl font-semibold text-foreground">Projects</h2>
+          <p className="text-sm text-muted-foreground">
+            Create, organize, and collaborate on your labeling projects.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 self-start md:self-auto">
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button size="sm">
@@ -434,7 +519,7 @@ export default function ProjectsPage() {
       ) : (
         <>
           {/* Search and Sort Bar */}
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col md:flex-row md:items-center gap-4">
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input

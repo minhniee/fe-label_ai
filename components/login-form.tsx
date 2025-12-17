@@ -102,7 +102,15 @@ export function LoginForm({
         localStorage.removeItem('redirect_after_login')
       } catch {}
       
-      toast(`Welcomeback, ${displayName}!`, { duration: 3000 })
+      toast.success("Login success", {
+        description: `Welcome back, ${displayName}!`,
+        duration: 3000,
+        style: {
+          background: "#fff",
+          color: "#000",
+          border: "1px solid #e5e7eb",
+        },
+      })
 
       // Validate callbackUrl based on user role
       let redirectUrl = "/projects"; 

@@ -666,17 +666,19 @@ export default function AuditLogPage() {
                               )}
                             </TableCell>
                             <TableCell>
-                              {event.http_method ? (
+                              {event.http_method !== null &&
+                              event.http_method !== undefined &&
+                              event.http_method !== "" ? (
                                 <Badge variant="outline">{event.http_method}</Badge>
                               ) : (
-                                <span className="text-muted-foreground">-</span>
+                                <span className="text-muted-foreground">N/A</span>
                               )}
                             </TableCell>
                             <TableCell className="font-mono text-xs max-w-xs truncate">
                               {event.path || "-"}
                             </TableCell>
                             <TableCell>
-                              {event.status_code ? (
+                              {event.status_code !== null && event.status_code !== undefined ? (
                                 <Badge
                                   variant={
                                     event.status_code >= 200 && event.status_code < 300
@@ -689,7 +691,7 @@ export default function AuditLogPage() {
                                   {event.status_code}
                                 </Badge>
                               ) : (
-                                <span className="text-muted-foreground">-</span>
+                                <span className="text-muted-foreground">N/A</span>
                               )}
                             </TableCell>
                           </TableRow>
@@ -939,17 +941,19 @@ export default function AuditLogPage() {
                               )}
                             </TableCell>
                             <TableCell>
-                              {event.http_method ? (
+                              {event.http_method !== null &&
+                              event.http_method !== undefined &&
+                              event.http_method !== "" ? (
                                 <Badge variant="outline">{event.http_method}</Badge>
                               ) : (
-                                <span className="text-muted-foreground">-</span>
+                                <span className="text-muted-foreground">N/A</span>
                               )}
                             </TableCell>
                             <TableCell className="font-mono text-xs max-w-xs truncate">
                               {event.path || "-"}
                             </TableCell>
                             <TableCell>
-                              {event.status_code ? (
+                              {event.status_code !== null && event.status_code !== undefined ? (
                                 <Badge
                                   variant={
                                     event.status_code >= 200 && event.status_code < 300
@@ -962,7 +966,7 @@ export default function AuditLogPage() {
                                   {event.status_code}
                                 </Badge>
                               ) : (
-                                <span className="text-muted-foreground">-</span>
+                                <span className="text-muted-foreground">N/A</span>
                               )}
                             </TableCell>
                           </TableRow>

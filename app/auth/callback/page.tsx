@@ -75,11 +75,17 @@ export default function AuthCallbackPage() {
         } catch (e) {
           console.error("Failed to get user info:", e);
         }
-
-        // Show welcome toast (neutral, 3s)
+        
+        // Show welcome toast (success style, 3s)
         const resolvedName = displayName || "user";
-        toast(`Welcomeback, ${resolvedName}!`, {
+        toast.success("Login success", {
+          description: `Welcome back, ${resolvedName}!`,
           duration: 3000,
+          style: {
+            background: "#fff",
+            color: "#000",
+            border: "1px solid #e5e7eb",
+          },
         });
 
         // Check for saved redirect URL from Google login
