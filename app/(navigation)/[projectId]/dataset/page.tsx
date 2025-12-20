@@ -49,6 +49,7 @@ import {
   Upload,
   Layers,
   Columns,
+  Loader2,
 } from "lucide-react";
 import { useProjectFromSlug } from "@/hooks/use-project-from-slug";
 import {
@@ -564,7 +565,7 @@ export default function ProjectDatasetPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <p>Loading dataset files...</p>
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -930,7 +931,7 @@ export default function ProjectDatasetPage() {
                                         Columns
                                       </p>
                                       {isLoadingColumns ? (
-                                        <p className="text-sm text-muted-foreground">Loading columns...</p>
+                                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                                       ) : columns.length > 0 ? (
                                         <Popover>
                                           <PopoverTrigger asChild>

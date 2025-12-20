@@ -316,8 +316,17 @@ export default function ProjectJobPage() {
   };
 
   const handleSendInvitation = async () => {
-    if (!inviteEmail.trim()) {
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const trimmedEmail = inviteEmail.trim();
+    
+    if (!trimmedEmail) {
       toast.error("Please enter an email address");
+      return;
+    }
+
+    if (!emailRegex.test(trimmedEmail)) {
+      toast.error("Please enter a valid email address");
       return;
     }
 
@@ -335,11 +344,11 @@ export default function ProjectJobPage() {
       };
 
       await createInvitation(parseInt(project.id), {
-        email: inviteEmail,
+        email: trimmedEmail,
         role_id: roleMap[inviteRole] || 5,
       });
 
-      toast.success(`Invitation sent to ${inviteEmail}`);
+      toast.success(`Invitation sent to ${trimmedEmail}`);
 
       // Reload team data
       await loadPendingInvitations();
@@ -714,7 +723,7 @@ export default function ProjectJobPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <p>Loading job data...</p>
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -831,7 +840,7 @@ export default function ProjectJobPage() {
                         </p>
                       </div>
                       {isLoadingColumns ? (
-                        <div className="text-xs text-muted-foreground">Loading columns...</div>
+                        <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
                       ) : csvColumns.length > 0 ? (
                         <>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -912,6 +921,7 @@ export default function ProjectJobPage() {
                           <div className="flex gap-2">
                             <Input
                               id="invite-email"
+                              type="email"
                               placeholder="Email address"
                               value={inviteEmail}
                               onChange={(e) => setInviteEmail(e.target.value)}

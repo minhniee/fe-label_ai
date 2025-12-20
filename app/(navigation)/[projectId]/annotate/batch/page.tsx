@@ -713,8 +713,17 @@ export default function ProjectBatchPage() {
   };
 
   const handleSendInvitation = async () => {
-    if (!inviteEmail.trim()) {
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const trimmedEmail = inviteEmail.trim();
+    
+    if (!trimmedEmail) {
       toast.error("Please enter an email address");
+      return;
+    }
+
+    if (!emailRegex.test(trimmedEmail)) {
+      toast.error("Please enter a valid email address");
       return;
     }
 
@@ -732,11 +741,11 @@ export default function ProjectBatchPage() {
       };
 
       await createInvitation(parseInt(project.id), {
-        email: inviteEmail,
+        email: trimmedEmail,
         role_id: roleMap[inviteRole] || 5,
       });
 
-      toast.success(`Invitation sent to ${inviteEmail}`);
+      toast.success(`Invitation sent to ${trimmedEmail}`);
 
       // Reload team data
       await loadTeamData();
@@ -923,9 +932,8 @@ export default function ProjectBatchPage() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-muted-foreground">Loading batch data...</p>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -966,7 +974,7 @@ export default function ProjectBatchPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-[2fr_1fr] gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
         {/* Left: Batch Details */}
         <div className="space-y-4">
           {/* Batch Title and Info */}
@@ -981,7 +989,7 @@ export default function ProjectBatchPage() {
 
           {/* Files Grid */}
           {batchFiles.length > 0 ? (
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {batchFiles.map((file) => {
                 const fileName = (file as any).file_name || file.filename || '';
                 const isImage = file.file_type?.startsWith('image/') ||
@@ -1035,7 +1043,7 @@ export default function ProjectBatchPage() {
                             </div>
                             <div className="space-y-3">
                               {isLoadingFileColumns ? (
-                                <div className="text-xs text-muted-foreground">Loading columns...</div>
+                                <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
                               ) : columns.length > 0 ? (
                                 <>
                                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -1253,6 +1261,7 @@ export default function ProjectBatchPage() {
                       <div className="flex gap-2">
                         <Input
                           id="invite-email"
+                          type="email"
                           placeholder="Email address"
                           value={inviteEmail}
                           onChange={(e) => setInviteEmail(e.target.value)}

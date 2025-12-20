@@ -1150,9 +1150,8 @@ export default function JobLabelAIPage() {
         <main className="container mx-auto px-6 py-8">
           {loading ? (
             <Card className="p-12 text-center">
-              <div className="flex flex-col items-center gap-4">
+              <div className="flex items-center justify-center">
                 <Loader2 className="h-8 w-8 text-primary animate-spin" />
-                <p className="text-muted-foreground">Loading dataset...</p>
               </div>
             </Card>
           ) : data.length === 0 && !batchId ? (
@@ -1171,12 +1170,12 @@ export default function JobLabelAIPage() {
                     <Button
                       variant="outline"
                       size="icon"
-                      className="fixed right-4 top-20 z-40 shadow-lg"
+                      className="fixed right-4 top-20 z-40 shadow-lg md:right-6"
                     >
                       <Settings2 className="h-5 w-5" />
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-80 p-4" align="end" side="left">
+                  <PopoverContent className="w-[calc(100vw-2rem)] max-w-80 p-4" align="end" side="left">
                     <div className="space-y-4">
                       <div className="flex items-center gap-2 pb-2 border-b">
                         <Settings2 className="h-4 w-4" />
@@ -1217,7 +1216,7 @@ export default function JobLabelAIPage() {
                             </div>
                           </div>
 
-                          <div className="space-y-2 pb-3 border-b">
+                          {/* <div className="space-y-2 pb-3 border-b">
                             <div className="flex items-center gap-2">
                               <Switch 
                                 id="sidebar-reference-docs" 
@@ -1228,33 +1227,9 @@ export default function JobLabelAIPage() {
                                 Reference Documents
                               </Label>
                             </div>
-                          </div>
+                          </div> */}
                         </>
                       )}
-
-                      <div className="space-y-2 pb-3 border-b">
-                        <Label className="text-xs font-medium text-muted-foreground">Search</Label>
-                        <div className="space-y-2">
-                          <div className="relative w-full">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
-                            <Input
-                              type="text"
-                              placeholder="Text search..."
-                              value={searchQuery}
-                              onChange={(e) => setSearchQuery(e.target.value)}
-                              className="pl-10 pr-10 h-9 text-sm"
-                            />
-                            {searchQuery && (
-                              <button
-                                onClick={() => setSearchQuery("")}
-                                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                              >
-                                <X className="h-4 w-4" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
 
                       {currentFileId && (
                         <div className="space-y-2 pb-3 border-b">
@@ -1292,10 +1267,7 @@ export default function JobLabelAIPage() {
                             size="sm"
                           >
                             {historyLoading ? (
-                              <>
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                Loading history...
-                              </>
+                              <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
                               <>
                                 <History className="h-4 w-4" />
@@ -1355,8 +1327,8 @@ export default function JobLabelAIPage() {
                   </PopoverContent>
                 </Popover>
               )}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex flex-wrap items-center gap-2 md:gap-4">
                   {batchId ? (
                     <>
                       <Button 
@@ -1371,32 +1343,33 @@ export default function JobLabelAIPage() {
                         }}
                       >
                         <ArrowLeft className="h-4 w-4 mr-2" />
-                        Back to Job
+                        <span className="hidden sm:inline">Back to Job</span>
+                        <span className="sm:hidden">Back</span>
                       </Button>
-                      <div className="h-8 w-px bg-border" />
-                      <div>
-                        <p className="text-sm text-muted-foreground">Batch</p>
-                        <p className="font-mono text-sm font-medium">{datasetName}</p>
+                      <div className="hidden md:block h-8 w-px bg-border" />
+                      <div className="hidden sm:block">
+                        <p className="text-xs sm:text-sm text-muted-foreground">Batch</p>
+                        <p className="font-mono text-xs sm:text-sm font-medium truncate max-w-[120px] md:max-w-none">{datasetName}</p>
                       </div>
-                      <div className="h-8 w-px bg-border" />
-                      <div>
-                        <p className="text-sm text-muted-foreground">File</p>
-                        <p className="font-mono text-sm font-medium">
+                      <div className="hidden md:block h-8 w-px bg-border" />
+                      <div className="hidden sm:block">
+                        <p className="text-xs sm:text-sm text-muted-foreground">File</p>
+                        <p className="font-mono text-xs sm:text-sm font-medium">
                           {currentFileIndex + 1} / {batchFiles.length}
                         </p>
                       </div>
                       {batchFiles[currentFileIndex] && (
                         <>
-                          <div className="h-8 w-px bg-border" />
-                          <div>
-                            <p className="text-sm text-muted-foreground">Current File</p>
-                            <p className="font-mono text-sm font-medium">
+                          <div className="hidden lg:block h-8 w-px bg-border" />
+                          <div className="hidden lg:block">
+                            <p className="text-xs sm:text-sm text-muted-foreground">Current File</p>
+                            <p className="font-mono text-xs sm:text-sm font-medium truncate max-w-[150px] xl:max-w-none">
                               {batchFiles[currentFileIndex].filename}
                             </p>
                           </div>
                         </>
                       )}
-                      <div className="h-8 w-px bg-border" />
+                      <div className="hidden md:block h-8 w-px bg-border" />
                       <div className="flex items-center gap-2">
                         <Button
                           variant="outline"
@@ -1404,7 +1377,8 @@ export default function JobLabelAIPage() {
                           onClick={handlePreviousFile}
                           disabled={currentFileIndex === 0}
                         >
-                          Previous File
+                          <span className="hidden sm:inline">Previous File</span>
+                          <span className="sm:hidden">Prev</span>
                         </Button>
                         <Button
                           variant="outline"
@@ -1412,7 +1386,8 @@ export default function JobLabelAIPage() {
                           onClick={handleNextFile}
                           disabled={currentFileIndex === batchFiles.length - 1}
                         >
-                          Next File
+                          <span className="hidden sm:inline">Next File</span>
+                          <span className="sm:hidden">Next</span>
                         </Button>
                       </div>
                     </>
@@ -1420,31 +1395,33 @@ export default function JobLabelAIPage() {
                     <>
                       <Button variant="outline" size="sm" onClick={handleReset}>
                         <ArrowLeft className="h-4 w-4 mr-2" />
-                        Back to Datasets
+                        <span className="hidden sm:inline">Back to Datasets</span>
+                        <span className="sm:hidden">Back</span>
                       </Button>
-                      <div className="h-8 w-px bg-border" />
-                      <div>
-                        <p className="text-sm text-muted-foreground">Dataset</p>
-                        <p className="font-mono text-sm font-medium">{datasetName}</p>
+                      <div className="hidden md:block h-8 w-px bg-border" />
+                      <div className="hidden sm:block">
+                        <p className="text-xs sm:text-sm text-muted-foreground">Dataset</p>
+                        <p className="font-mono text-xs sm:text-sm font-medium truncate max-w-[120px] md:max-w-none">{datasetName}</p>
                       </div>
-                      <div className="h-8 w-px bg-border" />
-                      <div>
-                        <p className="text-sm text-muted-foreground">Total rows</p>
-                        <p className="font-mono text-sm font-medium">{data.length}</p>
+                      <div className="hidden md:block h-8 w-px bg-border" />
+                      <div className="hidden sm:block">
+                        <p className="text-xs sm:text-sm text-muted-foreground">Total rows</p>
+                        <p className="font-mono text-xs sm:text-sm font-medium">{data.length}</p>
                       </div>
-                      <div className="h-8 w-px bg-border" />
-                      <div>
-                        <p className="text-sm text-muted-foreground">Columns</p>
-                        <p className="font-mono text-sm font-medium">{columns.length}</p>
+                      <div className="hidden md:block h-8 w-px bg-border" />
+                      <div className="hidden sm:block">
+                        <p className="text-xs sm:text-sm text-muted-foreground">Columns</p>
+                        <p className="font-mono text-xs sm:text-sm font-medium">{columns.length}</p>
                       </div>
                     </>
                   )}
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex flex-wrap items-center gap-2 md:gap-4">
                   <div className="flex items-center gap-2">
                     <Switch id="manual-mode" checked={manualMode} onCheckedChange={setManualMode} />
-                    <Label htmlFor="manual-mode" className="cursor-pointer">
-                      Manual Labeling Mode
+                    <Label htmlFor="manual-mode" className="cursor-pointer text-xs sm:text-sm">
+                      <span className="hidden sm:inline">Manual Labeling Mode</span>
+                      <span className="sm:hidden">Manual</span>
                     </Label>
                   </div>
                   {currentFileId && (
@@ -1454,16 +1431,18 @@ export default function JobLabelAIPage() {
                         disabled={saving || data.length === 0}
                         className="gap-2"
                         variant={data.filter(row => row._isModified).length > 0 ? "default" : "outline"}
+                        size="sm"
                       >
                         {saving ? (
                           <>
                             <Loader2 className="h-4 w-4 animate-spin" />
-                            Saving...
+                            <span className="hidden sm:inline">Saving...</span>
                           </>
                         ) : (
                           <>
                             <Save className="h-4 w-4" />
-                            Save File
+                            <span className="hidden sm:inline">Save File</span>
+                            <span className="sm:hidden">Save</span>
                             {data.filter(row => row._isModified).length > 0 && (
                               <span className="ml-1 px-1.5 py-0.5 text-xs bg-primary/20 rounded">
                                 {data.filter(row => row._isModified).length}
@@ -1473,7 +1452,7 @@ export default function JobLabelAIPage() {
                         )}
                       </Button>
                       {hasUnsavedChanges && (
-                        <p className="text-xs text-orange-600 dark:text-orange-400">
+                        <p className="hidden md:block text-xs text-orange-600 dark:text-orange-400">
                           Unsaved changes{lastLocalDraftSavedAt && (
                             <span className="ml-1 text-[11px] text-muted-foreground">
                               (draft saved locally {lastLocalDraftSavedAt.toLocaleTimeString()})
@@ -1486,9 +1465,11 @@ export default function JobLabelAIPage() {
                           onClick={handleMarkJobCompleted}
                           className="gap-2"
                           variant="default"
+                          size="sm"
                         >
                           <CheckCircle2 className="h-4 w-4" />
-                          Mark Job Completed
+                          <span className="hidden sm:inline">Mark Job Completed</span>
+                          <span className="sm:hidden">Complete</span>
                         </Button>
                       ) : (
                         <Button
@@ -1496,9 +1477,11 @@ export default function JobLabelAIPage() {
                           disabled={completing}
                           className="gap-2"
                           variant="default"
+                          size="sm"
                         >
                           <CheckCircle2 className="h-4 w-4" />
-                          Complete
+                          <span className="hidden sm:inline">Complete</span>
+                          <span className="sm:hidden">Done</span>
                         </Button>
                       )}
                     </>
@@ -1506,8 +1489,10 @@ export default function JobLabelAIPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-4 flex-wrap">
-                <SearchFilter onSearchChange={setSearchQuery} placeholder="Text search..." />
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+                <div className="flex-1 min-w-0">
+                  <SearchFilter onSearchChange={setSearchQuery} placeholder="Text search..." />
+                </div>
                 {/* {currentFileId && (
                   <SemanticSearchFilter 
                     fileId={currentFileId}
@@ -1515,21 +1500,23 @@ export default function JobLabelAIPage() {
                     placeholder="Semantic search (e.g., thiên nhiên)..."
                   />
                 )} */}
-                <ColumnManager
-                  columns={columns}
-                  data={data}
-                  contextColumn={contextColumn}
-                  resultColumn={resultColumn}
-                  onColumnsUpdateAction={handleColumnsUpdate}
-                  onDataUpdateAction={setData}
-                  onContextColumnChange={setContextColumn}
-                  onResultColumnChange={setResultColumn}
-                />
-                <ColumnVisibility
-                  columns={columns}
-                  visibleColumns={visibleColumns}
-                  onVisibilityChange={setVisibleColumns}
-                />
+                <div className="flex flex-wrap gap-2">
+                  <ColumnManager
+                    columns={columns}
+                    data={data}
+                    contextColumn={contextColumn}
+                    resultColumn={resultColumn}
+                    onColumnsUpdateAction={handleColumnsUpdate}
+                    onDataUpdateAction={setData}
+                    onContextColumnChange={setContextColumn}
+                    onResultColumnChange={setResultColumn}
+                  />
+                  <ColumnVisibility
+                    columns={columns}
+                    visibleColumns={visibleColumns}
+                    onVisibilityChange={setVisibleColumns}
+                  />
+                </div>
               </div>
 
               <ColumnSelector
@@ -1766,7 +1753,7 @@ export default function JobLabelAIPage() {
           }}
           direction="right"
         >
-          <DrawerContent className="h-full data-[vaul-drawer-direction=right]:w-1/2 data-[vaul-drawer-direction=right]:sm:max-w-none">
+          <DrawerContent className="h-full data-[vaul-drawer-direction=right]:w-full data-[vaul-drawer-direction=right]:sm:w-1/2 data-[vaul-drawer-direction=right]:sm:max-w-none">
             <DrawerHeader>
               <DrawerTitle>Label History</DrawerTitle>
               <DrawerDescription>
@@ -1803,9 +1790,8 @@ export default function JobLabelAIPage() {
                 <ScrollArea className="h-[70vh]">
                   <div className="p-4 space-y-3">
                     {historyLoading ? (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Loading history...
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                       </div>
                     ) : historyError ? (
                       <p className="text-sm text-destructive">{historyError}</p>
@@ -1936,7 +1922,7 @@ export default function JobLabelAIPage() {
         </Drawer>
 
         <Dialog open={showCompleteDialog} onOpenChange={setShowCompleteDialog}>
-          <DialogContent>
+          <DialogContent className="w-[calc(100vw-2rem)] max-w-lg">
             <DialogHeader>
               <DialogTitle>Complete Project and Create Dataset</DialogTitle>
               <DialogDescription>

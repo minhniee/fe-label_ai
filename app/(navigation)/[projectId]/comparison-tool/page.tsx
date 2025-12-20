@@ -194,7 +194,11 @@ export default function ProjectComparisonToolPage() {
           <SelectContent align="end">
             {versionOptions.length === 0 ? (
               <SelectItem value="__empty" disabled>
-                {isLoadingVersions ? "Loading..." : "No versions available"}
+                {isLoadingVersions ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  "No versions available"
+                )}
               </SelectItem>
             ) : (
               versionOptions.map((version) => (
@@ -217,10 +221,7 @@ export default function ProjectComparisonToolPage() {
           onClick={() => handleLoadVersion(slot)}
         >
           {loadingSlot === slot ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Loading...
-            </>
+            <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             `Load as ${label.split(" ")[0]}`
           )}
@@ -249,10 +250,7 @@ export default function ProjectComparisonToolPage() {
               disabled={isLoadingDatasets}
             >
               {isLoadingDatasets ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Refreshing...
-                </>
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <>
                   <RefreshCw className="mr-2 h-4 w-4" />
@@ -306,7 +304,11 @@ export default function ProjectComparisonToolPage() {
                   <SelectContent>
                     {datasets.length === 0 ? (
                       <SelectItem value="__empty" disabled>
-                        {isLoadingDatasets ? "Loading..." : "No datasets available"}
+                        {isLoadingDatasets ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          "No datasets available"
+                        )}
                       </SelectItem>
                     ) : (
                       datasets.map((dataset) => (
@@ -319,9 +321,9 @@ export default function ProjectComparisonToolPage() {
                 </Select>
               )}
               {!selectedDatasetId && isLoadingDatasets && (
-                <p className="text-sm text-muted-foreground">
-                  Loading project dataset...
-                </p>
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                </div>
               )}
             </div>
 

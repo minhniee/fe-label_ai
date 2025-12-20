@@ -171,8 +171,17 @@ export default function ProjectConfigPage() {
   };
 
   const handleSendInvitation = async () => {
-    if (!inviteEmail.trim()) {
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const trimmedEmail = inviteEmail.trim();
+    
+    if (!trimmedEmail) {
       toast.error("Please enter an email address");
+      return;
+    }
+
+    if (!emailRegex.test(trimmedEmail)) {
+      toast.error("Please enter a valid email address");
       return;
     }
 
@@ -189,11 +198,11 @@ export default function ProjectConfigPage() {
       };
 
       await createInvitation(parseInt(projectId), {
-        email: inviteEmail,
+        email: trimmedEmail,
         role_id: roleMap[inviteRole] || 5,
       });
 
-      toast.success(`Invitation sent to ${inviteEmail}`);
+      toast.success(`Invitation sent to ${trimmedEmail}`);
       setInviteEmail("");
       setInviteRole("Labeler");
       await loadInvitations();
@@ -304,7 +313,7 @@ export default function ProjectConfigPage() {
   if (!projectId) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <p>Loading project...</p>
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -374,7 +383,7 @@ export default function ProjectConfigPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-4">
+          <div className="flex flex-col gap-4 sm:flex-row">
             <div className="flex-1 space-y-2">
               <Label htmlFor="invite-email">Email Address</Label>
               <Input
@@ -386,7 +395,7 @@ export default function ProjectConfigPage() {
                 disabled={isSendingInvite}
               />
             </div>
-            <div className="w-40 space-y-2">
+            <div className="w-full sm:w-40 space-y-2">
               <Label htmlFor="invite-role">Role</Label>
               <Select
                 value={inviteRole}
@@ -406,6 +415,7 @@ export default function ProjectConfigPage() {
               <Button
                 onClick={handleSendInvitation}
                 disabled={isSendingInvite || !inviteEmail.trim()}
+                className="w-full sm:w-auto"
               >
                 {isSendingInvite ? (
                   <>

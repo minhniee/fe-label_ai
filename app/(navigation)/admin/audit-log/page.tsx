@@ -501,7 +501,7 @@ export default function AuditLogPage() {
                       />
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button
                       variant="outline"
                       size="sm"
@@ -530,14 +530,16 @@ export default function AuditLogPage() {
                       ) : (
                         <Download className="mr-2 h-4 w-4" />
                       )}
-                      {isExporting ? "Exporting..." : "Export All"}
+                      <span className="hidden sm:inline">{isExporting ? "Exporting..." : "Export All"}</span>
+                      <span className="sm:hidden">Export</span>
                     </Button>
                     {filters.projectId && (
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button variant="destructive" size="sm" disabled={loading}>
                             <Trash2 className="mr-2 h-4 w-4" />
-                            Delete Project Logs
+                            <span className="hidden sm:inline">Delete Project Logs</span>
+                            <span className="sm:hidden">Delete</span>
                           </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
@@ -568,7 +570,7 @@ export default function AuditLogPage() {
                 </CardContent>
               </Card>
 
-              <div className="rounded-md border">
+              <div className="rounded-md border overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
