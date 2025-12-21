@@ -1625,6 +1625,7 @@ export default function JobLabelAIPage() {
                 resultColumn={resultColumn}
                 projectId={parseInt(projectId)}
                 originalData={originalData}
+                embeddingConfig={embeddingConfig}
                 onDataUpdate={(updatedRows) => {
                   const preserveUserData = !manualMode
 

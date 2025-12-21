@@ -40,6 +40,11 @@ interface DataGridProps {
   manualMode?: boolean
   projectId?: number
   originalData?: RowData[] // Add originalData for comparison
+  embeddingConfig?: {
+    provider: string
+    apiKey?: string
+    model?: string
+  }
 }
 
 export function DataGrid({
@@ -57,6 +62,7 @@ export function DataGrid({
   manualMode = false,
   projectId,
   originalData = [],
+  embeddingConfig,
 }: DataGridProps) {
   const [editingCell, setEditingCell] = useState<{
     rowId: string
@@ -933,6 +939,9 @@ export function DataGrid({
         onClose={() => setCompareRow(null)}
         allData={allData}
         onDataUpdate={onDataUpdate}
+        projectId={projectId}
+        contextColumn={contextColumn}
+        embeddingConfig={embeddingConfig}
       />
 
       <ExportDialog
