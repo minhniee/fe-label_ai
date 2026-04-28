@@ -18,7 +18,17 @@ interface ModelSelectorProps {
   resultColumn: string
   referenceContext: string
   columns: string[]
+  apiKey?: string
+  selectedModel?: string
   onDataUpdate: (data: RowData[]) => void
+  onLabel?: (
+    rows: RowData[],
+    model: string,
+    apiKey: string,
+    contextColumn: string,
+    referenceContext: string
+  ) => Promise<RowData[]>
+  onTestKey?: (apiKey: string, model: string) => Promise<boolean>
 }
 
 export function ModelSelector({

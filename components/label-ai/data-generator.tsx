@@ -21,6 +21,7 @@ export function DataGenerator({ onDataGenerated }: DataGeneratorProps) {
   const [columns, setColumns] = useState("context, category")
   const [instructions, setInstructions] = useState("")
   const [apiKey, setApiKey] = useState("")
+  const [referenceContext, setReferenceContext] = useState("")
   const [generating, setGenerating] = useState(false)
   const { toast } = useToast()
 
