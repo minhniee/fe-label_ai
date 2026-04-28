@@ -88,25 +88,25 @@ export function TaskList({ tasks, onTaskAction }: TaskListProps) {
     }
   }
 
-  const isOverdue = (dueDate: string) => {
+  const isOverdue = (dueDate: string, status: string) => {
     return new Date(dueDate) < new Date() && status !== "completed"
   }
 
   return (
     <div className="space-y-4">
       {tasks.map((task) => (
-        <Card className=" "
+        <Card
           key={task.id}
-          className={`hover:shadow-md transition-shadow ${isOverdue(task.dueDate) ? "border-red-200 bg-red-50" : ""}`}
+          className={`hover:shadow-md transition-shadow ${isOverdue(task.dueDate, task.status) ? "border-red-200 bg-red-50" : ""}`}
         >
-          <Card className=" "Content className="p-6">
+          <CardContent className="p-6">
             <div className="flex items-start justify-between mb-4">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
                   <h3 className="text-lg font-semibold text-gray-900">{task.title}</h3>
                   <Badge className={getPriorityColor(task.priority)}>{getPriorityText(task.priority)}</Badge>
                   <Badge className={getStatusColor(task.status)}>{getStatusText(task.status)}</Badge>
-                  {isOverdue(task.dueDate) && <Badge className="bg-red-100 text-red-800">Overdue</Badge>}
+                  {isOverdue(task.dueDate, task.status) && <Badge className="bg-red-100 text-red-800">Overdue</Badge>}
                 </div>
                 <p className="text-gray-600 mb-3">{task.description}</p>
 

@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -712,19 +713,17 @@ export function DataLabelingInterface() {
                         const showExcelHiddenBadge = excelHiddenFields.has(field) && !isVisible && !userHiddenFields.has(field);
                         return (
                           <div key={field} className="flex items-center space-x-2">
-                            <input
-                              type="checkbox"
+                            <Checkbox
                               id={field}
                               checked={isVisible}
-                              onChange={(e) => handleColumnVisibility(field, e.target.checked)}
-                              className="rounded border-gray-300"
+                              onCheckedChange={(checked) => handleColumnVisibility(field, !!checked)}
                             />
-                            <label htmlFor={field} className={`text-sm ${!isVisible ? 'text-gray-400' : ''}`}>
+                            <Label htmlFor={field} className={`text-sm ${!isVisible ? 'text-gray-400' : ''}`}>
                               {col.headerName || field}
                               {showExcelHiddenBadge && (
                                 <span className="ml-1 text-xs text-red-500">(Hidden in Excel)</span>
                               )}
-                            </label>
+                            </Label>
                           </div>
                         );
                       })}
