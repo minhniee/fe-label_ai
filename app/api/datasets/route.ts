@@ -4,90 +4,46 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
 
 export async function GET(request: NextRequest) {
   try {
-    // Get auth token from request headers
-    const authHeader = request.headers.get('authorization')
-    
-    const response = await fetch(`${API_BASE}/datasets`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(authHeader && { 'Authorization': authHeader }),
+    // Return mock data directly for the disabled authentication environment
+    const datasets = [
+      {
+        id: "dataset-1",
+        name: "Customer Feedback 2024",
+        description: "Annual customer satisfaction survey results",
+        rowCount: 150,
+        columns: ["id", "customer_name", "feedback_text", "sentiment", "date"],
+        createdAt: "2024-01-10T10:00:00Z",
       },
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: errorData.detail || `HTTP ${response.status}` 
-        },
-        { status: response.status }
-      )
-    }
-
-    const backendData = await response.json()
-    
-    // Transform backend dataset format to component expected format
-    // For each dataset, try to get rowCount and columns from the latest version's file
-    const datasets = await Promise.all(
-      (Array.isArray(backendData) ? backendData : []).map(async (ds: any) => {
-        let rowCount = 0
-        let columns: string[] = []
-        
-        try {
-          // Get versions for this dataset to find the latest one
-          const versionsResponse = await fetch(`${API_BASE}/datasets/${ds.dataset_id}/versions`, {
-            headers: {
-              'Content-Type': 'application/json',
-              ...(authHeader && { 'Authorization': authHeader }),
-            },
-          })
-          
-          if (versionsResponse.ok) {
-            const versions = await versionsResponse.json()
-            if (Array.isArray(versions) && versions.length > 0) {
-              // Get the latest version (first one, as they're ordered desc)
-              const latestVersion = versions[0]
-              
-              // Get files for the latest version
-              const filesResponse = await fetch(`${API_BASE}/datasets/versions/${latestVersion.version_id}/files`, {
-                headers: {
-                  'Content-Type': 'application/json',
-                  ...(authHeader && { 'Authorization': authHeader }),
-                },
-              })
-              
-              if (filesResponse.ok) {
-                const files = await filesResponse.json()
-                if (Array.isArray(files) && files.length > 0) {
-                  const file = files[0]
-                  rowCount = file.line_count || 0
-                  columns = file.column_names || []
-                }
-              }
-            }
-          }
-        } catch (err) {
-          // If fetching version/file data fails, use defaults
-          // This is non-critical, so we continue
-        }
-        
-        return {
-          id: String(ds.dataset_id),
-          name: ds.name || '',
-          description: ds.description || '',
-          rowCount,
-          columns,
-          createdAt: ds.created_at || new Date().toISOString(),
-        }
-      })
-    )
+      {
+        id: "dataset-2",
+        name: "E-commerce Product Catalog",
+        description: "List of products and their current pricing",
+        rowCount: 320,
+        columns: ["product_id", "product_name", "description", "category", "price"],
+        createdAt: "2024-02-15T14:30:00Z",
+      },
+      {
+        id: "dataset-3",
+        name: "Support Ticket Logs",
+        description: "Customer support interactions and resolutions",
+        rowCount: 89,
+        columns: ["ticket_id", "subject", "description", "priority", "status"],
+        createdAt: "2024-03-01T09:15:00Z",
+      },
+      {
+        id: "dataset-4",
+        name: "Spam Detection Corpus",
+        description: "Large collection of labeled spam and ham emails",
+        rowCount: 500,
+        columns: ["email_id", "subject", "body", "sender", "is_spam"],
+        createdAt: "2024-03-20T16:45:00Z",
+      }
+    ];
     
     return NextResponse.json({
       success: true,
       datasets
-    })
+    });
   } catch (error) {
     return NextResponse.json(
       { 

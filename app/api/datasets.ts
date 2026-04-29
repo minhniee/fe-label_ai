@@ -54,13 +54,25 @@ export interface FilePreviewResponse {
 // Get all datasets
 export async function getDatasets() {
   try {
-    const response = await axios.get<Dataset[]>(`${API_BASE}/datasets`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
+    // Return mock data directly for the disabled authentication environment
+    return [
+      {
+        dataset_id: 1,
+        name: "Customer Feedback 2024",
+        description: "Annual customer satisfaction survey results",
+        created_by_username: "MockAdmin",
+        created_at: "2024-01-10T10:00:00Z",
+        updated_at: "2024-01-10T10:00:00Z",
       },
-    })
-    return response.data
+      {
+        dataset_id: 2,
+        name: "E-commerce Product Catalog",
+        description: "List of products and their current pricing",
+        created_by_username: "MockAdmin",
+        created_at: "2024-02-15T14:30:00Z",
+        updated_at: "2024-02-15T14:30:00Z",
+      }
+    ];
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to get datasets'
     throw new Error(errorMessage)
@@ -123,13 +135,16 @@ export async function createDatasetVersion(datasetId: number, changelog?: string
 // Get dataset versions
 export async function getDatasetVersions(datasetId: number) {
   try {
-    const response = await axios.get<DatasetVersion[]>(`${API_BASE}/datasets/${datasetId}/versions`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-    })
-    return response.data
+    return [
+      {
+        version_id: 1,
+        dataset_id: datasetId,
+        version_number: 1,
+        changelog: "Initial version",
+        created_at: "2024-01-01T12:00:00Z",
+        created_by: 1
+      }
+    ];
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to get dataset versions'
     throw new Error(errorMessage)
@@ -166,13 +181,19 @@ export async function uploadFileToVersion(versionId: number, file: File, fileTyp
 // Get version files
 export async function getVersionFiles(versionId: number) {
   try {
-    const response = await axios.get<DataFile[]>(`${API_BASE}/datasets/versions/${versionId}/files`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-    })
-    return response.data
+    return [
+      {
+        file_id: 1,
+        version_id: versionId,
+        file_name: "data.csv",
+        file_path: "/mock/data.csv",
+        file_type: "csv",
+        line_count: 100,
+        column_count: 5,
+        uploaded_by: 1,
+        uploaded_at: "2024-01-01T12:00:00Z"
+      }
+    ];
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to get version files'
     throw new Error(errorMessage)
@@ -180,55 +201,16 @@ export async function getVersionFiles(versionId: number) {
 }
 
 // Get preview of a file's content (parsed rows/headers)
-export async function getFilePreview(fileId: number) {
+export async function getFilePreview(fileId: number): Promise<FilePreviewResponse> {
   try {
-    const response = await axios.get<any>(`${API_BASE}/datasets/files/${fileId}/preview`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-    })
-    const raw = response.data
-    
-    // If backend already returns headers/rows, pass through
-    if (raw && Array.isArray(raw.headers) && Array.isArray(raw.rows)) {
-      return { headers: raw.headers as string[], rows: raw.rows as string[][] } as FilePreviewResponse
-    }
-
-    // If backend returns preview_lines: string[] (first is header)
-    if (raw && Array.isArray(raw.preview_lines) && raw.preview_lines.length > 0) {
-      const parseCsvLine = (line: string): string[] => {
-        const result: string[] = []
-        let current = ""
-        let inQuotes = false
-        for (let i = 0; i < line.length; i++) {
-          const ch = line[i]
-          if (ch === '"') {
-            if (inQuotes && line[i + 1] === '"') {
-              current += '"'
-              i++
-            } else {
-              inQuotes = !inQuotes
-            }
-          } else if (ch === ',' && !inQuotes) {
-            result.push(current)
-            current = ""
-          } else {
-            current += ch
-          }
-        }
-        result.push(current)
-        return result
-      }
-
-      const [headerLine, ...rowLines] = raw.preview_lines as string[]
-      const headers = parseCsvLine(headerLine).map((h) => h.trim() || "column")
-      const rows = rowLines.map((l) => parseCsvLine(l))
-      return { headers, rows } as FilePreviewResponse
-    }
-
-    // Fallback empty
-    return { headers: [], rows: [] } as FilePreviewResponse
+    return {
+      headers: ["id", "text", "label", "date", "source"],
+      rows: [
+        ["1", "Service was great", "positive", "2024-01-10", "Survey"],
+        ["2", "Shipping was slow", "negative", "2024-01-11", "Review"],
+        ["3", "Average product", "neutral", "2024-01-12", "Email"]
+      ]
+    };
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || error.message || 'Failed to get file preview'
     throw new Error(errorMessage)

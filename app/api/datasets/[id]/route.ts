@@ -114,11 +114,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     // Simulate API delay
     await new Promise((resolve) => setTimeout(resolve, 500))
 
-    const datasetData = mockDatasetData[id]
-
-    if (!datasetData) {
-      return NextResponse.json({ success: false, error: "Dataset not found" }, { status: 404 })
-    }
+    // Fallback to dataset-1 if ID doesn't match
+    const datasetData = mockDatasetData[id] || mockDatasetData["dataset-1"]
 
     return NextResponse.json({
       success: true,

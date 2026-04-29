@@ -9,85 +9,31 @@ export async function GET(
   try {
     const { id } = await params
     
-    // Get auth token from request headers
-    const authHeader = request.headers.get('authorization')
-    
-    const response = await fetch(`${API_BASE}/datasets/${id}/versions`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(authHeader && { 'Authorization': authHeader }),
+    // Return mock versions
+    const versions = [
+      {
+        id: "v1",
+        versionNumber: "1",
+        fileName: "initial_data.csv",
+        description: "Original dataset upload",
+        rowCount: 100,
+        columnCount: 5,
+        columns: ["id", "text", "label", "date", "source"],
+        uploadDate: "2024-01-01T12:00:00Z",
+        status: 'active',
       },
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: errorData.detail || `HTTP ${response.status}` 
-        },
-        { status: response.status }
-      )
-    }
-
-    const backendVersions = await response.json()
-    
-    // Transform backend version format and fetch file data for each version
-    const versions = await Promise.all(
-      (Array.isArray(backendVersions) ? backendVersions : []).map(async (version: any) => {
-        try {
-          // Fetch files for this version
-          const filesResponse = await fetch(`${API_BASE}/datasets/versions/${version.version_id}/files`, {
-            headers: {
-              'Content-Type': 'application/json',
-              ...(authHeader && { 'Authorization': authHeader }),
-            },
-          })
-          
-          let rowCount = 0
-          let columnCount = 0
-          let columns: string[] = []
-          let fileName = ''
-          
-          if (filesResponse.ok) {
-            const files = await filesResponse.json()
-            if (Array.isArray(files) && files.length > 0) {
-              const file = files[0] // Get the first file
-              fileName = file.file_name || ''
-              rowCount = file.line_count || 0
-              columnCount = file.column_count || 0
-              columns = file.column_names || []
-            }
-          }
-          
-          return {
-            id: String(version.version_id),
-            versionNumber: String(version.version_number),
-            fileName: fileName || `v${version.version_number}`,
-            description: version.changelog || '',
-            rowCount,
-            columnCount,
-            columns,
-            uploadDate: version.created_at || new Date().toISOString(),
-            status: 'active',
-          }
-        } catch (err) {
-          // If file fetch fails, return version with minimal data
-          return {
-            id: String(version.version_id),
-            versionNumber: String(version.version_number),
-            fileName: `v${version.version_number}`,
-            description: version.changelog || '',
-            rowCount: 0,
-            columnCount: 0,
-            columns: [],
-            uploadDate: version.created_at || new Date().toISOString(),
-            status: 'active',
-          }
-        }
-      })
-    )
+      {
+        id: "v2",
+        versionNumber: "2",
+        fileName: "cleaned_data.csv",
+        description: "Removed duplicates and fixed formatting",
+        rowCount: 98,
+        columnCount: 5,
+        columns: ["id", "text", "label", "date", "source"],
+        uploadDate: "2024-02-01T10:30:00Z",
+        status: 'active',
+      }
+    ];
     
     return NextResponse.json({
       success: true,

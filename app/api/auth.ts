@@ -80,19 +80,16 @@ export function persistAuth(token: TokenResponse) {
   } catch {}
 }
 
-export async function getMe() {
-  try {
-    const response = await axios.get<MeResponse>(`${API_BASE}/auth/me`, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      withCredentials: true,
-    })
-    return response.data
-  } catch (error: any) {
-    const errorMessage = error.response?.data?.detail || error.message || 'Failed to get user info'
-    throw new Error(errorMessage)
-  }
+export async function getMe(): Promise<MeResponse> {
+  // Return mock user info for disabled auth environment
+  return {
+    user_id: 1,
+    username: "MockAdmin",
+    email: "admin@example.com",
+    role_id: 1,
+    role_name: "Admin",
+    created_at: new Date().toISOString()
+  };
 }
 
 export async function logout() {

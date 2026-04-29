@@ -8,9 +8,7 @@ export default function Layout({
   children: React.ReactNode
 }) {
   return (
-    <AuthGuard>
-      <DashboardLayout>{children}</DashboardLayout>
-    </AuthGuard>
+    <DashboardLayout>{children}</DashboardLayout>
   )
 }
 
